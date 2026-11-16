@@ -9,7 +9,7 @@
 // binds its path as the global name, so it is aliased below.
 
 import "../src/triples"
-import "../src/rules"
+import "../src/rule"
 import "harness"
 import "display"
 import "proofs"
@@ -17,10 +17,11 @@ import "recursion"
 import "relations"
 
 triples = globals["../src/triples"]
-rules = globals["../src/rules"]
+// rule.ms holds the Rule class; the cases build the rules they test with it.
+rules = globals["../src/rule"]
 
 if triples == null or rules == null then
-	print "error: could not import ../src/triples and ../src/rules"
+	print "error: could not import ../src/triples and ../src/rule"
 	exit 1
 end if
 
@@ -33,7 +34,7 @@ for name in ["SpoTriple", "proveGoals", "substitute", "NotEqual", "proofLines", 
 	end if
 end for
 if rules.hasIndex("Rule") == 0 then
-	print "error: ../src/rules loaded without Rule"
+	print "error: ../src/rule loaded without Rule"
 	exit 1
 end if
 

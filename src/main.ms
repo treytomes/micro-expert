@@ -6,7 +6,6 @@
 
 import "cli"
 import "triples"
-import "rules"
 import "logging"
 
 // ── Logging ──────────────────────────────────────────────────────────────────
@@ -125,13 +124,6 @@ notEqual = function(left, right)
 	return triples.NotEqual.make(left, right)
 end function
 
-rule = function(head, body=null)
-	"Defines a rule: head is the then-part, body one condition or a list of them."
-	if body == null then return rules.Rule.make(head, [])
-	if body isa list then return rules.Rule.make(head, body)
-	return rules.Rule.make(head, [body])
-end function
-
 runQuery = function(query)
 	print "Query: " + query.text
 	for proof in triples.proveGoals(query, facts, rules, options.values.depth)
@@ -146,76 +138,19 @@ runQuery = function(query)
 end function
 
 // ── Facts and rules ──────────────────────────────────────────────────────────
-// An imaginary family: Walter and Doris, their three married sons, and the sons'
-// one, two and four children. Marriage is recorded once per couple and a rule turns
-// it around, while every child has both parents, so a query can start from either
-// person. Genders and ages are facts like any other, so a rule can range over them.
 
-facts = [
-	// Walter and Doris.
-	fact("walter", "has-gender", "male"),
-	fact("walter", "has-age", 78),
-	fact("doris", "has-gender", "female"),
-	fact("doris", "has-age", 76),
-	fact("walter", "married-to", "doris"),
+// The family tree lives in facts.ms and the reasoning in rules.ms. Both build their
+// arrays on request instead of at load time, because the triples have to come from
+// this file's copy of triples.ms: a module that imports it gets a copy of its own,
+// and the solver does not recognize another copy's classes. So both are handed this
+// file's copy.
 
-	// Their three sons.
-	fact("walter", "parent-of", "bill"),
-	fact("doris", "parent-of", "bill"),
-	fact("walter", "parent-of", "george"),
-	fact("doris", "parent-of", "george"),
-	fact("walter", "parent-of", "henry"),
-	fact("doris", "parent-of", "henry"),
-	fact("bill", "has-gender", "male"),
-	fact("bill", "has-age", 54),
-	fact("george", "has-gender", "male"),
-	fact("george", "has-age", 51),
-	fact("henry", "has-gender", "male"),
-	fact("henry", "has-age", 47),
+import "facts"
+import "rules"
 
-	// Bill and Susan, with one son.
-	fact("bill", "married-to", "susan"),
-	fact("susan", "has-gender", "female"),
-	fact("susan", "has-age", 52),
-	fact("bill", "parent-of", "tim"),
-	fact("susan", "parent-of", "tim"),
-	fact("tim", "has-gender", "male"),
-	fact("tim", "has-age", 24),
-
-	// George and Diane, with a daughter and a son.
-	fact("george", "married-to", "diane"),
-	fact("diane", "has-gender", "female"),
-	fact("diane", "has-age", 49),
-	fact("george", "parent-of", "anna"),
-	fact("diane", "parent-of", "anna"),
-	fact("george", "parent-of", "mark"),
-	fact("diane", "parent-of", "mark"),
-	fact("anna", "has-gender", "female"),
-	fact("anna", "has-age", 21),
-	fact("mark", "has-gender", "male"),
-	fact("mark", "has-age", 18),
-
-	// Henry and Rachel, with two daughters and two sons.
-	fact("henry", "married-to", "rachel"),
-	fact("rachel", "has-gender", "female"),
-	fact("rachel", "has-age", 45),
-	fact("henry", "parent-of", "clara"),
-	fact("rachel", "parent-of", "clara"),
-	fact("henry", "parent-of", "jack"),
-	fact("rachel", "parent-of", "jack"),
-	fact("henry", "parent-of", "nina"),
-	fact("rachel", "parent-of", "nina"),
-	fact("henry", "parent-of", "oliver"),
-	fact("rachel", "parent-of", "oliver"),
-	fact("clara", "has-gender", "female"),
-	fact("clara", "has-age", 15),
-	fact("jack", "has-gender", "male"),
-	fact("jack", "has-age", 13),
-	fact("nina", "has-gender", "female"),
-	fact("nina", "has-age", 10),
-	fact("oliver", "has-gender", "male"),
-	fact("oliver", "has-age", 7),
-]
+// The arrays themselves, not the module maps that hold them.
+facts = globals["facts"].build(triples)
+rules = globals["rules"].build(triples)
 
 // 'known', not 'fact': a top-level loop variable is a global here, so naming it
 // fact would overwrite the fact() shorthand with a triple as soon as the loop ran.
@@ -225,30 +160,7 @@ for known in facts
 	log.debug "(fact) {Fact}", {"Fact": known.text}
 end for
 
-// (<- (child-of ?x ?y) (parent-of ?y ?x)): if y is a parent of x, x is the child of y.
-childOf = rule(
-	fact(var("x"), "child-of", var("y")),
-	fact(var("y"), "parent-of", var("x")))
-
-// (<- (married-to ?y ?x) (married-to ?x ?y)): marriage is a two-way street, so one
-// fact per couple can answer from either side.
-marriedBothWays = rule(
-	fact(var("y"), "married-to", var("x")),
-	fact(var("x"), "married-to", var("y")))
-
-// (<- (sibling-of ?x ?y) (parent-of ?p ?x) (parent-of ?p ?y) (?x != ?y)): two
-// people are siblings when they share at least one parent, so half-siblings count
-// too, and nobody is their own sibling.
-siblingOf = rule(
-	fact(var("x"), "sibling-of", var("y")),
-	[
-		fact(var("p"), "parent-of", var("x")),
-		fact(var("p"), "parent-of", var("y")),
-		notEqual(var("x"), var("y")),
-	])
-
-rules = [childOf, marriedBothWays, siblingOf]
-
+// Rules are debug detail too, so they are logged in the order search tries them.
 for r in rules
 	log.debug "(rule) {Rule}", {"Rule": r.text}
 end for
@@ -262,6 +174,7 @@ end for
 //
 // --depth bounds how many rules deep the search may go; 0 means facts only.
 
-runQuery fact(var("x"), "child-of", var("y"))
+// runQuery fact(var("x"), "child-of", var("y"))
+runQuery fact("bill", "uncle-of", var("?p"))
 
 finish 0

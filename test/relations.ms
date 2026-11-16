@@ -102,4 +102,107 @@ run = function(t, rules, h)
 		siblingsOf("bill", "george")[0].reasons.len == 2)
 	openSiblings = t.proveGoals(spo(v("a"), "sibling-of", v("b")), family, [siblingRule], 2)
 	h.check("no self pairs in an open query", openSiblings.len == 6)
+
+	// ── Brothers and sisters ───────────────────────────────────────────────
+
+	// Three brothers and a sister: Bill and George share both parents, Tim shares
+	// only Walter, Clara shares both but with a different gender.
+	house = [
+		spo("walter", "parent-of", "bill"),
+		spo("doris", "parent-of", "bill"),
+		spo("walter", "parent-of", "george"),
+		spo("doris", "parent-of", "george"),
+		spo("walter", "parent-of", "tim"),
+		spo("walter", "parent-of", "clara"),
+		spo("doris", "parent-of", "clara"),
+		spo("bill", "has-gender", "male"),
+		spo("george", "has-gender", "male"),
+		spo("tim", "has-gender", "male"),
+		spo("clara", "has-gender", "female"),
+	]
+	houseSibling = rule(spo(v("x"), "sibling-of", v("y")),
+		[spo(v("p"), "parent-of", v("x")), spo(v("p"), "parent-of", v("y")),
+			t.NotEqual.make(v("x"), v("y"))])
+	brotherRule = rule(spo(v("x"), "brother-of", v("y")),
+		[spo(v("x"), "sibling-of", v("y")), spo(v("x"), "has-gender", "male")])
+	sisterRule = rule(spo(v("x"), "sister-of", v("y")),
+		[spo(v("x"), "sibling-of", v("y")), spo(v("x"), "has-gender", "female")])
+	kinRules = [houseSibling, brotherRule, sisterRule]
+
+	brothers = function(a, b)
+		return t.proveGoals(spo(a, "brother-of", b), house, kinRules, 4)
+	end function
+	sisters = function(a, b)
+		return t.proveGoals(spo(a, "sister-of", b), house, kinRules, 4)
+	end function
+
+	h.check("a brother is a male sibling", brothers("bill", "george").len == 1)
+	h.check("a half-brother still counts", brothers("tim", "bill").len == 1)
+	h.check("a sister is a female sibling", sisters("clara", "bill").len == 1)
+	h.check("a sister is not a brother", brothers("clara", "bill").len == 0)
+	h.check("a brother is not a sister", sisters("bill", "george").len == 0)
+	h.check("the gender belongs to the brother", brothers("bill", "clara").len == 1)
+	h.check("a parent is neither", brothers("bill", "walter").len + sisters("bill", "walter").len == 0)
+	h.check("both rules are needed for an answer",
+		t.proveGoals(spo("bill", "brother-of", "george"), house, kinRules, 1).len == 0)
+	h.check("the brother rule prints its conditions",
+		brotherRule.text == "brother-of(?x, ?y) <- sibling-of(?x, ?y), has-gender(?x, male)")
+
+	// ── Uncles, aunts and grandparents ─────────────────────────────────────
+
+	// Walter and Doris are Bill's, George's and Clara's parents, Walter also fathered
+	// Henry by someone else, Tim is Bill's son and Jack is George's: so George and
+	// Henry (Bill's half-brother) are Tim's uncles and Clara is his aunt.
+	lineage = [
+		spo("walter", "parent-of", "bill"),
+		spo("doris", "parent-of", "bill"),
+		spo("walter", "parent-of", "george"),
+		spo("doris", "parent-of", "george"),
+		spo("walter", "parent-of", "clara"),
+		spo("doris", "parent-of", "clara"),
+		spo("walter", "parent-of", "henry"),
+		spo("bill", "parent-of", "tim"),
+		spo("george", "parent-of", "jack"),
+		spo("walter", "has-gender", "male"),
+		spo("bill", "has-gender", "male"),
+		spo("george", "has-gender", "male"),
+		spo("tim", "has-gender", "male"),
+		spo("jack", "has-gender", "male"),
+		spo("henry", "has-gender", "male"),
+		spo("doris", "has-gender", "female"),
+		spo("clara", "has-gender", "female"),
+	]
+	lineageSibling = rule(spo(v("x"), "sibling-of", v("y")),
+		[spo(v("p"), "parent-of", v("x")), spo(v("p"), "parent-of", v("y")),
+			t.NotEqual.make(v("x"), v("y"))])
+	uncleRule = rule(spo(v("x"), "uncle-of", v("y")),
+		[spo(v("p"), "parent-of", v("y")), spo(v("x"), "sibling-of", v("p")),
+			spo(v("x"), "has-gender", "male")])
+	auntRule = rule(spo(v("x"), "aunt-of", v("y")),
+		[spo(v("p"), "parent-of", v("y")), spo(v("x"), "sibling-of", v("p")),
+			spo(v("x"), "has-gender", "female")])
+	grandpaRule = rule(spo(v("x"), "grandpa-of", v("y")),
+		[spo(v("p"), "parent-of", v("y")), spo(v("x"), "parent-of", v("p")),
+			spo(v("x"), "has-gender", "male")])
+	grandmaRule = rule(spo(v("x"), "grandma-of", v("y")),
+		[spo(v("p"), "parent-of", v("y")), spo(v("x"), "parent-of", v("p")),
+			spo(v("x"), "has-gender", "female")])
+	kinAll = [lineageSibling, uncleRule, auntRule, grandpaRule, grandmaRule]
+
+	ask = function(predicate, a, b)
+		return t.proveGoals(spo(a, predicate, b), lineage, kinAll, 4)
+	end function
+
+	h.check("an uncle is a male sibling of a parent", ask("uncle-of", "george", "tim").len == 1)
+	h.check("an aunt is a female sibling of a parent", ask("aunt-of", "clara", "tim").len == 1)
+	h.check("a half-sibling of a parent still counts", ask("uncle-of", "henry", "tim").len == 1)
+	h.check("an aunt is not an uncle", ask("uncle-of", "clara", "tim").len == 0)
+	h.check("an uncle is not an aunt", ask("aunt-of", "george", "tim").len == 0)
+	h.check("a parent is neither", ask("uncle-of", "bill", "tim").len == 0)
+	h.check("a grandpa is a male parent of a parent", ask("grandpa-of", "walter", "tim").len == 1)
+	h.check("a grandma is a female parent of a parent", ask("grandma-of", "doris", "tim").len == 1)
+	h.check("a grandmother is not a grandfather", ask("grandpa-of", "doris", "tim").len == 0)
+	h.check("a parent is not a grandparent", ask("grandpa-of", "bill", "tim").len == 0)
+	h.check("the uncle rule prints its conditions",
+		uncleRule.text == "uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)")
 end function
