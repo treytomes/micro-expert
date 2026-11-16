@@ -333,20 +333,28 @@ end function
 
 proofLines = function(goal, answer, indent="")
 	"Describes every derivation of an answer, with the conditions behind each."
-	lines = []
-	for reason in answer.reasons
-		lines = lines + derivationLines(goal, answer.binds, reason, indent)
-	end for
-	return lines
+	return appendDerivations(goal, answer.binds, answer.reasons, indent, [])
 end function
 
 derivationLines = function(goal, binds, reason, indent)
 	"One derivation: the answer, where it came from, then its conditions."
-	lines = [indent + substitute(goal, binds).text + "  <- " + reasonText(reason)]
-	for condition in reason.conditions
-		lines = lines + proofLines(condition.goal, condition, indent + "  ")
-	end for
-	return lines
+	return appendDerivations(goal, binds, [reason], indent, [])
+end function
+
+appendDerivations = function(goal, binds, reasons, indent, lines)
+	"Recurses over derivations, appending each block to one buffer."
+	if reasons.len == 0 then return lines
+	reason = reasons[0]
+	lines.push(indent + substitute(goal, binds).text + "  <- " + reasonText(reason))
+	appendConditions(reason.conditions, indent + "  ", lines)
+	return appendDerivations(goal, binds, reasons[1:], indent, lines)
+end function
+
+appendConditions = function(conditions, indent, lines)
+	"Recurses over a rule's proved conditions, appending each block in turn."
+	if conditions.len == 0 then return lines
+	appendDerivations(conditions[0].goal, conditions[0].binds, conditions[0].reasons, indent, lines)
+	return appendConditions(conditions[1:], indent, lines)
 end function
 
 // ── Parsing ───────────────────────────────────────────────────────────────────
