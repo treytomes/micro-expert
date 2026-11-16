@@ -13,6 +13,8 @@
 //   print triples.OavTriple.parse("oav(gluten | contains | gliadin)").text
 //   print triples.SpoTriple.make(triples.var("x"), "child", "?y").text
 //   // spo(?x | child | ?y)
+//   print triples.unify(triples.SpoTriple.parse("?x | child | ?y"),
+//       triples.SpoTriple.parse("susan | child | bill"))   // {"x": "susan", "y": "bill"}
 
 // ── Var: a logic variable, written ?x ────────────────────────────────────────
 
@@ -120,6 +122,75 @@ OavTriple.toSpo = function
 		return SpoTriple.make(self.object, self.attribute, self.value)
 	end if
 	return SpoTriple.make(self.object, "has-" + self.attribute, self.value)
+end function
+
+// ── Unification ───────────────────────────────────────────────────────────────
+
+unify = function(pattern, fact, binds=null)
+	"Unifies a pattern against a fact: a bindings map (may be empty) or null."
+	// Work on a copy: a match that fails partway must not leave its partial
+	// bindings behind in the caller's map.
+	working = {}
+	if binds != null then
+		for name in binds.indexes
+			working[name] = binds[name]
+		end for
+	end if
+	matches = null
+	if pattern isa SpoTriple then
+		if not (fact isa SpoTriple) then return null
+		matches = unifyParts(pattern, fact, working)
+	else if pattern isa OavTriple then
+		if not (fact isa OavTriple) then return null
+		matches = unifyParts(pattern, fact, working)
+	else
+		matches = unifyTerms(pattern, fact, working)
+	end if
+	if matches == null then return null
+	return resolveBindings(matches)
+end function
+
+unifyParts = function(pattern, fact, binds)
+	"Unifies the three fields of two triples of the same shape."
+	for i in range(0, 2)
+		binds = unifyTerms(pattern.parts[i], fact.parts[i], binds)
+		if binds == null then return null
+	end for
+	return binds
+end function
+
+unifyTerms = function(left, right, binds)
+	"Adds whatever binding makes two terms equal, or null when they cannot agree."
+	left = deref(left, binds)
+	right = deref(right, binds)
+	if left == right then return binds
+	if left isa Var then
+		binds[left.name] = right
+		return binds
+	end if
+	if right isa Var then
+		binds[right.name] = left
+		return binds
+	end if
+	return null
+end function
+
+deref = function(term, binds)
+	"Follows bindings until a non-variable or an unbound variable."
+	while term isa Var
+		if not binds.hasIndex(term.name) then return term
+		term = binds[term.name]
+	end while
+	return term
+end function
+
+resolveBindings = function(binds)
+	"Resolves every binding through the others, so no value is a bound variable."
+	resolved = {}
+	for name in binds.indexes
+		resolved[name] = deref(binds[name], binds)
+	end for
+	return resolved
 end function
 
 // ── Parsing ───────────────────────────────────────────────────────────────────
