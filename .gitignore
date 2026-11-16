@@ -1,4 +1,5 @@
 .env
 .freebuff
+logs/
 3rd-party
 vscode-miniscript/out/

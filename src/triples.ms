@@ -193,6 +193,20 @@ resolveBindings = function(binds)
 	return resolved
 end function
 
+substitute = function(term, binds)
+	"Applies bindings: a new triple with resolved fields, or the resolved term."
+	if binds == null then return term
+	if term isa SpoTriple then
+		return SpoTriple.make(deref(term.subject, binds), deref(term.predicate, binds),
+			deref(term.object, binds))
+	end if
+	if term isa OavTriple then
+		return OavTriple.make(deref(term.object, binds), deref(term.attribute, binds),
+			deref(term.value, binds))
+	end if
+	return deref(term, binds)
+end function
+
 // ── Parsing ───────────────────────────────────────────────────────────────────
 
 parseLine = function(line, shape, names)

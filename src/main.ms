@@ -7,6 +7,13 @@
 import "cli"
 import "triples"
 import "rules"
+import "logging"
+
+// ── Logging ──────────────────────────────────────────────────────────────────
+// Console output plus a daily rolling file under logs/ (app-YYYYMMDD.log, with
+// the last seven kept), reproducing the Serilog setup used by NLP.REPL.
+
+log = logging.newLogger({"name": "micro-expert"})
 
 // ── Triples ──────────────────────────────────────────────────────────────────
 // Shorthands for the two triplet types and logic variables; the classes live in
@@ -37,6 +44,19 @@ rule = function(head, body=null)
 end function
 
 cmd = cli.newCommand("micro-expert", "0.1.0", "A little expert system for MiniScript 2.")
+
+log.information("{App} {Version} starting", {"App": cmd.name, "Version": cmd.version})
+arguments = shellArgs[1:]
+argumentText = arguments.join(" ")
+if argumentText == "" then argumentText = "(none)"
+log.information("Command-line arguments ({Count}): {Arguments}", {"Count": arguments.len, "Arguments": argumentText})
+
+finish = function(code=0)
+	"Logs the exit and stops the program with the given status code."
+	log.information("{App} exiting with code {Code}", {"App": cmd.name, "Code": code})
+	exit code
+end function
+
 cli.add(cmd, {
 	"name": "facts",
 	"aliases": ["--facts", "-f"],
@@ -86,18 +106,18 @@ options = cli.parse(cmd, shellArgs)
 
 if options.help then
 	print cli.helpText(cmd)
-	exit
+	finish 0
 end if
 
 if options.version then
 	print cli.versionLine(cmd)
-	exit
+	finish 0
 end if
 
 if not options.ok then
 	print "error: " + options.error
 	print "Run " + cmd.name + " --help for usage."
-	exit 1
+	finish 1
 end if
 
 // ── Report what was parsed ────────────────────────────────────────────────────
@@ -134,13 +154,34 @@ end if
 print oav("bill", "gender", "male").text
 print oav("susan", "gender", "female").text
 print oav("tim", "gender", "male").text
-print spo("bill", "parent", "susan").text
-print spo("susan", "parent", "tim").text
+parents = [spo("bill", "parent", "susan"), spo("susan", "parent", "tim")]
+for fact in parents
+	print fact.text
+end for
 
 // (<- (child ?x ?y) (parent ?y ?x)): if y is the parent of x, x is the child of y.
 childOf = rule(
 	spo(var("x"), "child", var("y")),
 	spo(var("y"), "parent", var("x")))
 print childOf.text
+
+// ── Answering with a rule ────────────────────────────────────────────────────
+// A rule's body is the part that talks about existing facts, so the body is what
+// gets matched: childOf.body says "?y is the parent of ?x", which is exactly what
+// a parent fact asserts.
+//
+// The head cannot match a parent fact. It says "?x is the child of ?y", and
+// unification requires identical literals in the same position, so 'child' can
+// never equal 'parent'. The head is the shape of the answer: substitute the body's
+// match into it and the result is the fact the rule has proved.
+
+for fact in parents
+	binds = triples.unify(childOf.body[0], fact)
+	if binds != null then
+		print fact.text + " => " + triples.substitute(childOf.head, binds).text
+	end if
+end for
+
+finish 0
 
 
