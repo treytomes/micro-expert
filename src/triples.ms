@@ -1,4 +1,4 @@
-// triples.ms — the terms and the two triplet shapes the knowledge base is built from.
+// triples.ms — the terms, the triple, and the reasoner over them.
 //
 // The classes live together on purpose: a module that imports another module gets
 // its own copy of it, and each copy carries its own class maps, so `isa` would
@@ -6,15 +6,13 @@
 //
 //   import "triples"
 //   spo = triples.SpoTriple.make("trey", "avoids", "gluten")
-//   oav = triples.OavTriple.make("gluten", "contains", "gliadin")
-//   print oav.toSpo.text           // spo(gluten | has-contains | gliadin)
-//   print triples.SpoTriple.parse("trey | avoids | gluten").text
-//   print triples.SpoTriple.parse(oav.toSpo.text).text   // display form reads back
-//   print triples.OavTriple.parse("oav(gluten | contains | gliadin)").text
+//   print spo.text                          // avoids(trey, gluten)
+//   print triples.SpoTriple.parse("avoids(trey, gluten)").text   // reads back
+//   print triples.SpoTriple.parse("trey | avoids | gluten").text // same triple
 //   print triples.SpoTriple.make(triples.var("x"), "child", "?y").text
-//   // spo(?x | child | ?y)
-//   print triples.unify(triples.SpoTriple.parse("?x | child | ?y"),
-//       triples.SpoTriple.parse("susan | child | bill"))   // {"x": "susan", "y": "bill"}
+//   // child(?x, ?y)
+//   print triples.unify(triples.SpoTriple.parse("child(?x, ?y)"),
+//       triples.SpoTriple.parse("child(susan, bill)"))   // {"x": "susan", "y": "bill"}
 
 // ── Var: a logic variable, written ?x ────────────────────────────────────────
 
@@ -44,15 +42,6 @@ termText = function(term)
 	return term
 end function
 
-renderParts = function(parts)
-	"Renders triple fields the way display text shows them."
-	texts = []
-	for part in parts
-		texts.push(termText(part))
-	end for
-	return texts.join(" | ")
-end function
-
 // ── SpoTriple: subject, predicate, object ─────────────────────────────────────
 
 SpoTriple = {}
@@ -67,61 +56,21 @@ SpoTriple.make = function(subject, predicate, object)
 end function
 
 SpoTriple.parse = function(line)
-	"Parses 'a | b | c' or 'spo(a | b | c)'; '?x' fields become Vars. Error on anything else."
-	fields = parseLine(line, "spo", ["subject", "predicate", "object"])
+	"Parses 'predicate(subject, object)' or 'subject | predicate | object'; '?x' fields become Vars."
+	fields = parseLine(line)
 	if fields isa error then return fields
 	return SpoTriple.make(fields[0], fields[1], fields[2])
 end function
 
 SpoTriple.text = function
-	"Formats the triple for display as 'spo(subject | predicate | object)'."
-	return "spo(" + renderParts(self.parts) + ")"
+	"Formats the triple for display as 'predicate(subject, object)'."
+	return termText(self.predicate) + "(" + termText(self.subject) + ", " +
+		termText(self.object) + ")"
 end function
 
 SpoTriple.parts = function
 	"Returns the triple as the list [subject, predicate, object]."
 	return [self.subject, self.predicate, self.object]
-end function
-
-// ── OavTriple: object, attribute, value ───────────────────────────────────────
-
-OavTriple = {}
-
-OavTriple.make = function(object, attribute, value)
-	"Builds a triplet from its object, attribute, and value."
-	t = new OavTriple
-	t.object = object
-	t.attribute = attribute
-	t.value = value
-	return t
-end function
-
-OavTriple.parse = function(line)
-	"Parses 'a | b | c' or 'oav(a | b | c)'; '?x' fields become Vars. Error on anything else."
-	fields = parseLine(line, "oav", ["object", "attribute", "value"])
-	if fields isa error then return fields
-	return OavTriple.make(fields[0], fields[1], fields[2])
-end function
-
-OavTriple.text = function
-	"Formats the triplet for display as 'oav(object | attribute | value)'."
-	return "oav(" + renderParts(self.parts) + ")"
-end function
-
-OavTriple.parts = function
-	"Returns the triplet as the list [object, attribute, value]."
-	return [self.object, self.attribute, self.value]
-end function
-
-OavTriple.toSpo = function
-	"Converts to a SpoTriple: a literal attribute becomes a 'has-' predicate."
-	// 'has-' is a naming convention for literal attributes. A variable attribute
-	// has no literal name to prefix, so it becomes the predicate itself:
-	// oav(?o | ?a | ?v) -> spo(?o | ?a | ?v).
-	if self.attribute isa Var then
-		return SpoTriple.make(self.object, self.attribute, self.value)
-	end if
-	return SpoTriple.make(self.object, "has-" + self.attribute, self.value)
 end function
 
 // ── Unification ───────────────────────────────────────────────────────────────
@@ -139,9 +88,6 @@ unify = function(pattern, fact, binds=null)
 	matches = null
 	if pattern isa SpoTriple then
 		if not (fact isa SpoTriple) then return null
-		matches = unifyParts(pattern, fact, working)
-	else if pattern isa OavTriple then
-		if not (fact isa OavTriple) then return null
 		matches = unifyParts(pattern, fact, working)
 	else
 		matches = unifyTerms(pattern, fact, working)
@@ -200,11 +146,34 @@ substitute = function(term, binds)
 		return SpoTriple.make(deref(term.subject, binds), deref(term.predicate, binds),
 			deref(term.object, binds))
 	end if
-	if term isa OavTriple then
-		return OavTriple.make(deref(term.object, binds), deref(term.attribute, binds),
-			deref(term.value, binds))
-	end if
 	return deref(term, binds)
+end function
+
+// ── Constraints ──────────────────────────────────────────────────────────────
+// A rule body is a list of goals, and it may also hold constraints: conditions
+// that are checked against the bindings rather than proved by search.
+
+NotEqual = {}
+
+NotEqual.make = function(left, right)
+	"Builds a 'these two terms must differ' constraint."
+	c = new NotEqual
+	c.left = left
+	c.right = right
+	return c
+end function
+
+NotEqual.text = function
+	"Says how the constraint reads: ?x != ?y."
+	return termText(self.left) + " != " + termText(self.right)
+end function
+
+holdsConstraint = function(constraint, binds)
+	"Says whether a constraint holds under the current bindings."
+	if constraint isa NotEqual then
+		return substitute(constraint.left, binds) != substitute(constraint.right, binds)
+	end if
+	return false
 end function
 
 // ── Proof search ─────────────────────────────────────────────────────────────
@@ -229,11 +198,16 @@ renameTriple = function(triple, suffix)
 		return SpoTriple.make(renameTerm(triple.subject, suffix),
 			renameTerm(triple.predicate, suffix), renameTerm(triple.object, suffix))
 	end if
-	if triple isa OavTriple then
-		return OavTriple.make(renameTerm(triple.object, suffix),
-			renameTerm(triple.attribute, suffix), renameTerm(triple.value, suffix))
-	end if
 	return triple
+end function
+
+renameConstraint = function(constraint, suffix)
+	"Copies a constraint, renaming the variables it mentions."
+	if constraint isa NotEqual then
+		return NotEqual.make(renameTerm(constraint.left, suffix),
+			renameTerm(constraint.right, suffix))
+	end if
+	return constraint
 end function
 
 standardizeApart = function(candidate)
@@ -241,13 +215,49 @@ standardizeApart = function(candidate)
 	suffix = uniqueSuffix()
 	body = []
 	for condition in candidate.body
-		body.push(renameTriple(condition, suffix))
+		if condition isa SpoTriple then
+			body.push(renameTriple(condition, suffix))
+		else
+			body.push(renameConstraint(condition, suffix))
+		end if
 	end for
 	return {"head": renameTriple(candidate.head, suffix), "body": body}
 end function
 
-proveGoals = function(goal, facts, rules, depth, binds=null)
-	"Every answer to goal, at most depth rules deep, each with all its derivations."
+canonicalText = function(triple)
+	"Renders a triple with its variables numbered by first appearance, so goals that differ only in variable names render the same."
+	names = {}
+	texts = []
+	for part in triple.parts
+		if part isa Var then
+			if names.hasIndex(part.name) == 0 then names[part.name] = "?" + (names.len + 1)
+			texts.push(names[part.name])
+		else
+			texts.push(part)
+		end if
+	end for
+	return texts[0] + "|" + texts[1] + "|" + texts[2]
+end function
+
+goalKey = function(goal, binds)
+	"Identifies a goal as it stands under the current bindings, for loop detection."
+	grounded = substitute(goal, binds)
+	if grounded isa SpoTriple then return canonicalText(grounded)
+	return str(termText(grounded))
+end function
+
+proveGoals = function(goal, facts, rules, depth, binds=null, open=null)
+	"Every answer to goal, at most depth rules deep, each with all its derivations; open is the chain of goals being proved, so a loop stops that branch."
+	if open == null then open = {}
+	key = goalKey(goal, binds)
+	if open.hasIndex(key) then return []
+	// Copy, so one branch's ancestors do not prune its siblings.
+	path = {}
+	for name in open.indexes
+		path[name] = open[name]
+	end for
+	path[key] = 1
+
 	answers = []
 	byText = {}
 	for fact in facts
@@ -261,7 +271,7 @@ proveGoals = function(goal, facts, rules, depth, binds=null)
 		fresh = standardizeApart(candidate)
 		matched = unify(fresh.head, goal, binds)
 		if matched != null then
-			for proved in proveConditions(fresh.body, facts, rules, depth - 1, matched)
+			for proved in proveConditions(fresh.body, facts, rules, depth - 1, matched, path)
 				mergeAnswer(answers, byText, goal, proved.binds, {"rule": candidate, "conditions": proved.proofs})
 			end for
 		end if
@@ -269,13 +279,20 @@ proveGoals = function(goal, facts, rules, depth, binds=null)
 	return answers
 end function
 
-proveConditions = function(conditions, facts, rules, depth, binds)
-	"Proves each condition in turn, keeping an answer for every one of them."
+proveConditions = function(conditions, facts, rules, depth, binds, open=null)
+	"Proves each condition in turn: a goal by search, a constraint by checking it."
 	if conditions.len == 0 then return [{"binds": binds, "proofs": []}]
+	first = conditions[0]
+	if not (first isa SpoTriple) then
+		// A constraint either holds or the branch ends; it proves nothing, so it
+		// contributes no proof to the tree.
+		if not holdsConstraint(first, binds) then return []
+		return proveConditions(conditions[1:], facts, rules, depth, binds, open)
+	end if
 	results = []
-	for first in proveGoals(conditions[0], facts, rules, depth, binds)
-		for rest in proveConditions(conditions[1:], facts, rules, depth, first.binds)
-			results.push({"binds": rest.binds, "proofs": [first] + rest.proofs})
+	for proved in proveGoals(first, facts, rules, depth, binds, open)
+		for rest in proveConditions(conditions[1:], facts, rules, depth, proved.binds, open)
+			results.push({"binds": rest.binds, "proofs": [proved] + rest.proofs})
 		end for
 	end for
 	return results
@@ -317,34 +334,39 @@ end function
 
 // ── Parsing ───────────────────────────────────────────────────────────────────
 
-parseLine = function(line, shape, names)
-	"Reads 'a | b | c' or 'shape(a | b | c)' into three trimmed fields, or an error."
+parseLine = function(line)
+	"Reads 'predicate(subject, object)' or 'subject | predicate | object', or an error."
 	text = trimSpace(line)
 
-	// Another shape's display text would otherwise be read as three fields, with
-	// 'oav(a' quietly becoming the subject.
-	other = otherShapeIn(text, shape)
-	if other != null then
-		return err("malformed " + shape + ": looks like " + other + "(...): " + line)
-	end if
-
-	prefix = shape + "("
-	if text[:prefix.len] == prefix then
-		if text[-1] != ")" then return err(badLine(line, shape, names))
-		text = trimSpace(text[prefix.len:-1])
+	// Text wrapped in one pair of parentheses is a call, and a call that does not
+	// fit fails loudly: falling back to the pipe form would put 'oav(bill' in the
+	// subject and quietly invent a triple.
+	if text[-1] == ")" and text.split("(").len == 2 then
+		called = parseCall(text)
+		if called == null then return err(badLine(line))
+		return called
 	end if
 
 	fields = text.split("|")
-	if fields.len != 3 then return err(badLine(line, shape, names))
+	if fields.len != 3 then return err(badLine(line))
 
 	for i in range(0, 2)
 		fields[i] = trimSpace(fields[i])
-		if fields[i] == "" then
-			return err("malformed " + shape + ": empty " + names[i] + ": " + line)
-		end if
+		if fields[i] == "" then return err("malformed spo: empty field: " + line)
 		fields[i] = termOf(fields[i])
 	end for
 	return fields
+end function
+
+parseCall = function(text)
+	"Reads 'predicate(subject, object)' into [subject, predicate, object], else null."
+	pieces = text.split("(")
+	inner = pieces[1][:-1]
+	args = inner.split(",")
+	if args.len != 2 then return null
+	predicate = trimSpace(pieces[0])
+	if predicate == "" then return null
+	return [termOf(trimSpace(args[0])), termOf(predicate), termOf(trimSpace(args[1]))]
 end function
 
 termOf = function(text)
@@ -353,21 +375,9 @@ termOf = function(text)
 	return text
 end function
 
-otherShapeIn = function(text, shape)
-	"Returns the other triplet shape's name when text is wrapped as one, else null."
-	for name in ["spo", "oav"]
-		if name != shape then
-			if text[:name.len + 1] == name + "(" then return name
-		end if
-	end for
-	return null
-end function
-
-badLine = function(line, shape, names)
-	"Builds the shared 'expected this or that' message for one shape."
-	expected = names.join(" | ")
-	return "malformed " + shape + ": expected '" + expected + "' or '" +
-		shape + "(" + expected + ")': " + line
+badLine = function(line)
+	"One message for every malformed line."
+	return "malformed spo: expected 'predicate(subject, object)' or 'subject | predicate | object': " + line
 end function
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

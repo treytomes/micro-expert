@@ -1,0 +1,105 @@
+// Cases for relations between people: a rule that runs both ways, and pairs
+// that hold more than one value.
+
+run = function(t, rules, h)
+	"Checks symmetric rules and multi-valued pairs, against the shared copies in t and rules."
+	spo = function(s, p, o)
+		return t.SpoTriple.make(s, p, o)
+	end function
+	v = function(name)
+		return t.var(name)
+	end function
+	rule = function(head, body)
+		return rules.Rule.make(head, body)
+	end function
+	answerText = function(goal, answer)
+		return t.substitute(goal, answer.binds).text
+	end function
+
+	// ── A rule that runs both ways ──────────────────────────────────────────
+
+	// One marriage fact per couple, with the rule turning it around.
+	marriages = [spo("walter", "married-to", "doris")]
+	marriedBothWays = rule(spo(v("y"), "married-to", v("x")), [spo(v("x"), "married-to", v("y"))])
+
+	forward = t.proveGoals(spo("walter", "married-to", "doris"), marriages, [marriedBothWays], 4)
+	h.check("the stated direction holds", forward.len == 1)
+	h.check("the stated direction is a fact", forward[0].reasons[0].rule == null)
+
+	backward = t.proveGoals(spo("doris", "married-to", "walter"), marriages, [marriedBothWays], 4)
+	h.check("the reverse direction is derived", backward.len == 1)
+	h.check("the reverse direction cites the rule", backward[0].reasons[0].rule.text == marriedBothWays.text)
+	h.check("recursion collapses into one answer despite the depth",
+		t.proveGoals(spo("doris", "married-to", "walter"), marriages, [marriedBothWays], 8).len == 1)
+	h.check("unrelated people are not married",
+		t.proveGoals(spo("doris", "married-to", "bill"), marriages, [marriedBothWays], 4).len == 0)
+	h.check("marriage does not leak into other predicates",
+		t.proveGoals(spo("doris", "parent-of", "walter"), marriages, [marriedBothWays], 4).len == 0)
+	h.check("the symmetry rule derives its reversal once",
+		t.proveGoals(spo("doris", "married-to", "walter"), marriages, [marriedBothWays], 8)[0].reasons.len == 1)
+
+	// ── One subject-predicate pair, many values ─────────────────────────────
+
+	// Nothing in the triple, in the answer list or in the solver treats a
+	// subject-predicate pair as unique, so a pair can hold any number of values.
+	likes = [
+		spo("susan", "likes", "music"),
+		spo("susan", "likes", "chess"),
+		spo("susan", "likes", "music"),
+	]
+	liked = t.proveGoals(spo("susan", "likes", v("what")), likes, [], 0)
+	h.check("both values of one pair", liked.len == 2)
+	h.check("first value", answerText(spo("susan", "likes", v("what")), liked[0]) == "likes(susan, music)")
+	h.check("second value", answerText(spo("susan", "likes", v("what")), liked[1]) == "likes(susan, chess)")
+	h.check("a repeated value merges into one answer", liked[0].reasons.len == 2)
+
+	// Asking the pair directly still gives one answer per value.
+	pair = t.proveGoals(spo("susan", "likes", "music"), likes, [], 0)
+	h.check("the pair can be asked directly", pair.len == 1)
+	h.check("and it cites both listed facts", pair[0].reasons.len == 2)
+
+	// A rule ranges over every value of the pair, not just the first one.
+	fanOf = rule(spo(v("a"), "fan-of", v("b")), [spo(v("a"), "likes", v("b"))])
+	fans = t.proveGoals(spo("susan", "fan-of", v("what")), likes, [fanOf], 1)
+	h.check("a rule sees every value", fans.len == 2)
+
+	// Two conditions over the same pair multiply the values out: 2 x 2 answers.
+	shares = [spo("bill", "parent-of", "susan"), spo("bill", "parent-of", "tim")]
+	siblingRule = rule(spo(v("x"), "sibling", v("y")),
+		[spo(v("z"), "parent-of", v("x")), spo(v("z"), "parent-of", v("y"))])
+	siblings = t.proveGoals(spo(v("x"), "sibling", v("y")), shares, [siblingRule], 2)
+	h.check("each value pairs with each", siblings.len == 4)
+
+	// ── Siblings share a parent ────────────────────────────────────────────
+
+	// Bill and George share both parents; Tim shares only Walter with them.
+	family = [
+		spo("walter", "parent-of", "bill"),
+		spo("doris", "parent-of", "bill"),
+		spo("walter", "parent-of", "george"),
+		spo("doris", "parent-of", "george"),
+		spo("walter", "parent-of", "tim"),
+	]
+	siblingRule = rule(spo(v("x"), "sibling-of", v("y")),
+		[spo(v("p"), "parent-of", v("x")), spo(v("p"), "parent-of", v("y")),
+			t.NotEqual.make(v("x"), v("y"))])
+	siblingsOf = function(a, b)
+		return t.proveGoals(spo(a, "sibling-of", b), family, [siblingRule], 2)
+	end function
+
+	h.check("siblings are found", siblingsOf("bill", "george").len == 1)
+	h.check("siblings are found in reverse", siblingsOf("george", "bill").len == 1)
+	h.check("one shared parent is enough", siblingsOf("bill", "tim").len == 1)
+	h.check("two shared parents are one answer", siblingsOf("bill", "george")[0].reasons.len == 2)
+	h.check("strangers are not siblings", siblingsOf("bill", "nobody").len == 0)
+	h.check("a parent is not a sibling", siblingsOf("bill", "walter").len == 0)
+	// The ?x != ?y constraint in the body keeps a person from being their own
+	// sibling, and a constraint adds nothing to the proof tree.
+	h.check("someone is not their own sibling", siblingsOf("bill", "bill").len == 0)
+	h.check("the rule prints its constraint",
+		siblingRule.text == "sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y")
+	h.check("a two-parent sibling still has both derivations",
+		siblingsOf("bill", "george")[0].reasons.len == 2)
+	openSiblings = t.proveGoals(spo(v("a"), "sibling-of", v("b")), family, [siblingRule], 2)
+	h.check("no self pairs in an open query", openSiblings.len == 6)
+end function

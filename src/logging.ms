@@ -6,7 +6,7 @@
 //
 //   import "logging"
 //   log = logging.newLogger({"name": "micro-expert"})
-//   log.information("{App} starting", {"App": "micro-expert"})
+//   log.info("{App} starting", {"App": "micro-expert"})
 //   log.warning("Low confidence: {Confidence}", {"Confidence": 0.3})
 //
 // Levels are Serilog's: Debug, Information, Warning, Error, Fatal. Events
@@ -125,7 +125,7 @@ Logger.debug = function(template, properties=null)
 	return self.write("Debug", template, properties)
 end function
 
-Logger.information = function(template, properties=null)
+Logger.info = function(template, properties=null)
 	return self.write("Information", template, properties)
 end function
 
