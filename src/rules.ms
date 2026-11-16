@@ -15,11 +15,16 @@
 import "rule"
 
 build = function(triples)
+	// The class, so a rule is built with Rule.make below. It is aliased here rather
+	// than at the top of the file because a nested function sees the enclosing
+	// function's locals and the imported modules, not this module's own globals.
+	Rule = rule.Rule
 	fact = function(subject, predicate, object)
 		"Builds one triple of a rule."
 		return triples.SpoTriple.make(subject, predicate, object)
 	end function
 	rule = function(head, body)
+		"Defines a rule: head is the then-part, body a list of conditions."
 		return Rule.make(head, body)
 	end function
 	var = function(name)

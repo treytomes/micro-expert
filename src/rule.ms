@@ -42,5 +42,3 @@ Rule.text = function
 	end if
 	return self.head.text + " <- " + conditions.join(", ")
 end function
-
-globals.Rule = Rule
