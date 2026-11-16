@@ -1,6 +1,6 @@
-// triples.ms — the two triplet shapes the knowledge base is built from.
+// triples.ms — the terms and the two triplet shapes the knowledge base is built from.
 //
-// Both classes live here on purpose: a module that imports another module gets
+// The classes live together on purpose: a module that imports another module gets
 // its own copy of it, and each copy carries its own class maps, so `isa` would
 // fail against a SpoTriple built in a different copy. One module, one class each.
 //
@@ -10,6 +10,46 @@
 //   print oav.toSpo.text           // spo(gluten | has-contains | gliadin)
 //   print triples.SpoTriple.parse("trey | avoids | gluten").text
 //   print triples.SpoTriple.parse(oav.toSpo.text).text   // display form reads back
+//   print triples.OavTriple.parse("oav(gluten | contains | gliadin)").text
+//   print triples.SpoTriple.make(triples.var("x"), "child", "?y").text
+//   // spo(?x | child | ?y)
+
+// ── Var: a logic variable, written ?x ────────────────────────────────────────
+
+Var = {}
+
+Var.make = function(name)
+	"Builds a logic variable; 'x' and '?x' both name ?x."
+	if name[:1] == "?" then name = name[1:]
+	v = new Var
+	v.name = name
+	return v
+end function
+
+Var.text = function
+	"Formats the variable as '?name'."
+	return "?" + self.name
+end function
+
+var = function(name)
+	"Shorthand for Var.make, for use inside triple fields."
+	return Var.make(name)
+end function
+
+termText = function(term)
+	"Renders one term: a Var as '?x', anything else as it is."
+	if term isa Var then return term.text
+	return term
+end function
+
+renderParts = function(parts)
+	"Renders triple fields the way display text shows them."
+	texts = []
+	for part in parts
+		texts.push(termText(part))
+	end for
+	return texts.join(" | ")
+end function
 
 // ── SpoTriple: subject, predicate, object ─────────────────────────────────────
 
@@ -25,7 +65,7 @@ SpoTriple.make = function(subject, predicate, object)
 end function
 
 SpoTriple.parse = function(line)
-	"Parses 'a | b | c' or the display form 'spo(a | b | c)'; triple or error value."
+	"Parses 'a | b | c' or 'spo(a | b | c)'; '?x' fields become Vars. Error on anything else."
 	fields = parseLine(line, "spo", ["subject", "predicate", "object"])
 	if fields isa error then return fields
 	return SpoTriple.make(fields[0], fields[1], fields[2])
@@ -33,7 +73,7 @@ end function
 
 SpoTriple.text = function
 	"Formats the triple for display as 'spo(subject | predicate | object)'."
-	return "spo(" + self.parts.join(" | ") + ")"
+	return "spo(" + renderParts(self.parts) + ")"
 end function
 
 SpoTriple.parts = function
@@ -54,9 +94,16 @@ OavTriple.make = function(object, attribute, value)
 	return t
 end function
 
+OavTriple.parse = function(line)
+	"Parses 'a | b | c' or 'oav(a | b | c)'; '?x' fields become Vars. Error on anything else."
+	fields = parseLine(line, "oav", ["object", "attribute", "value"])
+	if fields isa error then return fields
+	return OavTriple.make(fields[0], fields[1], fields[2])
+end function
+
 OavTriple.text = function
 	"Formats the triplet for display as 'oav(object | attribute | value)'."
-	return "oav(" + self.parts.join(" | ") + ")"
+	return "oav(" + renderParts(self.parts) + ")"
 end function
 
 OavTriple.parts = function
@@ -66,7 +113,7 @@ end function
 
 OavTriple.toSpo = function
 	"Converts to a SpoTriple: the attribute becomes a 'has-' predicate."
-	return SpoTriple.make(self.object, "has-" + self.attribute, self.value)
+	return SpoTriple.make(self.object, "has-" + termText(self.attribute), self.value)
 end function
 
 // ── Parsing ───────────────────────────────────────────────────────────────────
@@ -96,8 +143,15 @@ parseLine = function(line, shape, names)
 		if fields[i] == "" then
 			return err("malformed " + shape + ": empty " + names[i] + ": " + line)
 		end if
+		fields[i] = termOf(fields[i])
 	end for
 	return fields
+end function
+
+termOf = function(text)
+	"Turns a '?x' field into a Var, leaving every other field a plain string."
+	if text[:1] == "?" then return Var.make(text)
+	return text
 end function
 
 otherShapeIn = function(text, shape)
