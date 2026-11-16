@@ -42,78 +42,100 @@ end function
 
 parse = function(cmd, rawArgs)
 	"Parses raw shell arguments, returning ok/error/values/help/version."
-	result = {"ok": 1, "error": null, "values": {}, "help": 0, "version": 0}
-	for option in cmd.options
-		result.values[option.name] = defaultValue(option)
-	end for
+	return parseToken(normalizeArgs(rawArgs), 0, defaultsFor(cmd), aliasTable(cmd))
+end function
 
-	byAlias = {}
+defaultsFor = function(cmd)
+	"A fresh result: one values entry per declared option, holding its default."
+	values = {}
+	for option in cmd.options
+		values[option.name] = defaultValue(option)
+	end for
+	return {"ok": 1, "error": null, "values": values, "help": 0, "version": 0}
+end function
+
+aliasTable = function(cmd)
+	"Every spelling of every option, declared or built in, mapped to its option."
+	table = {}
 	for option in allOptions(cmd)
 		for alias in option.aliases
-			byAlias[alias] = option
+			table[alias] = option
 		end for
 	end for
+	return table
+end function
 
-	args = normalizeArgs(rawArgs)
-	i = 0
-	while i < args.len
-		token = args[i]
-		if token.len == 0 then
-			return fail(result, "empty argument")
-		end if
-		if token[0] != "-" then
-			return fail(result, "unexpected argument: " + token)
-		end if
+parseToken = function(args, index, result, byAlias)
+	"Reads the argument at index, then recurses on whatever follows it."
+	if index >= args.len then return result
+	token = args[index]
+	if token.len == 0 then
+		return fail(result, "empty argument")
+	end if
+	if token[0] != "-" then
+		return fail(result, "unexpected argument: " + token)
+	end if
+	split = splitInlineValue(token)
+	if not byAlias.hasIndex(split.name) then
+		return fail(result, "unknown option: " + split.name)
+	end if
+	step = applyOption(result, byAlias[split.name], split, args, index)
+	if step isa error then return fail(result, step.message)
+	return parseToken(args, index + step, result, byAlias)
+end function
 
-		// --option=value arrives as one token; split it so the rest of the
-		// parser only ever sees "--option value".
-		inlineValue = null
-		equalsAt = token.indexOf("=")
-		if equalsAt != null then
-			if equalsAt > 0 then
-				inlineValue = token[equalsAt + 1:]
-				token = token[:equalsAt]
-			end if
-		end if
+splitInlineValue = function(token)
+	"--option=value arrives as one token; the parser only ever sees '--option value'."
+	equalsAt = token.indexOf("=")
+	if equalsAt == null or equalsAt == 0 then return {"name": token, "value": null}
+	return {"name": token[:equalsAt], "value": token[equalsAt + 1:]}
+end function
 
-		if not byAlias.hasIndex(token) then
-			return fail(result, "unknown option: " + token)
-		end if
-		option = byAlias[token]
+applyOption = function(result, option, split, args, index)
+	"Applies one option in place, answering how many arguments it used, or an error."
+	if option.name == "help" then
+		result.help = 1
+		return 1
+	end if
+	if option.name == "version" then
+		result.version = 1
+		return 1
+	end if
+	if option.type == "flag" then
+		if split.value != null then return err(split.name + " does not take a value")
+		result.values[option.name] = 1
+		return 1
+	end if
+	read = optionValue(option, split, args, index)
+	if read isa error then return read
+	storeValue(result, option, read.value)
+	return read.step
+end function
 
-		step = 1
-		if option.name == "help" then
-			result.help = 1
-		else if option.name == "version" then
-			result.version = 1
-		else if option.type == "flag" then
-			if inlineValue != null then
-				return fail(result, token + " does not take a value")
-			end if
-			result.values[option.name] = 1
-		else
-			text = inlineValue
-			if text == null then
-				if i + 1 >= args.len then
-					return fail(result, "option requires a value: " + token)
-				end if
-				text = args[i + 1]
-				step = 2
-			end if
-			value = coerce(option, text)
-			if value isa error then
-				return fail(result, token + ": " + value.message)
-			end if
-			if option.type == "list" then
-				result.values[option.name].push(value)
-			else
-				result.values[option.name] = value
-			end if
+optionValue = function(option, split, args, index)
+	"Reads an option's value, inline or from the next argument: {value, step} or an error."
+	text = split.value
+	step = 1
+	if text == null then
+		if index + 1 >= args.len then
+			return err("option requires a value: " + split.name)
 		end if
-		i = i + step
-	end while
+		text = args[index + 1]
+		step = 2
+	end if
+	value = coerce(option, text)
+	if value isa error then return err(split.name + ": " + value.message)
+	return {"value": value, "step": step}
+end function
 
-	return result
+storeValue = function(result, option, value)
+	"Puts a value where the option's type expects it; a list appends."
+	if option.type == "list" then
+		result.values[option.name].push(value)
+	else
+		result.values[option.name] = value
+	end if
+	return null
 end function
 
 // ── Argument preprocessing ────────────────────────────────────────────────────
