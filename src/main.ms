@@ -1,8 +1,7 @@
 // micro-expert — a little expert system for MiniScript 2.
 //
-// Sample command-line options: two string types, two numbers, a repeatable list,
-// and a flag. Declaring them here is all it takes — cli.ms parses the arguments
-// and generates --help and --version from the same declarations.
+// The options are declared here - a number, a flag and a string - and cli.ms
+// parses the arguments and generates --help and --version from those declarations.
 
 import "cli"
 import "triples"
@@ -14,7 +13,7 @@ import "logging"
 
 log = logging.newLogger({"name": "micro-expert"})
 
-// ── Rules ────────────────────────────────────────────────────────────────────
+// ── Command line ────────────────────────────────────────────────────────────
 
 cmd = cli.newCommand("micro-expert", "0.1.0", "A little expert system for MiniScript 2.")
 

@@ -9,7 +9,7 @@
 //   print spo.text                          // avoids(trey, gluten)
 //   print triples.SpoTriple.parse("avoids(trey, gluten)").text   // reads back
 //   print triples.SpoTriple.parse("trey | avoids | gluten").text // same triple
-//   print triples.SpoTriple.make(triples.var("x"), "child", "?y").text
+//   print triples.SpoTriple.make(triples.var("x"), "child", triples.var("y")).text
 //   // child(?x, ?y)
 //   print triples.unify(triples.SpoTriple.parse("child(?x, ?y)"),
 //       triples.SpoTriple.parse("child(susan, bill)"))   // {"x": "susan", "y": "bill"}
@@ -75,49 +75,55 @@ end function
 
 // ── Unification ───────────────────────────────────────────────────────────────
 
+// Bindings are extended, never edited: every step returns a new map, so a match
+// that fails partway leaves the caller's bindings alone and no defensive copy is
+// needed anywhere above.
+
+copyBinds = function(binds)
+	"Returns a copy of a bindings map; null becomes an empty map."
+	copied = {}
+	if binds == null then return copied
+	for name in binds.indexes
+		copied[name] = binds[name]
+	end for
+	return copied
+end function
+
+withBinding = function(binds, name, value)
+	"A copy of the bindings with one entry added or replaced - never the map itself."
+	copied = copyBinds(binds)
+	copied[name] = value
+	return copied
+end function
+
 unify = function(pattern, fact, binds=null)
-	"Unifies a pattern against a fact: a bindings map (may be empty) or null."
-	// Work on a copy: a match that fails partway must not leave its partial
-	// bindings behind in the caller's map.
-	working = {}
-	if binds != null then
-		for name in binds.indexes
-			working[name] = binds[name]
-		end for
-	end if
-	matches = null
+	"Unifies a pattern against a fact, returning the bindings it adds, or null."
+	working = binds
+	if working == null then working = {}
 	if pattern isa SpoTriple then
 		if not (fact isa SpoTriple) then return null
-		matches = unifyParts(pattern, fact, working)
-	else
-		matches = unifyTerms(pattern, fact, working)
+		return unifyParts(pattern.parts, fact.parts, working)
 	end if
+	matches = unifyTerms(pattern, fact, working)
 	if matches == null then return null
 	return resolveBindings(matches)
 end function
 
-unifyParts = function(pattern, fact, binds)
-	"Unifies the three fields of two triples of the same shape."
-	for i in range(0, 2)
-		binds = unifyTerms(pattern.parts[i], fact.parts[i], binds)
-		if binds == null then return null
-	end for
-	return binds
+unifyParts = function(leftParts, rightParts, binds)
+	"Unifies the fields of two triples in turn, left to right; resolved when done."
+	if leftParts.len == 0 then return resolveBindings(binds)
+	extended = unifyTerms(leftParts[0], rightParts[0], binds)
+	if extended == null then return null
+	return unifyParts(leftParts[1:], rightParts[1:], extended)
 end function
 
 unifyTerms = function(left, right, binds)
-	"Adds whatever binding makes two terms equal, or null when they cannot agree."
+	"The bindings extended so the two terms agree, or null when they cannot."
 	left = deref(left, binds)
 	right = deref(right, binds)
 	if left == right then return binds
-	if left isa Var then
-		binds[left.name] = right
-		return binds
-	end if
-	if right isa Var then
-		binds[right.name] = left
-		return binds
-	end if
+	if left isa Var then return withBinding(binds, left.name, right)
+	if right isa Var then return withBinding(binds, right.name, left)
 	return null
 end function
 
@@ -177,6 +183,15 @@ holdsConstraint = function(constraint, binds)
 end function
 
 // ── Proof search ─────────────────────────────────────────────────────────────
+
+// proveGoals answers a goal, proveConditions proves a rule body, and the two
+// records they pass around have these shapes:
+//
+//   answer = {"goal": SpoTriple, "binds": map, "reasons": [reason]}
+//   reason = {"rule": Rule or null, "conditions": [answer]}
+//
+// An answer keeps every way it was proved; a reason is one of them - a fact when
+// rule is null, otherwise the rule plus the answers that proved its conditions.
 
 renameCounter = {"uses": 0}
 
@@ -251,12 +266,8 @@ proveGoals = function(goal, facts, rules, depth, binds=null, open=null)
 	if open == null then open = {}
 	key = goalKey(goal, binds)
 	if open.hasIndex(key) then return []
-	// Copy, so one branch's ancestors do not prune its siblings.
-	path = {}
-	for name in open.indexes
-		path[name] = open[name]
-	end for
-	path[key] = 1
+	// A new map, so one branch's ancestors do not prune its siblings.
+	path = withBinding(open, key, 1)
 
 	answers = []
 	byText = {}
