@@ -151,11 +151,16 @@ if options.values.verbose then
 	print "Verbose run: depth " + options.values.depth + ", confidence " + options.values.confidence
 end if
 
-print oav("bill", "gender", "male").text
-print oav("susan", "gender", "female").text
-print oav("tim", "gender", "male").text
-parents = [spo("bill", "parent", "susan"), spo("susan", "parent", "tim")]
-for fact in parents
+// ── Facts and rules ──────────────────────────────────────────────────────────
+
+facts = [
+	spo("bill", "parent", "susan"),
+	spo("susan", "parent", "tim"),
+	oav("bill", "gender", "male"),
+	oav("susan", "gender", "female"),
+	oav("tim", "gender", "male"),
+]
+for fact in facts
 	print fact.text
 end for
 
@@ -165,21 +170,21 @@ childOf = rule(
 	spo(var("y"), "parent", var("x")))
 print childOf.text
 
-// ── Answering with a rule ────────────────────────────────────────────────────
-// A rule's body is the part that talks about existing facts, so the body is what
-// gets matched: childOf.body says "?y is the parent of ?x", which is exactly what
-// a parent fact asserts.
-//
-// The head cannot match a parent fact. It says "?x is the child of ?y", and
-// unification requires identical literals in the same position, so 'child' can
-// never equal 'parent'. The head is the shape of the answer: substitute the body's
-// match into it and the result is the fact the rule has proved.
+rules = [childOf]
 
-for fact in parents
-	binds = triples.unify(childOf.body[0], fact)
-	if binds != null then
-		print fact.text + " => " + triples.substitute(childOf.head, binds).text
-	end if
+// ── Answering a query ────────────────────────────────────────────────────────
+// Backward chaining: a goal is proved by the facts, and by the head of each rule
+// whose body can then be proved in turn. The body is what matches facts - childOf
+// says "?y is the parent of ?x", which is what a parent fact asserts - and the head
+// is the shape of the answer, so substituting a proof's bindings into it gives the
+// fact that was proved.
+//
+// --depth bounds how many rules deep the search may go; 0 means facts only.
+
+query = spo(var("x"), "child", var("y"))
+print "Query: " + query.text
+for proof in triples.proveGoals(query, facts, rules, options.values.depth)
+	print "  " + triples.substitute(query, proof).text
 end for
 
 finish 0

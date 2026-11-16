@@ -207,6 +207,77 @@ substitute = function(term, binds)
 	return deref(term, binds)
 end function
 
+// ── Proof search ─────────────────────────────────────────────────────────────
+
+renameCounter = {"uses": 0}
+
+uniqueSuffix = function()
+	"A suffix no other rule use has had, so one use cannot shadow another."
+	renameCounter.uses = renameCounter.uses + 1
+	return "_" + renameCounter.uses
+end function
+
+renameTerm = function(term, suffix)
+	"Copies a term, renaming every variable: ?x becomes ?x_3."
+	if term isa Var then return var(term.name + suffix)
+	return term
+end function
+
+renameTriple = function(triple, suffix)
+	"Copies a triple, renaming the variables in its fields."
+	if triple isa SpoTriple then
+		return SpoTriple.make(renameTerm(triple.subject, suffix),
+			renameTerm(triple.predicate, suffix), renameTerm(triple.object, suffix))
+	end if
+	if triple isa OavTriple then
+		return OavTriple.make(renameTerm(triple.object, suffix),
+			renameTerm(triple.attribute, suffix), renameTerm(triple.value, suffix))
+	end if
+	return triple
+end function
+
+standardizeApart = function(candidate)
+	"A fresh {head, body} copy of a rule, safe to use alongside other uses of it."
+	suffix = uniqueSuffix()
+	body = []
+	for condition in candidate.body
+		body.push(renameTriple(condition, suffix))
+	end for
+	return {"head": renameTriple(candidate.head, suffix), "body": body}
+end function
+
+proveGoals = function(goal, facts, rules, depth, binds=null)
+	"Every set of bindings that proves goal, chaining at most depth rules deep."
+	proofs = []
+	for fact in facts
+		matched = unify(goal, fact, binds)
+		if matched != null then proofs.push(matched)
+	end for
+	if depth <= 0 then return proofs
+	for candidate in rules
+		fresh = standardizeApart(candidate)
+		matched = unify(fresh.head, goal, binds)
+		if matched != null then
+			for proof in proveConditions(fresh.body, facts, rules, depth - 1, matched)
+				proofs.push(proof)
+			end for
+		end if
+	end for
+	return proofs
+end function
+
+proveConditions = function(conditions, facts, rules, depth, binds)
+	"Proves each condition in turn, threading the bindings through the list."
+	if conditions.len == 0 then return [binds]
+	proofs = []
+	for proof in proveGoals(conditions[0], facts, rules, depth, binds)
+		for rest in proveConditions(conditions[1:], facts, rules, depth, proof)
+			proofs.push(rest)
+		end for
+	end for
+	return proofs
+end function
+
 // ── Parsing ───────────────────────────────────────────────────────────────────
 
 parseLine = function(line, shape, names)
