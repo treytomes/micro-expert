@@ -36,7 +36,7 @@ end function
 
 SpoTriple.text = function
 	"Formats the triple as 'subject | predicate | object', the fact-file shape."
-	return self.subject + " | " + self.predicate + " | " + self.object
+	return self.parts.join(" | ")
 end function
 
 SpoTriple.parts = function

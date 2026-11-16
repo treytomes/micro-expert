@@ -18,7 +18,7 @@ end function
 
 OavTriple.text = function
 	"Formats the triplet as 'object | attribute | value'."
-	return self.object + " | " + self.attribute + " | " + self.value
+	return self.parts.join(" | ")
 end function
 
 OavTriple.parts = function
