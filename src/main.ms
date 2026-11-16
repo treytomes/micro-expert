@@ -6,10 +6,11 @@
 
 import "cli"
 import "triples"
+import "rules"
 
 // ── Triples ──────────────────────────────────────────────────────────────────
-// Shorthands for the two triplet types; both classes live in triples.ms so the
-// program shares one copy of each and `isa` checks agree everywhere.
+// Shorthands for the two triplet types and logic variables; the classes live in
+// triples.ms so the program shares one copy of each and `isa` checks agree.
 
 spo = function(subject, predicate, object)
 	"Builds a Subject-Predicate-Object triple."
@@ -19,6 +20,20 @@ end function
 oav = function(object, attribute, value)
 	"Builds an Object-Attribute-Value triplet."
 	return triples.OavTriple.make(object, attribute, value)
+end function
+
+var = function(name)
+	"Builds a logic variable, e.g. var(""x"") for ?x."
+	return triples.Var.make(name)
+end function
+
+// ── Rules ────────────────────────────────────────────────────────────────────
+
+rule = function(head, body=null)
+	"Defines a rule: head is the then-part, body one condition or a list of them."
+	if body == null then return rules.Rule.make(head, [])
+	if body isa list then return rules.Rule.make(head, body)
+	return rules.Rule.make(head, [body])
 end function
 
 cmd = cli.newCommand("micro-expert", "0.1.0", "A little expert system for MiniScript 2.")
@@ -121,5 +136,11 @@ print oav("susan", "gender", "female").text
 print oav("tim", "gender", "male").text
 print spo("bill", "parent", "susan").text
 print spo("susan", "parent", "tim").text
+
+// (<- (child ?x ?y) (parent ?y ?x)): if y is the parent of x, x is the child of y.
+childOf = rule(
+	spo(var("x"), "child", var("y")),
+	spo(var("y"), "parent", var("x")))
+print childOf.text
 
 

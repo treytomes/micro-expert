@@ -9,10 +9,13 @@
 // becomes (spo() and var() being the triples.ms shorthands)
 //
 //   import "rules"
-//   sibling = rules.rule(
-//       spo(var("x"), "child", var("y")),   // head: the then-part
-//       spo(var("y"), "parent", var("z")))  // body: the if-part
+//   sibling = rules.Rule.make(
+//       spo(var("x"), "child", var("y")),     // head: the then-part
+//       [spo(var("y"), "parent", var("z"))])  // body: a list of conditions
 //   print sibling.text   // spo(?x | child | ?y) <- spo(?y | parent | ?z)
+//
+// main.ms wraps make() in a rule() shorthand that takes a single condition or a
+// list, the way ( <- head body... ) reads.
 //
 // Head comes first and conditions after it, matching (<- head body...). Pass one
 // triple for a single condition, or a list for several.
@@ -43,9 +46,3 @@ Rule.text = function
 	return self.head.text + " <- " + conditions.join(", ")
 end function
 
-rule = function(head, body=null)
-	"Defines a rule: head is the then-part, body one condition or a list of them."
-	if body == null then return Rule.make(head, [])
-	if body isa list then return Rule.make(head, body)
-	return Rule.make(head, [body])
-end function

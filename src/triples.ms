@@ -112,8 +112,14 @@ OavTriple.parts = function
 end function
 
 OavTriple.toSpo = function
-	"Converts to a SpoTriple: the attribute becomes a 'has-' predicate."
-	return SpoTriple.make(self.object, "has-" + termText(self.attribute), self.value)
+	"Converts to a SpoTriple: a literal attribute becomes a 'has-' predicate."
+	// 'has-' is a naming convention for literal attributes. A variable attribute
+	// has no literal name to prefix, so it becomes the predicate itself:
+	// oav(?o | ?a | ?v) -> spo(?o | ?a | ?v).
+	if self.attribute isa Var then
+		return SpoTriple.make(self.object, self.attribute, self.value)
+	end if
+	return SpoTriple.make(self.object, "has-" + self.attribute, self.value)
 end function
 
 // ── Parsing ───────────────────────────────────────────────────────────────────
