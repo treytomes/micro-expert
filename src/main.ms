@@ -184,7 +184,13 @@ rules = [childOf]
 query = spo(var("x"), "child", var("y"))
 print "Query: " + query.text
 for proof in triples.proveGoals(query, facts, rules, options.values.depth)
-	print "  " + triples.substitute(query, proof).text
+	if options.values.verbose then
+		for line in triples.proofLines(query, proof, "  ")
+			print line
+		end for
+	else
+		print "  " + triples.substitute(query, proof.binds).text
+	end if
 end for
 
 finish 0

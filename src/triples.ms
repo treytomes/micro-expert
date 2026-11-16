@@ -247,19 +247,24 @@ standardizeApart = function(candidate)
 end function
 
 proveGoals = function(goal, facts, rules, depth, binds=null)
-	"Every set of bindings that proves goal, chaining at most depth rules deep."
+	"Every distinct way goal is proved, chaining at most depth rules deep."
 	proofs = []
+	seen = {}
 	for fact in facts
 		matched = unify(goal, fact, binds)
-		if matched != null then proofs.push(matched)
+		if matched != null then
+			node = {"goal": goal, "binds": matched, "rule": null, "conditions": []}
+			addProof(proofs, seen, goal, node)
+		end if
 	end for
 	if depth <= 0 then return proofs
 	for candidate in rules
 		fresh = standardizeApart(candidate)
 		matched = unify(fresh.head, goal, binds)
 		if matched != null then
-			for proof in proveConditions(fresh.body, facts, rules, depth - 1, matched)
-				proofs.push(proof)
+			for proved in proveConditions(fresh.body, facts, rules, depth - 1, matched)
+				node = {"goal": goal, "binds": proved.binds, "rule": candidate, "conditions": proved.proofs}
+				addProof(proofs, seen, goal, node)
 			end for
 		end if
 	end for
@@ -267,15 +272,38 @@ proveGoals = function(goal, facts, rules, depth, binds=null)
 end function
 
 proveConditions = function(conditions, facts, rules, depth, binds)
-	"Proves each condition in turn, threading the bindings through the list."
-	if conditions.len == 0 then return [binds]
-	proofs = []
-	for proof in proveGoals(conditions[0], facts, rules, depth, binds)
-		for rest in proveConditions(conditions[1:], facts, rules, depth, proof)
-			proofs.push(rest)
+	"Proves each condition in turn, keeping a proof for every one of them."
+	if conditions.len == 0 then return [{"binds": binds, "proofs": []}]
+	results = []
+	for first in proveGoals(conditions[0], facts, rules, depth, binds)
+		for rest in proveConditions(conditions[1:], facts, rules, depth, first.binds)
+			results.push({"binds": rest.binds, "proofs": [first] + rest.proofs})
 		end for
 	end for
-	return proofs
+	return results
+end function
+
+addProof = function(proofs, seen, goal, proof)
+	"Keeps the first way an answer was proved, so one proved twice comes back once."
+	key = substitute(goal, proof.binds).text
+	if seen.hasIndex(key) then return
+	seen[key] = 1
+	proofs.push(proof)
+end function
+
+reasonText = function(proof)
+	"Where a proof came from: a fact, or the rule that concluded it."
+	if proof.rule == null then return "fact"
+	return "rule " + proof.rule.text
+end function
+
+proofLines = function(goal, proof, indent="")
+	"Describes an answer, then the conditions behind it, one level deeper."
+	lines = [indent + substitute(goal, proof.binds).text + "  <- " + reasonText(proof)]
+	for child in proof.conditions
+		lines = lines + proofLines(child.goal, child, indent + "  ")
+	end for
+	return lines
 end function
 
 // ── Parsing ───────────────────────────────────────────────────────────────────
