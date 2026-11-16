@@ -129,11 +129,9 @@ end function
 
 deref = function(term, binds)
 	"Follows bindings until a non-variable or an unbound variable."
-	while term isa Var
-		if not binds.hasIndex(term.name) then return term
-		term = binds[term.name]
-	end while
-	return term
+	if not (term isa Var) then return term
+	if not binds.hasIndex(term.name) then return term
+	return deref(binds[term.name], binds)
 end function
 
 resolveBindings = function(binds)
@@ -228,30 +226,38 @@ end function
 standardizeApart = function(candidate)
 	"A fresh {head, body} copy of a rule, safe to use alongside other uses of it."
 	suffix = uniqueSuffix()
-	body = []
-	for condition in candidate.body
-		if condition isa SpoTriple then
-			body.push(renameTriple(condition, suffix))
-		else
-			body.push(renameConstraint(condition, suffix))
-		end if
-	end for
-	return {"head": renameTriple(candidate.head, suffix), "body": body}
+	return {"head": renameTriple(candidate.head, suffix),
+		"body": renameConditions(candidate.body, suffix)}
+end function
+
+renameConditions = function(conditions, suffix)
+	"Every condition renamed, in order."
+	if conditions.len == 0 then return []
+	return [renameCondition(conditions[0], suffix)] + renameConditions(conditions[1:], suffix)
+end function
+
+renameCondition = function(condition, suffix)
+	"One condition renamed: a goal as a triple, a constraint as it is."
+	if condition isa SpoTriple then return renameTriple(condition, suffix)
+	return renameConstraint(condition, suffix)
 end function
 
 canonicalText = function(triple)
 	"Renders a triple with its variables numbered by first appearance, so goals that differ only in variable names render the same."
-	names = {}
-	texts = []
-	for part in triple.parts
-		if part isa Var then
-			if names.hasIndex(part.name) == 0 then names[part.name] = "?" + (names.len + 1)
-			texts.push(names[part.name])
-		else
-			texts.push(part)
-		end if
-	end for
-	return texts[0] + "|" + texts[1] + "|" + texts[2]
+	return canonicalLabels(triple.parts, {}).join("|")
+end function
+
+canonicalLabels = function(parts, names)
+	"One label per field, numbering each variable the first time it is seen."
+	if parts.len == 0 then return []
+	return [canonicalLabel(parts[0], names)] + canonicalLabels(parts[1:], names)
+end function
+
+canonicalLabel = function(part, names)
+	"One field's label: ?N for a variable, the field itself for anything else."
+	if not (part isa Var) then return part
+	if names.hasIndex(part.name) == 0 then names[part.name] = "?" + (names.len + 1)
+	return names[part.name]
 end function
 
 goalKey = function(goal, binds)

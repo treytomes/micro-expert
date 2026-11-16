@@ -256,11 +256,6 @@ grandchildOf = rule(
 	[fact(var("p"), "parent-of", var("x")), fact(var("y"), "parent-of", var("p"))])
 ```
 
-Two MiniScript notes that will otherwise waste your afternoon: a list literal that spans
-lines needs a trailing comma before the closing `]`, and a function held in a variable
-cannot be called (`g = f` then `g(1)` runs nothing) — write the call site out, or wrap the
-function in a closure.
-
 ## How to use this demo
 
 **Prerequisites:** the command-line MiniScript 2 interpreter. Download the archive for your

@@ -1,9 +1,12 @@
 {
     "cSpell.words": [
         "ERRORLEVEL",
+        "inspectable",
         "MINISCRIPT",
+        "MYCIN",
         "popd",
         "pushd",
+        "Serilog",
         "setlocal",
         "usebackq"
     ]
