@@ -6,5 +6,6 @@
         "pushd",
         "setlocal",
         "usebackq"
-    ]
+    ],
+    "miniscript2.interpreterPath": "C:\\Users\\TreyTomes\\projects\\micro-expert\\3rd-party\\miniscript-win\\miniscript.exe"
 }
