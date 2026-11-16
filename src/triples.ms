@@ -9,6 +9,7 @@
 //   oav = triples.OavTriple.make("gluten", "contains", "gliadin")
 //   print oav.toSpo.text           // spo(gluten | has-contains | gliadin)
 //   print triples.SpoTriple.parse("trey | avoids | gluten").text
+//   print triples.SpoTriple.parse(oav.toSpo.text).text   // display form reads back
 
 // ── SpoTriple: subject, predicate, object ─────────────────────────────────────
 
@@ -24,20 +25,10 @@ SpoTriple.make = function(subject, predicate, object)
 end function
 
 SpoTriple.parse = function(line)
-	"Parses 'subject | predicate | object'; returns a triple or an error value."
-	fields = line.split("|")
-	if fields.len != 3 then
-		return err("malformed triple: expected 'subject | predicate | object': " + line)
-	end if
-
-	subject = trimSpace(fields[0])
-	predicate = trimSpace(fields[1])
-	object = trimSpace(fields[2])
-	if subject == "" then return err("malformed triple: empty subject: " + line)
-	if predicate == "" then return err("malformed triple: empty predicate: " + line)
-	if object == "" then return err("malformed triple: empty object: " + line)
-
-	return SpoTriple.make(subject, predicate, object)
+	"Parses 'a | b | c' or the display form 'spo(a | b | c)'; triple or error value."
+	fields = parseLine(line, "spo", ["subject", "predicate", "object"])
+	if fields isa error then return fields
+	return SpoTriple.make(fields[0], fields[1], fields[2])
 end function
 
 SpoTriple.text = function
@@ -76,6 +67,54 @@ end function
 OavTriple.toSpo = function
 	"Converts to a SpoTriple: the attribute becomes a 'has-' predicate."
 	return SpoTriple.make(self.object, "has-" + self.attribute, self.value)
+end function
+
+// ── Parsing ───────────────────────────────────────────────────────────────────
+
+parseLine = function(line, shape, names)
+	"Reads 'a | b | c' or 'shape(a | b | c)' into three trimmed fields, or an error."
+	text = trimSpace(line)
+
+	// Another shape's display text would otherwise be read as three fields, with
+	// 'oav(a' quietly becoming the subject.
+	other = otherShapeIn(text, shape)
+	if other != null then
+		return err("malformed " + shape + ": looks like " + other + "(...): " + line)
+	end if
+
+	prefix = shape + "("
+	if text[:prefix.len] == prefix then
+		if text[-1] != ")" then return err(badLine(line, shape, names))
+		text = trimSpace(text[prefix.len:-1])
+	end if
+
+	fields = text.split("|")
+	if fields.len != 3 then return err(badLine(line, shape, names))
+
+	for i in range(0, 2)
+		fields[i] = trimSpace(fields[i])
+		if fields[i] == "" then
+			return err("malformed " + shape + ": empty " + names[i] + ": " + line)
+		end if
+	end for
+	return fields
+end function
+
+otherShapeIn = function(text, shape)
+	"Returns the other triplet shape's name when text is wrapped as one, else null."
+	for name in ["spo", "oav"]
+		if name != shape then
+			if text[:name.len + 1] == name + "(" then return name
+		end if
+	end for
+	return null
+end function
+
+badLine = function(line, shape, names)
+	"Builds the shared 'expected this or that' message for one shape."
+	expected = names.join(" | ")
+	return "malformed " + shape + ": expected '" + expected + "' or '" +
+		shape + "(" + expected + ")': " + line
 end function
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
