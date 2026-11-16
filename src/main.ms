@@ -5,6 +5,24 @@
 // and generates --help and --version from the same declarations.
 
 import "cli"
+import "spo"
+import "oav"
+
+// ── Triples ──────────────────────────────────────────────────────────────────
+// The modules are named after their files, which would collide with the
+// constructor shorthands below; keep the classes, then reuse the module names.
+SpoTriple = spo.SpoTriple
+OavTriple = oav.OavTriple
+
+spo = function(subject, predicate, object)
+	"Builds a Subject-Predicate-Object triple."
+	return SpoTriple.make(subject, predicate, object)
+end function
+
+oav = function(object, attribute, value)
+	"Builds an Object-Attribute-Value triplet."
+	return OavTriple.make(object, attribute, value)
+end function
 
 cmd = cli.newCommand("micro-expert", "0.1.0", "A little expert system for MiniScript 2.")
 cli.add(cmd, {
@@ -100,3 +118,11 @@ if options.values.verbose then
 	print ""
 	print "Verbose run: depth " + options.values.depth + ", confidence " + options.values.confidence
 end if
+
+print oav("bill", "gender", "male").text
+print oav("susan", "gender", "female").text
+print oav("tim", "gender", "male").text
+print spo("bill", "parent", "susan").text
+print spo("susan", "parent", "tim").text
+
+
