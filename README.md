@@ -6,13 +6,20 @@ only by showing you the facts and rules that make the answer true.
 
 ```
 Query: uncle-of(bill, ?p)
-  uncle-of(bill, anna)
-  uncle-of(bill, mark)
-  uncle-of(bill, clara)
-  uncle-of(bill, jack)
-  uncle-of(bill, nina)
-  uncle-of(bill, oliver)
+  uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
+    parent-of(george, anna)  <- fact
+    sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y
+      parent-of(walter, bill)  <- fact
+      parent-of(walter, george)  <- fact
+    ...
+  ...
 ```
+
+Abridged: five more answers follow - mark, clara, jack, nina and oliver - each with a
+tree of that shape. The tree is three levels deep, `uncle-of` via `sibling-of` via the
+parent facts, and the sibling step shows up twice under one answer because Bill and George
+share both parents, so both license the same conclusion. Every leaf is a fact, every branch
+names the rule it used, and there is nothing in there you have to take on trust.
 
 No weights, no API key, no network. About 1,400 lines of MiniScript across seven
 modules, 402 of them the engine itself, and nothing needs retraining to change.
@@ -58,7 +65,7 @@ different directions.
 | "Why?" | the exact proof tree, every step a fact or a rule | a narrative that reads like an explanation |
 | Wrong answers | trace to a bad fact or a missing rule, which you fix | surface unpredictably, and confidently |
 | Cost per query | microseconds, local, no tokens | network, latency, money |
-| Changing behaviour | edit one fact or rule | retrain, re-prompt, or hope the neighbours don't move |
+| Changing behavior | edit one fact or rule | retrain, re-prompt, or hope the neighbors don't move |
 | Common sense, paraphrase, messy input | none whatsoever | strong |
 
 The last row is the honest one. This program cannot read *"who are Bill's nephews?"* —
@@ -134,8 +141,11 @@ siblingOf = rule(
 	])
 ```
 
-Sharing *at least one* parent is deliberate: a half-sibling counts, which is why Henry,
-Walter's son by someone else, is still Bill's brother.
+Sharing *at least one* parent is deliberate, because a half-sibling should count. This
+family happens to have none - Walter and Doris are both parents to all three sons - so every
+sibling pair here shares both parents and every answer carries both derivations. The rule
+does not care either way: one `parent-of` fact is enough, and the test suite exercises the
+half-sibling case with a Henry who has only Walter for a father.
 
 ### Backward chaining
 
@@ -270,10 +280,14 @@ the script's exit code back. Then:
 > micro-expert
 [INF] micro-expert: micro-expert 0.1.0 starting
 [INF] micro-expert: depth:      8
-[INF] micro-expert: verbose:    0
+[INF] micro-expert: verbose:    1
 [INF] micro-expert: log-level:  information
+
+Verbose run: depth 8
 Query: uncle-of(bill, ?p)
-  uncle-of(bill, anna)
+  uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
+    parent-of(george, anna)  <- fact
+    ...
   ...
 [INF] micro-expert: micro-expert exiting with code 0
 ```
@@ -283,7 +297,7 @@ Query: uncle-of(bill, ?p)
 | Option | Meaning |
 | --- | --- |
 | `--depth <NUM>` | Maximum backward-chaining depth, default `8`; `0` is facts only |
-| `--verbose` | Print the proof tree behind each answer |
+| `--verbose` | Print the proof tree behind each answer; on by default in this demo |
 | `--log-level <TEXT>` | `debug`, `information`, `warning`, `error`, `fatal`; default `information` |
 | `--help`, `-h` | Usage, generated from the same option declarations the parser uses |
 | `--version`, `-v` | Version line |
@@ -356,6 +370,12 @@ The contract that makes this worth doing:
   already that artifact.
 - **Failures are visible.** "No answer" is a first-class result here — missing fact, or a
   rule that does not fire — and it is exactly the signal an LLM alone cannot give you.
+
+None of this needs a frontier model. The pattern has been tested end to end with models as
+small as **3B parameters**, small enough to run on a CPU with no graphics card at all: the
+model only has to turn a sentence into a handful of triples and a rule name, and the engine
+does the part that has to be right. That puts the whole stack - language front door and
+reasoner - on one ordinary machine, offline.
 
 You get the interface people expect from a chatbot, with the answer coming from a system
 that can be reviewed, tested and argued with.

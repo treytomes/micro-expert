@@ -35,6 +35,7 @@ cli.add(cmd, {
 	"name": "verbose",
 	"aliases": ["--verbose"],
 	"type": "flag",
+	"default": 1,
 	"description": "Print extra progress detail.",
 })
 cli.add(cmd, {
