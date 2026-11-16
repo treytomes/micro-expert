@@ -376,6 +376,12 @@ one is often enough to use them.
 - A multi-line map or list literal only continues the statement when its last entry ends
   with a comma. Leave it off and the close brace on the next line ends the statement, and
   you get `Compiler Error: Expected '}' after map entries`.
+- A multi-line *call* has to close on the last argument's line. Continuation needs a comma
+  or operator as the last token, so a `)` on its own line ends the statement early
+  (`Compiler Error: Expected ')' after arguments`), and a trailing comma before the `)`
+  does not rescue it (`Compiler Error: Unexpected token: )`). Note the contrast with a map
+  or list literal, where a trailing comma is what lets the closer start a new line:
+  `rule(spo(var("x"), "child", var("y")),` newline `spo(var("y"), "parent", var("x")))`.
 
 ## Style
 
