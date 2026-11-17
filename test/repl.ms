@@ -181,6 +181,16 @@ run = function(t, rules, repl, h)
 		printed(fiat.answers.lines, "  added uncle-of(bill, zed)") and
 			fiat.answers.lines[fiat.answers.lines.len - 1] == "  uncle-of(bill, zed)")
 
+	// A line that parses but still holds a variable is neither a fact to add nor a value
+	// to bind, so it is refused and the question is put again.
+	refused = startSession(family + [], [],
+		["parent-of(?p, susan)", "parent-of(walter, ?x)", "walter", "quit"])
+	h.check("a fact-shaped line with a variable is refused at a value prompt",
+		printed(refused.answers.lines,
+			"  parent-of(walter, ?x) still holds a variable: type a value, or a fact without one") and
+			refused.answers.asked.len == 4 and refused.answers.asked[2] == "  ?p = " and
+			printed(refused.answers.lines, "  added parent-of(walter, susan)"))
+
 	// ── --verbose gives the tree behind each answer, as a run does ──────────
 
 	verbose = startSession(family + [], [], ["parent-of(?p, susan)", "walter", "quit"], null, 1)

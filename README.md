@@ -212,6 +212,8 @@ knowledge base.
 Answering by fiat is still there when you want it: a whole fact typed where a value is asked
 for is a fact, with the standing any typed fact has, and the question starts again from it -
 so `uncle-of(oliver, walter)` typed at `?p' =` asserts the answer instead of deriving it.
+A line that parses but still holds a variable is neither a fact nor a value, and is refused
+rather than kept as a value.
 
 A fact that needs no variable at all is offered with `add it? [y/N]` rather than assumed, and
 a value left empty stops the asking with the report standing. `/undo` takes back the last
@@ -285,7 +287,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-166 passed, 0 failed
+167 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
@@ -294,9 +296,9 @@ interpreter an uncaught runtime error still exits `0`, so the `N passed, M faile
 the real signal, not the exit code.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 166 here cover the program itself: display and parsing (12),
+56 respectively), and the 167 here cover the program itself: display and parsing (12),
 proofs and explanations (19), the missing-fact report (24), recursion and cycle handling
-(13), relations including the family rules (46), and the session at the prompt (52).
+(13), relations including the family rules (46), and the session at the prompt (53).
 
 ## Repository layout
 
@@ -308,7 +310,7 @@ src/facts.ms         the 54 facts
 src/rules.ms         the nine rules
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 166 checks and their runner
+test/                the 167 checks and their runner
 docs/                the long-form write-up
 bootstrap.bat        submodules, interpreter, .env
 micro-expert.bat     runs the entry point named in .env

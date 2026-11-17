@@ -315,14 +315,17 @@ askValue = function(session, variable, labels)
 			continue
 		end if
 		if value[0] != "?" then
-			// A whole fact is a fact wherever it is typed, so asserting one here is how to
-			// answer by fiat: it is added, and the question starts again from it.
 			triple = session.triples.SpoTriple.parse(value)
-			if not (triple isa error) and not session.triples.hasUnknowns(triple) then
+			if triple isa error then return value
+			// A whole fact is a fact wherever it is typed, so asserting one here is how to
+			// answer by fiat: it is added, and the question starts again from it. One that
+			// still holds a variable is neither a fact nor a value, so it is refused.
+			if not session.triples.hasUnknowns(triple) then
 				addFact(session, triple)
 				return factMark
 			end if
-			return value
+			say(session, "warning", "  " + value + " still holds a variable: type a value, or a fact without one")
+			continue
 		end if
 		say(session, "warning", "  ?" + labels[variable.name] + " takes a value, not a variable")
 	end while
