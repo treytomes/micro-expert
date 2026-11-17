@@ -13,16 +13,22 @@
 
 import "../src/triples"
 import "../src/rule"
+import "../src/repl"
 import "harness"
 import "display"
 import "proofs"
 import "absence"
 import "recursion"
 import "relations"
+import "repl"
 
 triples = globals["../src/triples"]
 // rule.ms holds the Rule class; the cases build the rules they test with it.
 rules = globals["../src/rule"]
+// repl.ms holds no classes, but it is handed over all the same, so every case works
+// with the one copy of everything. It is aliased away from `repl`, because that name
+// belongs to this suite's own repl.ms case module.
+prompt = globals["../src/repl"]
 
 if triples == null or rules == null then
 	print "error: could not import ../src/triples and ../src/rule"
@@ -31,7 +37,8 @@ end if
 
 // A partly loaded module would otherwise surface as a puzzling error inside one
 // case, so check the surface the suite relies on up front.
-for name in ["SpoTriple", "proveGoals", "substitute", "NotEqual", "proofLines", "standardizeApart"]
+for name in ["SpoTriple", "proveGoals", "substitute", "NotEqual", "proofLines",
+	"standardizeApart", "parseRule", "needsFor", "reportLabels", "unboundVars"]
 	if triples.hasIndex(name) == 0 then
 		print "error: ../src/triples loaded without " + name
 		exit 1
@@ -47,5 +54,6 @@ proofs.run(triples, rules, harness)
 absence.run(triples, rules, harness)
 recursion.run(triples, rules, harness)
 relations.run(triples, rules, harness)
+repl.run(triples, rules, prompt, harness)
 
 harness.summary()

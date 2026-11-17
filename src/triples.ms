@@ -465,8 +465,8 @@ end function
 
 coveredBy = function(triple, newVars)
 	"Says whether the facts already found would bind every variable left in this one."
-	for part in triple.parts
-		if part isa Var and newVars.hasIndex(part.name) == 0 then return false
+	for part in unboundVars(triple)
+		if newVars.hasIndex(part.name) == 0 then return false
 	end for
 	return true
 end function
@@ -482,12 +482,18 @@ extendVars = function(newVars, needs)
 	return extended
 end function
 
+unboundVars = function(triple)
+	"The fields of a triple that are still variables, in order."
+	vars = []
+	for part in triple.parts
+		if part isa Var then vars.push(part)
+	end for
+	return vars
+end function
+
 hasUnknowns = function(triple)
 	"Says whether any field of a triple is still a variable."
-	for part in triple.parts
-		if part isa Var then return true
-	end for
-	return false
+	return unboundVars(triple).len > 0
 end function
 
 // The report is built from pieces, so it can be painted without the engine knowing
@@ -682,6 +688,66 @@ end function
 badLine = function(line)
 	"One message for every malformed line."
 	return "malformed spo: expected 'predicate(subject, object)' or 'subject | predicate | object': " + line
+end function
+
+// ── Rules as text ─────────────────────────────────────────────────────────────
+// Rule.text prints a rule as 'head <- condition, condition', and the functions here
+// read that line back. They return the pieces Rule.make takes rather than a rule, so
+// this module never has to hold the Rule class: a caller wraps them in whichever copy
+// of it built the rest of its knowledge base.
+
+parseRule = function(line)
+	"Reads 'head <- condition, condition' into {head, body}, or an error."
+	pieces = line.split("<-")
+	if pieces.len != 2 then return err(badRule(line))
+	head = SpoTriple.parse(pieces[0])
+	if head isa error then return err(badRule(line))
+	body = trimSpace(pieces[1])
+	if body == "" then return err(badRule(line))
+	conditions = []
+	for text in splitConditions(body)
+		condition = parseCondition(text, line)
+		if condition isa error then return err(badRule(line))
+		conditions.push(condition)
+	end for
+	return {"head": head, "body": conditions}
+end function
+
+splitConditions = function(text)
+	"Splits a rule body at the commas between conditions, not the ones inside them."
+	pieces = []
+	current = ""
+	depth = 0
+	for c in text
+		if c == "(" then
+			depth = depth + 1
+		else if c == ")" then
+			depth = depth - 1
+		else if c == "," and depth == 0 then
+			pieces.push(current)
+			current = ""
+			continue
+		end if
+		current = current + c
+	end for
+	pieces.push(current)
+	return pieces
+end function
+
+parseCondition = function(text, line)
+	"Reads one condition of a rule body: a triple, or a '?x != ?y' constraint."
+	text = trimSpace(text)
+	differ = text.split("!=")
+	if text == "" then return err(badRule(line))
+	if differ.len == 2 then
+		return NotEqual.make(termOf(trimSpace(differ[0])), termOf(trimSpace(differ[1])))
+	end if
+	return SpoTriple.parse(text)
+end function
+
+badRule = function(line)
+	"One message for every malformed rule line."
+	return "malformed rule: expected 'head <- condition, condition': " + line
 end function
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

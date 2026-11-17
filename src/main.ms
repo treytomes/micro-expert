@@ -7,6 +7,8 @@ import "cli/cli"
 import "triples"
 import "logging/logging"
 import "vt"
+import "repl"
+import "rule"
 
 // src/cli and src/logging are submodules, so their modules live at <folder>/<file>:
 // import names the resulting map after the path it was given, so each is aliased back
@@ -43,6 +45,13 @@ cli.add(cmd, {
 	"type": "flag",
 	"default": 0,
 	"description": "Print extra progress detail.",
+})
+cli.add(cmd, {
+	"name": "repl",
+	"aliases": ["--repl"],
+	"type": "flag",
+	"default": 0,
+	"description": "Start a session that takes facts and rules at the prompt.",
 })
 cli.add(cmd, {
 	"name": "log-level",
@@ -134,11 +143,13 @@ end function
 // ── Report colors ────────────────────────────────────────────────────────────
 // The missing-fact report paints its parts through the bundled vt module: one color
 // for the facts it asks for, one for the rule that would use them, and dimmed
-// variables inside the facts. NO_COLOR (https://no-color.org) turns every escape
-// code off, so a redirected run stays plain text; the logger reads it the same way.
+// variables inside the facts. The session at the prompt paints itself from the same
+// table - its prompts, the facts and rules it adds, and the answers it gives.
+// NO_COLOR (https://no-color.org) turns every escape code off, so a redirected run
+// stays plain text; the logger reads it the same way.
 
 reportStyle = function
-	"The paint the missing-fact report uses, or null when colors are off."
+	"The paint the report and the session at the prompt use, or null when colors are off."
 	if env.hasIndex("NO_COLOR") then return null
 	return {
 		"header": vt.bold,
@@ -147,6 +158,9 @@ reportStyle = function
 		"rule": vt.textColor(vt.color.olive),
 		"var": vt.dim,
 		"note": vt.dim,
+		"prompt": vt.bold,
+		"added": vt.textColor(vt.color.olive),
+		"answer": vt.textColor(vt.color.green),
 		"normal": vt.normal,
 	}
 end function
@@ -196,6 +210,10 @@ import "rules"
 facts = globals["facts"].build(triples)
 rules = globals["rules"].build(triples)
 
+// The Rule class, so a rule typed at the prompt joins the search like the ones
+// rules.ms builds: the same class, the same .text, the same solver.
+Rule = globals["rule"].Rule
+
 // 'known', not 'fact': a top-level loop variable is a global here, so naming it
 // fact would overwrite the fact() shorthand with a triple as soon as the loop ran.
 // Facts are debug detail: they are logged, not printed, so a normal run shows the
@@ -218,9 +236,40 @@ end for
 //
 // --depth bounds how many rules deep the search may go; 0 means facts only.
 
+// ── A session at the prompt ──────────────────────────────────────────────────
+// --repl trades the fixed questions below for a prompt that takes facts, rules and
+// questions. The session starts from the arrays above and adds to them in memory, so
+// what the prompt learns lasts for the run and no source file is touched.
+
+replSession = function()
+	"The session --repl starts, drawn from the facts and rules already loaded."
+	return {
+		"triples": triples,
+		"Rule": Rule,
+		"facts": facts,
+		"rules": rules,
+		"depth": options.values.depth,
+		"style": reportStyle(),
+		"io": {
+			"read": function(question)
+				return input(question)
+			end function,
+			"say": function(line)
+				print line
+			end function,
+		},
+	}
+end function
+
+if options.values.repl then
+	repl.run(replSession())
+	finish 0
+end if
+
 // runQuery fact(var("x"), "child-of", var("y"))
 // runQuery fact("bill", "uncle-of", var("?p"))
-runQuery fact(var("?p"), "parent-of", "susan")
+// runQuery fact(var("?p"), "parent-of", "susan")
+runQuery fact("susan", "parent-of", var("?p"))
 runQuery fact(var("?p"), "grandpa-of", "susan")
 runQuery fact(var("?p"), "uncle-of", "susan")
 

@@ -98,6 +98,7 @@ Query: uncle-of(bill, ?p)
 | --- | --- |
 | `--depth <NUM>` | Maximum backward-chaining depth, default `8`; `0` is facts only |
 | `--verbose` | Print the proof tree behind each answer |
+| `--repl` | Start a session that takes facts and rules at the prompt |
 | `--log-level <TEXT>` | `debug`, `information`, `warning`, `error`, `fatal`; default `information` |
 | `--help`, `-h` | Usage, generated from the same option declarations the parser uses |
 | `--version`, `-v` | Version line |
@@ -151,6 +152,39 @@ the unknown is: `fact(var("who"), "grandpa-of", "tim")` reads "?who is the grand
 and answers `walter`, and `fact(var("x"), "grandma-of", var("y"))` lists every
 grandmother/grandchild pair - seven of them, all Doris.
 
+## A session at the prompt
+
+`--repl` trades the fixed questions for a session, where one line has one meaning: a ground
+line adds a fact, a line with a variable asks a question, and a line with `<-` adds a rule.
+
+```
+> micro-expert --repl
+Type a fact to add it, a question to ask it, or a rule as 'head <- conditions'. 'quit' leaves.
+? parent-of(?p, susan)
+  no solution found at depth 8
+  A solution would need one of these:
+    a fact like parent-of(?p, susan)
+  ?p = walter
+  added parent-of(walter, susan)
+  parent-of(walter, susan)
+? grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)
+  added rule grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)
+? grandparent(?p, tim)
+  grandparent(walter, tim)
+  grandparent(doris, tim)
+```
+
+When a question has no answer, the session reads the same report, asks for the value the
+missing fact leaves open, adds it, and asks again - one variable at a time, so a missing
+`parent-of(?p, ?q)` takes two answers, and a value left empty stops the asking with the
+report standing. Nothing is written back: the session adds to the arrays `src/main.ms`
+built, so what it learns lasts for the run and the files stay as they were. A rule is read
+from the line `Rule.text` prints, and a line that will not parse is refused with itself
+quoted. `--depth` bounds the session's search the way it bounds a run.
+
+The session paints from the same style table as the report - a bold prompt, olive additions,
+green answers - so `NO_COLOR` turns the whole run plain, prompt included.
+
 ## Setting up your own facts and rules
 
 The family is only data. `src/facts.ms` and `src/rules.ms` are the knowledge base, and
@@ -203,7 +237,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-111 passed, 0 failed
+138 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
@@ -212,9 +246,9 @@ interpreter an uncaught runtime error still exits `0`, so the `N passed, M faile
 the real signal, not the exit code.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 111 here cover the program itself: display and parsing (12),
+56 respectively), and the 138 here cover the program itself: display and parsing (12),
 proofs and explanations (19), the missing-fact report (21), recursion and cycle handling
-(13), and relations including the family rules (46).
+(13), relations including the family rules (46), and the session at the prompt (27).
 
 ## Repository layout
 
@@ -226,7 +260,7 @@ src/facts.ms         the 54 facts
 src/rules.ms         the nine rules
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 111 checks and their runner
+test/                the 138 checks and their runner
 docs/                the long-form write-up
 bootstrap.bat        submodules, interpreter, .env
 micro-expert.bat     runs the entry point named in .env
