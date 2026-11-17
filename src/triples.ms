@@ -419,7 +419,8 @@ needsFor = function(goal, facts, rules, depth, binds=null, open=null)
 	if depth <= 0 then return options
 	for candidate in matchingRules(goal, rules, binds)
 		for needs in bodyRequirements(candidate.body, facts, rules, depth - 1, candidate.binds, path, {})
-			options.push({"rule": candidate.rule, "needs": needs})
+			// A body that needs no new fact was provable already, so it is no option.
+			if needs.len > 0 then options.push({"rule": candidate.rule, "needs": needs})
 		end for
 	end for
 	return options
@@ -446,11 +447,11 @@ end function
 
 firstRequirements = function(condition, facts, rules, depth, binds, open, newVars)
 	"The ways a body's condition can be met: [[]] when it is proved already, else what it adds to the report."
-	if newVars.len > 0 and hasUnknowns(condition, binds) then
-		// A fact still to be added would bind these variables, so this condition
-		// cannot be judged against what is known. When the facts found so far bind
-		// all of them, it is a condition to check rather than a fact to add.
-		grounded = substitute(condition, binds)
+	grounded = substitute(condition, binds)
+	// A fact still to be added would bind these variables, so this condition cannot
+	// be judged against what is known. When the facts found so far bind all of them,
+	// it is a condition to check rather than a fact to add.
+	if newVars.len > 0 and hasUnknowns(grounded) then
 		return [[missingFact(grounded, coveredBy(grounded, newVars))]]
 	end if
 	if proveGoals(condition, facts, rules, depth, binds, open).len > 0 then return [[]]
@@ -481,10 +482,9 @@ extendVars = function(newVars, needs)
 	return extended
 end function
 
-hasUnknowns = function(triple, binds)
-	"Says whether any field is still a variable once binds are applied."
-	grounded = substitute(triple, binds)
-	for part in grounded.parts
+hasUnknowns = function(triple)
+	"Says whether any field of a triple is still a variable."
+	for part in triple.parts
 		if part isa Var then return true
 	end for
 	return false
@@ -495,17 +495,12 @@ end function
 // pieces. A caller that leaves a role out gets nothing for it, so the plain style,
 // which is all empty strings, prints the report exactly as the checks expect it.
 
-plainStyle = {"normal": "", "header": "", "warning": "", "fact": "", "rule": "", "var": "",
-	"note": ""}
+plainStyle = {"normal": "", "header": "", "fact": "", "rule": "", "var": "", "note": ""}
 
 filledStyle = function(style)
-	"A complete style map: every role the report paints, holding the caller's text or nothing."
-	filled = {}
-	for role in plainStyle.indexes
-		filled[role] = ""
-		if style != null and style.hasIndex(role) then filled[role] = style[role]
-	end for
-	return filled
+	"A complete style map: the plain style, with the caller's own text for the roles it names."
+	if style == null then return plainStyle + {}
+	return plainStyle + style
 end function
 
 // A variable that came through standardizeApart carries a number in its name, so
@@ -540,12 +535,11 @@ reportLabels = function(options)
 	labels = {}
 	// The goal's names are claimed first, so a rule's ?p can never take the name of
 	// the variable the query actually asked about.
-	for asRule in [0, 1]
-		for name in names
-			if isRuleName(name) != asRule then continue
-			if labels.hasIndex(name) then continue
-			labels[name] = freeLabel(labels, plainName(name))
-		end for
+	for name in names
+		if not isRuleName(name) then labels[name] = name
+	end for
+	for name in names
+		if isRuleName(name) then labels[name] = freeLabel(labels, plainName(name))
 	end for
 	return labels
 end function
@@ -553,18 +547,10 @@ end function
 freeLabel = function(labels, base)
 	"The name itself when nothing else shows it, else primed once per variable that got there first."
 	label = base
-	while labelShown(labels, label)
+	while labels.indexOf(label) != null
 		label = label + "'"
 	end while
 	return label
-end function
-
-labelShown = function(labels, label)
-	"Says whether any variable is already shown under this label."
-	for shown in labels.values
-		if shown == label then return true
-	end for
-	return false
 end function
 
 primedVariable = function(labels)
@@ -584,7 +570,6 @@ neededFactLines = function(goal, facts, rules, depth, style=null)
 	seen = {}
 	for option in options
 		block = optionLines(option, labels, style)
-		if block.len == 0 then continue
 		key = block.join("|")
 		if seen.hasIndex(key) == 0 then
 			seen[key] = 1
@@ -600,7 +585,6 @@ end function
 
 optionLines = function(option, labels, style)
 	"The lines for one alternative: a fact, or a rule and the facts its body would still need."
-	if option.needs.len == 0 then return []
 	if option.rule == null then
 		return ["    a fact like " + neededFactText(option.needs[0], labels, style)]
 	end if

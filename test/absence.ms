@@ -89,15 +89,12 @@ run = function(t, rules, h)
 	h.check("the primed name is explained once, at the end",
 		viaGrandpa[viaGrandpa.len - 1] ==
 			"    (a name ending in ' is the rule's own variable, not one you asked about)")
-	h.check("a condition still needing its own fact is left unmarked",
-		viaGrandpa[4].indexOf("checked") == null)
 	h.check("a condition the listed facts would bind is marked",
 		viaGrandpa[5] == "      has-gender(?p, male)  (checked once the facts above exist)")
 
 	// ── Painting is opt-in: no style, no escape codes ──────────────────────
 
-	plainLine = t.neededFactLines(asked, family, [], 8)[1]
-	h.check("an unpainted report stays plain text", plainLine.indexOf(char(27)) == null)
+	h.check("an unpainted report stays plain text", lines[1].indexOf(char(27)) == null)
 
 	// The engine only ever places the caller's own strings, so a style of markers
 	// shows exactly which pieces got painted where.

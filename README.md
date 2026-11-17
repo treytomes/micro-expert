@@ -203,7 +203,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-112 passed, 0 failed
+111 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
@@ -212,8 +212,8 @@ interpreter an uncaught runtime error still exits `0`, so the `N passed, M faile
 the real signal, not the exit code.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 112 here cover the program itself: display and parsing (12),
-proofs and explanations (19), the missing-fact report (22), recursion and cycle handling
+56 respectively), and the 111 here cover the program itself: display and parsing (12),
+proofs and explanations (19), the missing-fact report (21), recursion and cycle handling
 (13), and relations including the family rules (46).
 
 ## Repository layout
@@ -226,7 +226,7 @@ src/facts.ms         the 54 facts
 src/rules.ms         the nine rules
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 112 checks and their runner
+test/                the 111 checks and their runner
 docs/                the long-form write-up
 bootstrap.bat        submodules, interpreter, .env
 micro-expert.bat     runs the entry point named in .env
