@@ -139,6 +139,11 @@ so. A condition whose variables the facts above it would bind is tagged
 `(checked once the facts above exist)` rather than listed as something to add: write down
 the untagged lines, and the search decides the rest.
 
+Each condition of a rule body is judged against what the conditions before it settled, so a
+body whose conditions can each be met on their own but never all at once still has its rule
+listed - with the facts its conditions would need as one set - rather than being dropped as
+if no rule could conclude the query.
+
 The question lives at the bottom of `src/main.ms`:
 
 ```miniscript
@@ -269,7 +274,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-161 passed, 0 failed
+164 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
@@ -278,8 +283,8 @@ interpreter an uncaught runtime error still exits `0`, so the `N passed, M faile
 the real signal, not the exit code.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 161 here cover the program itself: display and parsing (12),
-proofs and explanations (19), the missing-fact report (21), recursion and cycle handling
+56 respectively), and the 164 here cover the program itself: display and parsing (12),
+proofs and explanations (19), the missing-fact report (24), recursion and cycle handling
 (13), relations including the family rules (46), and the session at the prompt (50).
 
 ## Repository layout
@@ -292,7 +297,7 @@ src/facts.ms         the 54 facts
 src/rules.ms         the nine rules
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 161 checks and their runner
+test/                the 164 checks and their runner
 docs/                the long-form write-up
 bootstrap.bat        submodules, interpreter, .env
 micro-expert.bat     runs the entry point named in .env

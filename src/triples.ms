@@ -407,9 +407,20 @@ needsFor = function(goal, facts, rules, depth, binds=null, open=null)
 		options.push({"rule": null, "needs": [missingFact(substitute(goal, binds), false)]})
 	end if
 	if depth <= 0 then return options
+	// The search decides whether a body was really met. A body whose conditions were
+	// each met on its own need not have been, so when every way claims it needs nothing
+	// and the goal still has no proof, the body is read again with the conditions that
+	// proved nothing together reported as facts.
+	proved = null
 	for candidate in matchingRules(goal, rules, binds)
-		for result in bodyRequirements(candidate.body, facts, rules, depth - 1, candidate.binds, path, {})
-			// A body that needs no new fact was provable already, so it is no option.
+		results = bodyRequirements(candidate.body, facts, rules, depth - 1, candidate.binds, path, {}, 0)
+		if results.len > 0 and noNeeds(results) then
+			if proved == null then proved = proveGoals(goal, facts, rules, depth, binds, open)
+			if proved.len == 0 then
+				results = bodyRequirements(candidate.body, facts, rules, depth - 1, candidate.binds, path, {}, 1)
+			end if
+		end if
+		for result in results
 			if result.needs.len > 0 then
 				options.push({"rule": candidate.rule, "needs": result.needs})
 			end if
@@ -418,28 +429,36 @@ needsFor = function(goal, facts, rules, depth, binds=null, open=null)
 	return options
 end function
 
-bodyRequirements = function(conditions, facts, rules, depth, binds, open, newVars)
+noNeeds = function(results)
+	"Says whether every way of meeting the body claimed it needed no new fact."
+	for result in results
+		if result.needs.len > 0 then return false
+	end for
+	return true
+end function
+
+bodyRequirements = function(conditions, facts, rules, depth, binds, open, newVars, strict)
 	"Every way of proving a rule body: the bindings it would leave, and the facts it would still need; newVars are the variables the facts found so far would bind."
 	if conditions.len == 0 then return [{"binds": binds, "needs": []}]
 	first = conditions[0]
 	if not (first isa SpoTriple) then
 		// A constraint is checked here rather than proved, so it asks for no fact.
 		if not holdsConstraint(first, binds) then return []
-		return bodyRequirements(conditions[1:], facts, rules, depth, binds, open, newVars)
+		return bodyRequirements(conditions[1:], facts, rules, depth, binds, open, newVars, strict)
 	end if
 	options = []
 	// The bindings a condition proves carry into the conditions after it, so each of
 	// them is judged against what this one settled.
-	for head in firstRequirements(first, facts, rules, depth, binds, open, newVars)
+	for head in firstRequirements(first, facts, rules, depth, binds, open, newVars, strict)
 		for tail in bodyRequirements(conditions[1:], facts, rules, depth, head.binds, open,
-			extendVars(newVars, head.needs))
+			extendVars(newVars, head.needs), strict)
 			options.push({"binds": tail.binds, "needs": head.needs + tail.needs})
 		end for
 	end for
 	return options
 end function
 
-firstRequirements = function(condition, facts, rules, depth, binds, open, newVars)
+firstRequirements = function(condition, facts, rules, depth, binds, open, newVars, strict)
 	"The ways a body's condition can be met: what it settles, and what it adds to the report."
 	grounded = substitute(condition, binds)
 	// A fact still to be added would bind these variables, so this condition cannot
@@ -449,8 +468,17 @@ firstRequirements = function(condition, facts, rules, depth, binds, open, newVar
 		return [{"binds": binds, "needs": [missingFact(grounded, coveredBy(grounded, newVars))]}]
 	end if
 	proofs = proveGoals(condition, facts, rules, depth, binds, open)
-	if proofs.len > 0 then return [{"binds": agreeingBinds(proofs), "needs": []}]
-	return mapWith(needsFor(condition, facts, rules, depth, binds, open), @requirement, binds)
+	if proofs.len == 0 then
+		return mapWith(needsFor(condition, facts, rules, depth, binds, open), @requirement, binds)
+	end if
+	settled = agreeingBinds(proofs)
+	// Proofs can disagree about a condition's variables, and then it settles nothing for
+	// the conditions after it. Read strictly, it is reported instead: no fact of some
+	// other shape could ever join the body's conditions into one proof.
+	if strict and hasUnknowns(substitute(condition, settled)) then
+		return [{"binds": binds, "needs": [missingFact(grounded, false)]}]
+	end if
+	return [{"binds": settled, "needs": []}]
 end function
 
 agreeingBinds = function(proofs)

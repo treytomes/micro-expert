@@ -64,6 +64,25 @@ run = function(t, rules, h)
 		viaUncle[4] == "      sibling-of(bill, ?p)  (checked once the facts above exist)")
 	// The gender condition is ground and known, so it is not asked for.
 
+	// Every condition of a body can be provable on its own and still never hold
+	// together: "a" is nobody's uncle here, though a parent of ?p exists, a sibling of
+	// "a" exists, and "a" is male. The report must still name the rule, and say which
+	// facts its body would need as one set, instead of claiming no rule can conclude it.
+	tangle = [
+		spo("a", "parent-of", "b"),
+		spo("c", "parent-of", "a"),
+		spo("d", "parent-of", "a"),
+		spo("c", "parent-of", "e"),
+		spo("a", "sibling-of", "e"),
+		spo("a", "has-gender", "male"),
+	]
+	tangled = t.neededFactLines(spo("a", "uncle", v("p")), tangle, [uncle], 8)
+	h.check("a body whose conditions only hold apart still names its rule", tangled.len == 6)
+	h.check("the facts it would need are reported as one set",
+		tangled[3] == "      parent-of(?p', ?p)")
+	h.check("the condition those facts would settle is tagged",
+		tangled[4] == "      sibling-of(a, ?p')  (checked once the facts above exist)")
+
 	// ── Depth still bounds the report ──────────────────────────────────────
 
 	shallow = t.neededFactLines(spo("bill", "uncle", "nobody"), family, [uncle], 0)
