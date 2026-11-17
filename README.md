@@ -125,6 +125,12 @@ A query aimed at a derived relation lists each rule that could conclude it and t
 body would still need underneath, and `--depth` bounds that report the same way it bounds
 the search.
 
+The report is painted for a terminal: `no solution found` in red, a rule path in olive, the
+facts in aqua with their variables dimmed, all through the interpreter's bundled `vt`
+module. Paint is all it is - the plain text underneath is what the checks read - and setting
+`NO_COLOR` turns every escape code off, for a run you mean to redirect. The logger reads
+that variable the same way.
+
 The question lives at the bottom of `src/main.ms`:
 
 ```miniscript
@@ -190,7 +196,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-103 passed, 0 failed
+108 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
@@ -199,8 +205,8 @@ interpreter an uncaught runtime error still exits `0`, so the `N passed, M faile
 the real signal, not the exit code.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 103 here cover the program itself: display and parsing (12),
-proofs and explanations (19), the missing-fact report (13), recursion and cycle handling
+56 respectively), and the 108 here cover the program itself: display and parsing (12),
+proofs and explanations (19), the missing-fact report (18), recursion and cycle handling
 (13), and relations including the family rules (46).
 
 ## Repository layout
@@ -213,7 +219,7 @@ src/facts.ms         the 54 facts
 src/rules.ms         the nine rules
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 103 checks and their runner
+test/                the 108 checks and their runner
 docs/                the long-form write-up
 bootstrap.bat        submodules, interpreter, .env
 micro-expert.bat     runs the entry point named in .env

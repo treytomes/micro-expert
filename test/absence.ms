@@ -76,4 +76,27 @@ run = function(t, rules, h)
 	h.check("both readings of the nested goal are offered", nested.len == 7)
 	h.check("the nested rule's own conditions are named",
 		nested[6] == "      parent-of(?p, bill)")
+
+	// ── Painting is opt-in: no style, no escape codes ──────────────────────
+
+	plainLine = t.neededFactLines(asked, family, [], 8)[1]
+	h.check("an unpainted report stays plain text", plainLine.indexOf(char(27)) == null)
+
+	// The engine only ever places the caller's own strings, so a style of markers
+	// shows exactly which pieces got painted where.
+	mark = {"header": "<h>", "warning": "<w>", "fact": "<f>", "rule": "<r>",
+		"var": "<v>", "normal": "</>"}
+	painted = t.neededFactLines(asked, family, [], 8, mark)
+	h.check("a painted header opens and closes its line",
+		painted[0] == "<h>  A solution would need one of these:</>")
+	h.check("a painted fact dims each variable inside it",
+		painted[1] == "    a fact like <f>parent-of(<v>?p</><f>, susan)</>")
+
+	paintedRule = t.neededFactLines(spo(v("x"), "grandparent", "nobody"), lineage,
+		[grandparent], 8, mark)
+	h.check("a painted rule path opens with its rule",
+		paintedRule[2] ==
+			"<r>    through rule grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)</>")
+	h.check("a painted rule path paints the facts under it",
+		paintedRule[3] == "      <f>parent-of(<v>?p</><f>, nobody)</>")
 end function

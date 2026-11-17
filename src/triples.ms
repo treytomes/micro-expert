@@ -464,12 +464,30 @@ hasUnknowns = function(triple, binds)
 	return false
 end function
 
-neededFactLines = function(goal, facts, rules, depth)
-	"The lines to print when goal has no answer: the facts that would allow one."
-	lines = ["  A solution would need one of these:"]
+// The report is built from pieces, so it can be painted without the engine knowing
+// what a color is: a style is a map of role -> the text placed before that role's
+// pieces. A caller that leaves a role out gets nothing for it, so the plain style,
+// which is all empty strings, prints the report exactly as the checks expect it.
+
+plainStyle = {"normal": "", "header": "", "warning": "", "fact": "", "rule": "", "var": ""}
+
+filledStyle = function(style)
+	"A complete style map: every role the report paints, holding the caller's text or nothing."
+	filled = {}
+	for role in plainStyle.indexes
+		filled[role] = ""
+		if style != null and style.hasIndex(role) then filled[role] = style[role]
+	end for
+	return filled
+end function
+
+neededFactLines = function(goal, facts, rules, depth, style=null)
+	"The lines to print when goal has no answer: the facts that would allow one, painted with style."
+	style = filledStyle(style)
+	lines = [style.header + "  A solution would need one of these:" + style.normal]
 	seen = {}
 	for option in needsFor(goal, facts, rules, depth)
-		block = optionLines(option)
+		block = optionLines(option, style)
 		if block.len == 0 then continue
 		key = block.join("|")
 		if seen.hasIndex(key) == 0 then
@@ -480,25 +498,26 @@ neededFactLines = function(goal, facts, rules, depth)
 	return lines
 end function
 
-optionLines = function(option)
+optionLines = function(option, style)
 	"The lines for one alternative: a fact, or a rule and the facts its body would still need."
 	if option.needs.len == 0 then return []
-	if option.rule == null then return ["    a fact like " + neededFactText(option.needs[0])]
-	block = ["    through rule " + option.rule.text]
+	if option.rule == null then return ["    a fact like " + neededFactText(option.needs[0], style)]
+	block = [style.rule + "    through rule " + option.rule.text + style.normal]
 	for needed in option.needs
-		block.push("      " + neededFactText(needed))
+		block.push("      " + neededFactText(needed, style))
 	end for
 	return block
 end function
 
-neededFactText = function(triple)
-	"Renders a needed fact, with variable names as they read rather than as they were renamed."
+neededFactText = function(triple, style)
+	"Renders a needed fact in its role's paint, with variable names as they read rather than as they were renamed."
 	labels = {}
-	return shownTerm(triple.predicate, labels) + "(" + shownTerm(triple.subject, labels) +
-		", " + shownTerm(triple.object, labels) + ")"
+	return style.fact + shownTerm(triple.predicate, labels, style) + "(" +
+		shownTerm(triple.subject, labels, style) + ", " +
+		shownTerm(triple.object, labels, style) + ")" + style.normal
 end function
 
-shownTerm = function(term, labels)
+shownTerm = function(term, labels, style)
 	"One field of a needed fact: a value as it is, a variable as ?name; labels is keyed by the names already shown."
 	if not (term isa Var) then return term
 	base = plainName(term.name)
@@ -511,7 +530,9 @@ shownTerm = function(term, labels)
 		count = count + 1
 	end while
 	labels[label] = term.name
-	return "?" + label
+	// Dimming a variable ends the paint it sits in, so a painted fact reopens it.
+	if style.var == "" then return "?" + label
+	return style.var + "?" + label + style.normal + style.fact
 end function
 
 plainName = function(name)

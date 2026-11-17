@@ -6,6 +6,7 @@
 import "cli/cli"
 import "triples"
 import "logging/logging"
+import "vt"
 
 // src/cli and src/logging are submodules, so their modules live at <folder>/<file>:
 // import names the resulting map after the path it was given, so each is aliased back
@@ -130,14 +131,40 @@ notEqual = function(left, right)
 	return triples.NotEqual.make(left, right)
 end function
 
+// ── Report colors ────────────────────────────────────────────────────────────
+// The missing-fact report paints its parts through the bundled vt module: one color
+// for the facts it asks for, one for the rule that would use them, and dimmed
+// variables inside the facts. NO_COLOR (https://no-color.org) turns every escape
+// code off, so a redirected run stays plain text; the logger reads it the same way.
+
+reportStyle = function
+	"The paint the missing-fact report uses, or null when colors are off."
+	if env.hasIndex("NO_COLOR") then return null
+	return {
+		"header": vt.bold,
+		"warning": vt.textColor(vt.color.red),
+		"fact": vt.textColor(vt.color.aqua),
+		"rule": vt.textColor(vt.color.olive),
+		"var": vt.dim,
+		"normal": vt.normal,
+	}
+end function
+
+paint = function(style, role, text)
+	"One report line in its role's color, or the plain text when colors are off."
+	if style == null then return text
+	return style[role] + text + style.normal
+end function
+
 runQuery = function(query)
 	print "Query: " + query.text
 	proofs = triples.proveGoals(query, facts, rules, options.values.depth)
 	// A quiet empty answer set is a dead end: say so, and say which facts would
 	// turn it into an answer, so the missing knowledge is the result.
 	if proofs.len == 0 then
-		print "  no solution found at depth " + options.values.depth
-		for line in triples.neededFactLines(query, facts, rules, options.values.depth)
+		style = reportStyle()
+		print paint(style, "warning", "  no solution found at depth " + options.values.depth)
+		for line in triples.neededFactLines(query, facts, rules, options.values.depth, style)
 			print line
 		end for
 		return
