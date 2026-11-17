@@ -145,18 +145,24 @@ end function
 // shellArgs entries  --query="household_avoids(trey,  and  ?a)" . Rejoin tokens
 // that end mid-quote so callers see whole strings, whatever the shell did.
 normalizeArgs = function(rawArgs)
-	tokens = []
-	i = 1									// shellArgs[0] is the script path
-	while i < rawArgs.len
-		text = rawArgs[i]
-		while hasOpenQuote(text) and i + 1 < rawArgs.len
-			i = i + 1
-			text = text + " " + rawArgs[i]
-		end while
-		tokens.push(text)
-		i = i + 1
-	end while
-	return tokens
+	"Rejoins tokens the shell split mid-quote, skipping the script path."
+	return gatherTokens(rawArgs, 1, [])
+end function
+
+gatherTokens = function(rawArgs, index, tokens)
+	"One shell argument at a time, appended as a whole token."
+	if index >= rawArgs.len then return tokens
+	joined = joinQuoted(rawArgs, index, rawArgs[index])
+	tokens.push(joined.text)
+	return gatherTokens(rawArgs, joined.next, tokens)
+end function
+
+joinQuoted = function(rawArgs, index, text)
+	"Extends text with the following arguments until its quotes close: {text, next}."
+	if not hasOpenQuote(text) or index + 1 >= rawArgs.len then
+		return {"text": text, "next": index + 1}
+	end if
+	return joinQuoted(rawArgs, index + 1, text + " " + rawArgs[index + 1])
 end function
 
 hasOpenQuote = function(text)

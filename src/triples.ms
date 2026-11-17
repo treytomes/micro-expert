@@ -81,12 +81,8 @@ end function
 
 copyBinds = function(binds)
 	"Returns a copy of a bindings map; null becomes an empty map."
-	copied = {}
-	if binds == null then return copied
-	for name in binds.indexes
-		copied[name] = binds[name]
-	end for
-	return copied
+	if binds == null then return {}
+	return binds + {}
 end function
 
 withBinding = function(binds, name, value)

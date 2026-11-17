@@ -80,11 +80,7 @@ newLogger = function(options=null)
 		"retainedFileCount": 7,
 		"shared": 1,
 	}
-	if options != null then
-		for kv in options
-			settings[kv.key] = kv.value
-		end for
-	end if
+	if options != null then settings = settings + options
 
 	logger = new Logger
 	logger.name = str(settings.name)
@@ -222,22 +218,25 @@ Logger.prune = function
 	names = file.children(self.directory)
 	if names isa error then return null
 	current = self.rollingName
-	rolling = []
-	haveCurrent = 0
-	for name in names
-		if self.isRollingFile(name) then
-			rolling.push(name)
-			if name == current then haveCurrent = 1
-		end if
-	end for
-	// Count the file this logger is about to write to, even before it exists.
-	if not haveCurrent then rolling.push(current)
+	rolling = self.rollingFiles(names, current)
 	rolling.sort
-	while rolling.len > self.retainedFileCount
-		oldest = rolling.pull
-		if oldest != current then removeFile(file.child(self.directory, oldest))
-	end while
+	self.dropOldest(rolling, current)
 	return null
+end function
+
+Logger.rollingFiles = function(names, current)
+	"This logger's files among names, counting the current one even before it exists."
+	if names.len == 0 then return [current]
+	rest = self.rollingFiles(names[1:], current)
+	if self.isRollingFile(names[0]) and names[0] != current then return [names[0]] + rest
+	return rest
+end function
+
+Logger.dropOldest = function(names, current)
+	"Deletes the oldest files beyond the retained count, sparing the current one."
+	if names.len <= self.retainedFileCount then return null
+	if names[0] != current then removeFile(file.child(self.directory, names[0]))
+	return self.dropOldest(names[1:], current)
 end function
 
 Logger.isRollingFile = function(name)
