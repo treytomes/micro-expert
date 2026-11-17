@@ -193,5 +193,7 @@ end for
 // runQuery fact(var("x"), "child-of", var("y"))
 // runQuery fact("bill", "uncle-of", var("?p"))
 runQuery fact(var("?p"), "parent-of", "susan")
+runQuery fact(var("?p"), "grandpa-of", "susan")
+runQuery fact(var("?p"), "uncle-of", "susan")
 
 finish 0
