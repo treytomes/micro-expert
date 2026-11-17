@@ -1,5 +1,5 @@
 // Cases for logging.ms: message templates, levels, tags, file names, directories, the
-// rolling-file prune and the file sink.
+// rolling-file prune, and the file sink with its failures.
 //
 // The prune deletes real files, so each case works in its own folder under the system
 // temp directory and clears it away afterwards. The stamps are far in the past, so those
@@ -221,5 +221,52 @@ run = function(log, h)
 	dropped.info("dropped")
 	h.check("a level below the minimum writes nothing", namesIn(dir).len == 0)
 
+	// ── Debug and fatal ──────────────────────────────────────────────────────
+
+	startDir(dir)
+	verbose = loggerOn(log, dir, 7, {"file": 1, "minimumLevel": "debug"})
+	verbose.debug("Debug at {N}", {"N": 1})
+	verbose.fatal("Fatal at {N}", {"N": 2})
+	written = fileLines(file.child(dir, verbose.rollingName))
+	h.check("debug writes a DBG line",
+		written.len == 2 and written[0].indexOf("[DBG] test: Debug at 1") != null)
+	h.check("fatal writes an FTL line",
+		written.len == 2 and written[1].indexOf("[FTL] test: Fatal at 2") != null)
+
+	startDir(dir)
+	quiet = loggerOn(log, dir, 7, {"file": 1})
+	quiet.debug("dropped")
+	h.check("debug sits below the default minimum", namesIn(dir).len == 0)
+
+	// ── Several writers on one file ──────────────────────────────────────────
+
+	startDir(dir)
+	first = loggerOn(log, dir, 7, {"file": 1})
+	first.info("from A")
+	loggerOn(log, dir, 7, {"file": 1}).info("from B")
+	loggerOn(log, dir, 7, {"file": 1}).info("from C")
+	h.check("three writers to one file keep every line",
+		fileLines(file.child(dir, first.rollingName)).len == 3)
+
+	// ── When the sink cannot write ───────────────────────────────────────────
+
+	startDir(dir)
+	makeFile(dir, "blocker")
+	blocked = file.child(dir, "blocker")
+	broken = loggerOn(log, blocked, 7, {"file": 1, "colors": 0})
+	h.check("append swallows a failed open",
+		broken.append("x") == null and file.exists(broken.rollingPath) == 0)
+	h.check("the failure line names the folder and the problem",
+		broken.failureLine(err("boom")) == "[ERR] logging: could not write to " + blocked + ": boom")
+	h.check("reportFileFailure stays quiet without a console",
+		broken.reportFileFailure(err("boom")) == null)
+
+	// ── Removing a file ──────────────────────────────────────────────────────
+
+	startDir(dir)
+	makeFile(dir, "stale.log")
+	stale = file.child(dir, "stale.log")
+	h.check("removeFile deletes the file", log.removeFile(stale) == null and file.exists(stale) == 0)
+	h.check("removeFile ignores a file that is gone", log.removeFile(stale) == null)
 	clearDir(dir)
 end function

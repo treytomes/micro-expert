@@ -29,8 +29,6 @@
 //   fileName           base file name                      ("app-.log")
 //   rollingInterval    infinite|year|month|day|hour|minute ("day")
 //   retainedFileCount  files kept when rolling; 0 keeps all (7)
-//   shared             1 to append and close each event, so several
-//                      processes can write the same file    (1)
 
 import "dateTime"
 import "vt"
@@ -78,7 +76,6 @@ newLogger = function(options=null)
 		"fileName": "app-.log",
 		"rollingInterval": "day",
 		"retainedFileCount": 7,
-		"shared": 1,
 	}
 	if options != null then settings = settings + options
 
@@ -93,7 +90,6 @@ newLogger = function(options=null)
 	logger.file = settings.file
 	logger.directory = str(settings.path)
 	logger.retainedFileCount = settings.retainedFileCount
-	logger.shared = settings.shared
 
 	// "app-.log" rolls to "app-20261116.log", as Serilog does.
 	prefix = str(settings.fileName)
@@ -193,10 +189,13 @@ end function
 
 Logger.reportFileFailure = function(problem)
 	"Falls back to the console when the log file cannot be written."
-	if self.console then
-		print "[" + self.levelTag(ranks["error"]) + "] logging: could not write to " + self.directory + ": " + problem.message
-	end if
+	if self.console then print self.failureLine(problem)
 	return null
+end function
+
+Logger.failureLine = function(problem)
+	"The console line explaining why the sink could not write."
+	return "[" + self.levelTag(ranks["error"]) + "] logging: could not write to " + self.directory + ": " + problem.message
 end function
 
 Logger.rollingName = function

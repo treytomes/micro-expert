@@ -77,7 +77,7 @@ What a rules engine buys you, concretely, in an era of cheap text generation:
 - **Auditability.** Every claim has a proof you can print. There is no "the model said
   so" step to defend to a reviewer, an auditor, or yourself in six months.
 - **Determinism.** The same facts and the same question give the same answer, byte for
-  byte. That is what makes it testable: this repo ships 169 assertions and they either
+  byte. That is what makes it testable: this repo ships 178 assertions and they either
   pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility,
   scheduling constraints, device diagnostics, family relationships — questions where the
@@ -177,7 +177,7 @@ correctly answers nothing.
 **Cycles.** A rule like `married-to(?y, ?x) <- married-to(?x, ?y)` can cheerfully call
 itself forever. The search therefore keeps the chain of goals on the current branch and
 refuses to re-enter a goal it is already inside, comparing goals with variables renamed
-away so that `?x` and `?x_7` are recognised as the same goal.
+away so that `?x` and `?x_7` are recognized as the same goal.
 
 **Every derivation is kept.** Ask `sibling-of(bill, george)` and one answer comes back
 carrying two derivations — one through Walter, one through Doris — because both are true
@@ -253,7 +253,7 @@ or a module's own import name.
 what a family is. Each exposes a `build` function rather than a top-level array, because
 of a real constraint in this interpreter: **a module that imports `triples.ms` gets its
 own copy of its classes**, and `isa` checks only agree inside one copy. A facts file that
-imported `triples.ms` directly would build triples the solver does not recognise. So the
+imported `triples.ms` directly would build triples the solver does not recognize. So the
 caller hands its copy in:
 
 ```miniscript
@@ -355,16 +355,16 @@ fall back on:
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-169 passed, 0 failed
+178 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
 for the session or paste the path in its place.
 
-The 169 checks are split by area: display and parsing (12), command-line parsing (32),
+The 178 checks are split by area: display and parsing (12), command-line parsing (32),
 proofs and explanations (19), recursion and cycle handling (13), relations including the
 family rules (46), and logging's templates, levels, tags, directories, file names, the
-file sink and prune (47). One
+file sink and prune (56). One
 caveat worth knowing, because it affects how you read a failed run: in this interpreter an
 uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real
 signal, not the exit code.
