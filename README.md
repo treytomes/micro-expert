@@ -394,10 +394,9 @@ for the session or paste the path in its place.
 The 122 checks are split by area: display and parsing (12), command-line parsing (32),
 proofs and explanations (19), recursion and cycle handling (13), and relations including the
 family rules (46). The logger keeps its own 56 checks, which moved with it to its own
-repository. One
-caveat worth knowing, because it affects how you read a failed run: in this interpreter an
-uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real
-signal, not the exit code.
+repository. One caveat worth knowing, because it affects how you read a failed run: in this
+interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is
+the real signal, not the exit code.
 
 ## Where an LLM fits
 
