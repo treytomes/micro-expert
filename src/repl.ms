@@ -230,15 +230,8 @@ fillMissing = function(session, options, goal)
 		style = session.triples.filledStyle(session.style)
 		session.io.say("  " + session.triples.neededFactText(found.need, labels, style))
 	end if
-	asked = session.triples.unboundVars(triple)
-	// The question's own variables are the answer being looked for, so a fact is filled
-	// in by the variables it brings itself. A fact that brings none - the query's own
-	// shape, or a condition the report has already narrowed down to the answer - is asked
-	// about for them, because naming them is the only way to answer the question here.
-	introduced = introducedVars(asked, session.triples.unboundVars(goal))
-	if introduced.len > 0 then asked = introduced
 	binds = {}
-	for variable in asked
+	for variable in askedVars(session, triple, goal)
 		value = askValue(session, variable, labels)
 		if value == null then return "stopped"
 		if value == undoMark then return "undone"
@@ -256,16 +249,21 @@ fillMissing = function(session, options, goal)
 	return "added"
 end function
 
-introducedVars = function(variables, goalVars)
-	"Of a fact's variables, the ones the question it came from does not name itself."
-	named = {}
-	for variable in goalVars
-		named[variable.name] = 1
+askedVars = function(session, triple, goal)
+	"The variables to ask about for a missing fact: the ones it brings itself, or all of them when it brings none."
+	own = session.triples.unboundVars(triple)
+	goalVars = {}
+	for variable in session.triples.unboundVars(goal)
+		goalVars[variable.name] = 1
 	end for
 	introduced = []
-	for variable in variables
-		if named.hasIndex(variable.name) == 0 then introduced.push(variable)
+	for variable in own
+		if goalVars.hasIndex(variable.name) == 0 then introduced.push(variable)
 	end for
+	// The question's own variables are the answer being looked for, so they are asked
+	// about only for a fact that brings nothing itself: naming them is then the only way
+	// to complete it from the prompt.
+	if introduced.len == 0 then return own
 	return introduced
 end function
 
