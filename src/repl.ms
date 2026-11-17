@@ -202,10 +202,10 @@ askGoal = function(session, goal)
 			return
 		end if
 		// One walk over the goal feeds both the report and the question, so the variables
-		// asked about are the ones the report showed - with the values given so far
-		// already in them, so the report says what the question underneath is about.
+		// asked about are the ones the report showed - with the values given so far in
+		// them, and without the facts the session can already prove, which need nothing.
 		options = session.triples.needsFor(goal, session.facts, session.rules, session.depth)
-		shown = withGiven(session, options, goal, given)
+		shown = withoutHeld(session, withGiven(session, options, goal, given))
 		report = session.triples.reportLines(shown, session.style)
 		// The report changes as facts are added and as values are given, so it is
 		// repeated only when it has something new to say.
@@ -263,6 +263,29 @@ withGiven = function(session, options, goal, given)
 		answers.push({"rule": option.rule, "needs": needs})
 	end for
 	return answers
+end function
+
+withoutHeld = function(session, options)
+	"The options without the facts the session can already prove, which need nothing from the reader."
+	remaining = []
+	for option in options
+		needs = []
+		for need in option.needs
+			held = not session.triples.hasUnknowns(need.triple) and proved(session, need.triple)
+			if not held then needs.push(need)
+		end for
+		// A rule with nothing left to add is no longer a way to answer.
+		if needs.len > 0 then remaining.push({"rule": option.rule, "needs": needs})
+	end for
+	// A report with nothing in it is not a report, so the alternatives are kept as they
+	// were rather than emptied.
+	if remaining.len == 0 then return options
+	return remaining
+end function
+
+proved = function(session, triple)
+	"Says whether the session can already prove this fact."
+	return session.triples.proveGoals(triple, session.facts, session.rules, session.depth).len > 0
 end function
 
 nameSet = function(session, triple)
