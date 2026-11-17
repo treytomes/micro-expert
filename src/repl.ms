@@ -39,6 +39,10 @@ ask = function(session, question)
 	return session.io.read(session.triples.paint(session.style, "prompt", question))
 end function
 
+// What askValue answers when the user takes a fact back instead of giving a value:
+// a map, so a typed value can never be mistaken for it.
+undoMark = {"undo": 1}
+
 // ── Slash commands ───────────────────────────────────────────────────────────
 // One line that starts with / is aimed at the session rather than the knowledge
 // base. runCommand dispatches by name and commandList is what /help shows, in the
@@ -47,6 +51,7 @@ end function
 commandList = [
 	{"name": "/exit", "note": "leave the session"},
 	{"name": "/help", "note": "list these commands"},
+	{"name": "/undo", "note": "take back the last fact added"},
 	{"name": "/facts", "note": "list the facts"},
 	{"name": "/rules", "note": "list the rules"},
 ]
@@ -59,6 +64,10 @@ runCommand = function(session, line)
 		for command in commandList
 			say(session, "note", "  " + command.name + "  " + command.note)
 		end for
+		return false
+	end if
+	if name == "/undo" then
+		undo(session)
 		return false
 	end if
 	if name == "/facts" then
@@ -77,6 +86,17 @@ countText = function(count, singular)
 	"Says '1 rule' or '2 rules'."
 	if count == 1 then return "1 " + singular
 	return str(count) + " " + singular + "s"
+end function
+
+undo = function(session)
+	"Takes back the last fact the session added; says so, or that there is none."
+	if session.facts.len <= session.baseFacts then
+		say(session, "warning", "  nothing to take back")
+		return false
+	end if
+	removed = session.facts.pop
+	say(session, "added", "  took back " + removed.text)
+	return true
 end function
 
 listFacts = function(session)
@@ -99,6 +119,9 @@ end function
 
 run = function(session)
 	"Reads lines until the user leaves, adding facts and rules and answering questions."
+	// Only what the session adds can be taken back, never the knowledge base it
+	// started from.
+	session.baseFacts = session.facts.len
 	say(session, "note",
 		"Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.")
 	while true
@@ -173,7 +196,9 @@ askGoal = function(session, goal)
 			end for
 			lastReport = report.join("\n")
 		end if
-		if not fillMissing(session, options) then return
+		// Taking a fact back changes the knowledge base as much as adding one does, so
+		// that round starts over too.
+		if fillMissing(session, options) == "stopped" then return
 	end while
 end function
 
@@ -191,9 +216,9 @@ showProofs = function(session, goal, proofs)
 end function
 
 fillMissing = function(session, options)
-	"Asks for the first missing fact - its variables, or a yes to add it whole; false when nothing was added."
+	"Asks for the first missing fact; says whether it was added, taken back, or given up on."
 	found = firstMissing(session, options)
-	if found == null then return false
+	if found == null then return "stopped"
 	if not session.triples.hasUnknowns(found.need.triple) then
 		return confirmFact(session, found.need.triple)
 	end if
@@ -207,11 +232,12 @@ fillMissing = function(session, options)
 	binds = {}
 	for variable in session.triples.unboundVars(found.need.triple)
 		value = askValue(session, variable, labels)
-		if value == null then return false
+		if value == null then return "stopped"
+		if value == undoMark then return "undone"
 		binds[variable.name] = value
 	end for
 	addFact(session, session.triples.substitute(found.need.triple, binds))
-	return true
+	return "added"
 end function
 
 firstMissing = function(session, options)
@@ -231,23 +257,31 @@ firstMissing = function(session, options)
 end function
 
 confirmFact = function(session, triple)
-	"Offers to add a missing fact that has no variables to fill in; false when it is declined."
+	"Offers to add a missing fact that has no variables to fill in; says what was chosen."
 	session.io.say("  " + session.triples.paint(session.style, "fact", triple.text))
 	answer = ask(session, "  add it? [y/N] ")
-	if answer == null then return false
+	if answer == null then return "stopped"
 	answer = session.triples.trimSpace(answer).lower
-	if answer != "y" and answer != "yes" then return false
+	if answer == "/undo" then
+		if undo(session) then return "undone"
+		return "stopped"
+	end if
+	if answer != "y" and answer != "yes" then return "stopped"
 	addFact(session, triple)
-	return true
+	return "added"
 end function
 
 askValue = function(session, variable, labels)
-	"Asks for one value; null when the user leaves it, or names a variable instead."
+	"Asks for one value; null when the user leaves it, undoMark when they take a fact back."
 	while true
 		value = ask(session, "  ?" + labels[variable.name] + " = ")
 		if value == null then return null
 		value = session.triples.trimSpace(value)
 		if value == "" then return null
+		if value == "/undo" then
+			if undo(session) then return undoMark
+			continue
+		end if
 		if value[0] != "?" then return value
 		say(session, "warning", "  ?" + labels[variable.name] + " takes a value, not a variable")
 	end while

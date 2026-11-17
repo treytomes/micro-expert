@@ -179,6 +179,7 @@ run = function(t, rules, repl, h)
 	commandLines = commands.answers.lines
 	h.check("/help lists every command",
 		printed(commandLines, "  /exit  leave the session") and
+			printed(commandLines, "  /undo  take back the last fact added") and
 			printed(commandLines, "  /rules  list the rules"))
 	h.check("/facts lists the facts it holds",
 		printed(commandLines, "  2 facts") and printed(commandLines, "    parent-of(bill, tim)"))
@@ -188,6 +189,26 @@ run = function(t, rules, repl, h)
 	h.check("an unknown command is refused",
 		printed(commandLines, "  no such command: /nope (/help lists them)"))
 	h.check("/exit leaves before the next line is read", commands.answers.asked.len == 5)
+
+	// ── Taking a fact back ───────────────────────────────────────────────────
+
+	taken = startSession(family + [], [], ["parent-of(walter, susan)", "/undo", "/undo"])
+	h.check("/undo takes back the fact just added",
+		printed(taken.answers.lines, "  took back parent-of(walter, susan)"))
+	h.check("the knowledge base loses it again", taken.session.facts.len == 2)
+	h.check("/undo with nothing to take back says so",
+		printed(taken.answers.lines, "  nothing to take back"))
+
+	// A wrong answer can be taken back while the session is still asking, and the
+	// question is put again.
+	wrong = startSession(family + [], [],
+		["parent-of(walter, susan)", "aunt-of(?p, susan)", "/undo", "nina"])
+	h.check("a wrong fact is taken back from inside a question",
+		printed(wrong.answers.lines, "  took back parent-of(walter, susan)") and
+			wrong.answers.asked[2] == "  ?p = " and wrong.answers.asked[3] == "  ?p = ")
+	h.check("the question is asked again and answered",
+		printed(wrong.answers.lines, "  added aunt-of(nina, susan)") and
+			wrong.session.facts.len == 3)
 
 	// ── Painting is the same style table, so it is opt-in the same way ──────
 
