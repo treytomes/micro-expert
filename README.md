@@ -289,13 +289,34 @@ grandchildOf = rule(
 
 ## How to use this demo
 
-**Prerequisites:** the command-line MiniScript 2 interpreter. Download the archive for your
-platform from the [MiniScript 2 releases page](https://github.com/JoeStrout/miniscript2/releases)
-- on Windows that is `miniscript-win.zip`, which unpacks to a folder holding
-`miniscript.exe`. Put the absolute path to that executable in a `.env` beside the runner:
+### Getting a working copy
+
+Two things a plain clone does not give you: the agent skill at
+`.agents/skills/miniscript-2`, which is a submodule, and the interpreter, which lives in
+`3rd-party/` and is gitignored, so no binary is checked in. `bootstrap.bat` supplies both:
 
 ```
-MINISCRIPT_EXE_PATH=C:\path\to\miniscript.exe
+> git clone --recurse-submodules https://github.com/treytomes/micro-expert.git
+> bootstrap
+```
+
+A clone made without `--recurse-submodules` leaves `.agents/skills/miniscript-2` empty;
+running `bootstrap.bat` afterwards fills it in. The script is safe to re-run, and it:
+
+- checks out the `miniscript-2-agent-skill` submodule at `.agents/skills/miniscript-2`
+- downloads `miniscript-win.zip` from the
+  [MiniScript 2 releases page](https://github.com/JoeStrout/miniscript2/releases) into
+  `3rd-party/`, unpacks it in place so it lands as `3rd-party/miniscript-win/`, and deletes
+  the archive once the executable is there
+- writes `.env` beside the runner if there is none, and leaves an existing one alone, since
+  it may point at an interpreter you installed yourself
+
+By hand, the same three steps: `git submodule update --init` to populate the skill folder;
+download the archive for your platform - on Windows `miniscript-win.zip`, which unpacks to a
+folder holding `miniscript.exe` - and put the absolute path to that executable in a `.env`:
+
+```
+MINISCRIPT_EXE_PATH=C:\path	o\miniscript.exe
 ENTRY_POINT=./src/main.ms
 ```
 
