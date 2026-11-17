@@ -398,7 +398,7 @@ end function
 // each answer is the facts that way would need, with the rule that would use them.
 
 needsFor = function(goal, facts, rules, depth, binds=null, open=null)
-	"Every way goal could still be answered: the facts it needs, and the rule that would use them."
+	"Every way goal could still be answered: the facts it needs, and the rule that would use them; asked only for a goal the search could not prove."
 	path = enterGoal(goal, binds, open)
 	if path == null then return []
 	// One more fact, shaped like the goal, would answer it outright.
@@ -407,20 +407,8 @@ needsFor = function(goal, facts, rules, depth, binds=null, open=null)
 		options.push({"rule": null, "needs": [missingFact(substitute(goal, binds), false)]})
 	end if
 	if depth <= 0 then return options
-	// The search decides whether a body was really met. A body whose conditions were
-	// each met on its own need not have been, so when every way claims it needs nothing
-	// and the goal still has no proof, the body is read again with the conditions that
-	// proved nothing together reported as facts.
-	proved = null
 	for candidate in matchingRules(goal, rules, binds)
-		results = bodyRequirements(candidate.body, facts, rules, depth - 1, candidate.binds, path, {}, 0)
-		if results.len > 0 and noNeeds(results) then
-			if proved == null then proved = proveGoals(goal, facts, rules, depth, binds, open)
-			if proved.len == 0 then
-				results = bodyRequirements(candidate.body, facts, rules, depth - 1, candidate.binds, path, {}, 1)
-			end if
-		end if
-		for result in results
+		for result in bodyResults(candidate, facts, rules, depth, path)
 			if result.needs.len > 0 then
 				options.push({"rule": candidate.rule, "needs": result.needs})
 			end if
@@ -429,36 +417,42 @@ needsFor = function(goal, facts, rules, depth, binds=null, open=null)
 	return options
 end function
 
-noNeeds = function(results)
-	"Says whether every way of meeting the body claimed it needed no new fact."
+bodyResults = function(candidate, facts, rules, depth, path)
+	"The ways one rule could answer the goal, re-read when a body claims it needs nothing."
+	results = bodyRequirements(candidate.body, facts, rules, depth - 1, candidate.binds, path, {}, 0)
+	// The goal has no proof - that is why the report is being asked for - so a body that
+	// claims it needs no new fact was met one condition at a time, not all at once. Read
+	// again, reporting the conditions the proofs left open, it says what it needs.
 	for result in results
-		if result.needs.len > 0 then return false
+		if result.needs.len == 0 then
+			return bodyRequirements(candidate.body, facts, rules, depth - 1, candidate.binds, path, {}, 1)
+		end if
 	end for
-	return true
+	return results
 end function
 
-bodyRequirements = function(conditions, facts, rules, depth, binds, open, newVars, strict)
+bodyRequirements = function(conditions, facts, rules, depth, binds, open, newVars, reportOpen)
 	"Every way of proving a rule body: the bindings it would leave, and the facts it would still need; newVars are the variables the facts found so far would bind."
 	if conditions.len == 0 then return [{"binds": binds, "needs": []}]
 	first = conditions[0]
 	if not (first isa SpoTriple) then
 		// A constraint is checked here rather than proved, so it asks for no fact.
 		if not holdsConstraint(first, binds) then return []
-		return bodyRequirements(conditions[1:], facts, rules, depth, binds, open, newVars, strict)
+		return bodyRequirements(conditions[1:], facts, rules, depth, binds, open, newVars, reportOpen)
 	end if
 	options = []
 	// The bindings a condition proves carry into the conditions after it, so each of
 	// them is judged against what this one settled.
-	for head in firstRequirements(first, facts, rules, depth, binds, open, newVars, strict)
+	for head in firstRequirements(first, facts, rules, depth, binds, open, newVars, reportOpen)
 		for tail in bodyRequirements(conditions[1:], facts, rules, depth, head.binds, open,
-			extendVars(newVars, head.needs), strict)
+			extendVars(newVars, head.needs), reportOpen)
 			options.push({"binds": tail.binds, "needs": head.needs + tail.needs})
 		end for
 	end for
 	return options
 end function
 
-firstRequirements = function(condition, facts, rules, depth, binds, open, newVars, strict)
+firstRequirements = function(condition, facts, rules, depth, binds, open, newVars, reportOpen)
 	"The ways a body's condition can be met: what it settles, and what it adds to the report."
 	grounded = substitute(condition, binds)
 	// A fact still to be added would bind these variables, so this condition cannot
@@ -473,9 +467,9 @@ firstRequirements = function(condition, facts, rules, depth, binds, open, newVar
 	end if
 	settled = agreeingBinds(proofs)
 	// Proofs can disagree about a condition's variables, and then it settles nothing for
-	// the conditions after it. Read strictly, it is reported instead: no fact of some
-	// other shape could ever join the body's conditions into one proof.
-	if strict and hasUnknowns(substitute(condition, settled)) then
+	// the conditions after it. Asked to report the conditions left open, it is a fact to
+	// add instead: no fact of another shape can join this body's conditions into a proof.
+	if reportOpen and hasUnknowns(substitute(condition, settled)) then
 		return [{"binds": binds, "needs": [missingFact(grounded, false)]}]
 	end if
 	return [{"binds": settled, "needs": []}]
