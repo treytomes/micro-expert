@@ -10,7 +10,7 @@
 
 import "../src/triples"
 import "../src/rule"
-import "../src/cli"
+import "../src/cli/cli"
 import "../src/logging"
 import "harness"
 import "cli"
@@ -24,7 +24,7 @@ triples = globals["../src/triples"]
 // rule.ms holds the Rule class; the cases build the rules they test with it.
 rules = globals["../src/rule"]
 // The parser, handed to its own cases to drive through a test command.
-cliSource = globals["../src/cli"]
+cliSource = globals["../src/cli/cli"]
 cliCases = globals["cli"]
 // The logger, handed to its own cases to build loggers with.
 loggingSource = globals["../src/logging"]
@@ -48,7 +48,7 @@ if rules.hasIndex("Rule") == 0 then
 	exit 1
 end if
 if cliSource.hasIndex("parse") == 0 then
-	print "error: ../src/cli loaded without parse"
+	print "error: ../src/cli/cli loaded without parse"
 	exit 1
 end if
 if loggingSource.hasIndex("newLogger") == 0 then

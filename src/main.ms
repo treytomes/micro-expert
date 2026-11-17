@@ -1,11 +1,15 @@
 // micro-expert — a little expert system for MiniScript 2.
 //
-// The options are declared here - a number, a flag and a string - and cli.ms
+// The options are declared here - a number, a flag and a string - and the cli library
 // parses the arguments and generates --help and --version from those declarations.
 
-import "cli"
+import "cli/cli"
 import "triples"
 import "logging"
+
+// src/cli is a submodule, so the parser lives at src/cli/cli.ms; import names the
+// resulting map after the path it was given, so this file aliases it back to cli.
+cli = globals["cli/cli"]
 
 // ── Logging ──────────────────────────────────────────────────────────────────
 // Console output plus a daily rolling file under logs/ (app-YYYYMMDD.log, with
