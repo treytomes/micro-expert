@@ -146,6 +146,7 @@ reportStyle = function
 		"fact": vt.textColor(vt.color.aqua),
 		"rule": vt.textColor(vt.color.olive),
 		"var": vt.dim,
+		"note": vt.dim,
 		"normal": vt.normal,
 	}
 end function

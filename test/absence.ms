@@ -51,8 +51,8 @@ run = function(t, rules, h)
 	h.check("the body condition that is missing is named",
 		viaRule[3] == "      parent-of(?p, nobody)")
 
-	// Once a fact is missing, later conditions it would bind are listed too rather
-	// than judged against the facts that are already known.
+	// Once a fact is missing, a later condition it would bind is reported as one to
+	// check rather than one to add.
 	uncle = rule(spo(v("x"), "uncle", v("y")),
 		[spo(v("p"), "parent-of", v("y")), spo(v("x"), "sibling-of", v("p")),
 			spo(v("x"), "has-gender", "male")])
@@ -60,8 +60,8 @@ run = function(t, rules, h)
 	h.check("conditions behind the gap are listed", viaUncle.len == 5)
 	h.check("the first missing fact",
 		viaUncle[3] == "      parent-of(?p, nobody)")
-	h.check("the condition it would bind",
-		viaUncle[4] == "      sibling-of(bill, ?p)")
+	h.check("the condition that fact would settle is marked, not asked for",
+		viaUncle[4] == "      sibling-of(bill, ?p)  (checked once the facts above exist)")
 	// The gender condition is ground and known, so it is not asked for.
 
 	// ── Depth still bounds the report ──────────────────────────────────────
@@ -74,8 +74,25 @@ run = function(t, rules, h)
 	kin = rule(spo(v("x"), "kin", v("y")), [spo(v("x"), "grandparent", v("y"))])
 	nested = t.neededFactLines(spo("nobody", "kin", "bill"), lineage, [kin, grandparent], 8)
 	h.check("both readings of the nested goal are offered", nested.len == 7)
-	h.check("the nested rule's own conditions are named",
-		nested[6] == "      parent-of(?p, bill)")
+	h.check("the nested rule's own condition is named as one to check",
+		nested[6] == "      parent-of(?p, bill)  (checked once the facts above exist)")
+
+	// ── A rule's variable that would read like the query's ─────────────────
+
+	grandpa = rule(spo(v("x"), "grandpa", v("y")),
+		[spo(v("p"), "parent-of", v("y")), spo(v("x"), "parent-of", v("p")),
+			spo(v("x"), "has-gender", "male")])
+	viaGrandpa = t.neededFactLines(spo(v("p"), "grandpa", "nobody"), family, [grandpa], 8)
+
+	h.check("a rule variable that would read the same shows primed",
+		viaGrandpa[4] == "      parent-of(?p, ?p')")
+	h.check("the primed name is explained once, at the end",
+		viaGrandpa[viaGrandpa.len - 1] ==
+			"    (a name ending in ' is the rule's own variable, not one you asked about)")
+	h.check("a condition still needing its own fact is left unmarked",
+		viaGrandpa[4].indexOf("checked") == null)
+	h.check("a condition the listed facts would bind is marked",
+		viaGrandpa[5] == "      has-gender(?p, male)  (checked once the facts above exist)")
 
 	// ── Painting is opt-in: no style, no escape codes ──────────────────────
 
