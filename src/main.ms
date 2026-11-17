@@ -5,11 +5,13 @@
 
 import "cli/cli"
 import "triples"
-import "logging"
+import "logging/logging"
 
-// src/cli is a submodule, so the parser lives at src/cli/cli.ms; import names the
-// resulting map after the path it was given, so this file aliases it back to cli.
+// src/cli and src/logging are submodules, so their modules live at <folder>/<file>:
+// import names the resulting map after the path it was given, so each is aliased back
+// to the plain name the rest of this file uses.
 cli = globals["cli/cli"]
+logging = globals["logging/logging"]
 
 // ── Logging ──────────────────────────────────────────────────────────────────
 // Console output plus a daily rolling file under logs/ (app-YYYYMMDD.log, with

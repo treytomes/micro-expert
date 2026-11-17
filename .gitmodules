@@ -7,3 +7,6 @@
 [submodule "src/cli"]
 	path = src/cli
 	url = git@github.com:treytomes/micro-cli.git
+[submodule "src/logging"]
+	path = src/logging
+	url = git@github.com:treytomes/micro-logging.git

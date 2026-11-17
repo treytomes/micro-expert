@@ -1,10 +1,11 @@
 @echo off
 setlocal
 
-rem One-time setup for a fresh clone: the three submodules (the agent skill at
-rem .agents\skills\miniscript-2\, the VS Code extension at vscode-miniscript\, and the
-rem command-line library at src\cli\), the MiniScript 2 interpreter in 3rd-party\ (a
-rem gitignored folder, so a clone carries no binary), and a .env beside the runner.
+rem One-time setup for a fresh clone: the four submodules (the agent skill at
+rem .agents\skills\miniscript-2\, the VS Code extension at vscode-miniscript\, the
+rem command-line library at src\cli\ and the logger at src\logging\), the MiniScript 2
+rem interpreter in 3rd-party\ (a gitignored folder, so a clone carries no binary), and a
+rem .env beside the runner.
 rem Safe to re-run; run it from anywhere.
 
 set "ROOT=%~dp0"
@@ -14,6 +15,8 @@ set "EXT_DIR=%ROOT%vscode-miniscript"
 set "EXT_FILE=%EXT_DIR%\package.json"
 set "CLI_DIR=%ROOT%src\cli"
 set "CLI_FILE=%CLI_DIR%\cli.ms"
+set "LOG_DIR=%ROOT%src\logging"
+set "LOG_FILE=%LOG_DIR%\logging.ms"
 set "THIRD_DIR=%ROOT%3rd-party"
 set "ZIP_PATH=%THIRD_DIR%\miniscript-win.zip"
 set "EXE_PATH=%THIRD_DIR%\miniscript-win\miniscript.exe"
@@ -79,6 +82,19 @@ if not exist "%CLI_FILE%" (
     exit /b 1
 )
 echo [bootstrap] Command-line library in place: src\cli
+
+if not exist "%LOG_FILE%" (
+    echo [bootstrap] Cloning src\logging ...
+    git submodule sync --quiet --recursive
+    git submodule update --init --recursive -- src/logging
+)
+if not exist "%LOG_FILE%" (
+    echo [bootstrap] logging.ms is missing at "%LOG_FILE%".
+    echo [bootstrap] Check that .gitmodules lists src/logging.
+    popd
+    exit /b 1
+)
+echo [bootstrap] Logger in place: src\logging
 
 rem --- the interpreter in 3rd-party\ -----------------------------------------
 if not exist "%EXE_PATH%" (

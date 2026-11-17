@@ -77,7 +77,7 @@ What a rules engine buys you, concretely, in an era of cheap text generation:
 - **Auditability.** Every claim has a proof you can print. There is no "the model said
   so" step to defend to a reviewer, an auditor, or yourself in six months.
 - **Determinism.** The same facts and the same question give the same answer, byte for
-  byte. That is what makes it testable: this repo ships 178 assertions and they either
+  byte. That is what makes it testable: this repo ships 122 assertions and they either
   pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility,
   scheduling constraints, device diagnostics, family relationships — questions where the
@@ -291,18 +291,18 @@ grandchildOf = rule(
 
 ### Getting a working copy
 
-Four things a plain clone does not give you: the agent skill at
-`.agents/skills/miniscript-2`, the VS Code extension at `vscode-miniscript` and the
-command-line library at `src/cli`, which are submodules, and the interpreter, which lives in
-`3rd-party/` and is gitignored, so no binary is checked in. `bootstrap.bat` supplies all
-four:
+Five things a plain clone does not give you: the agent skill at
+`.agents/skills/miniscript-2`, the VS Code extension at `vscode-miniscript`, the
+command-line library at `src/cli` and the logger at `src/logging`, which are submodules, and
+the interpreter, which lives in `3rd-party/` and is gitignored, so no binary is checked in.
+`bootstrap.bat` supplies all five:
 
 ```
 > git clone --recurse-submodules https://github.com/treytomes/micro-expert.git
 > bootstrap
 ```
 
-A clone made without `--recurse-submodules` leaves those three folders empty; running
+A clone made without `--recurse-submodules` leaves those four folders empty; running
 `bootstrap.bat` afterwards fills them in. The script is safe to re-run, and it:
 
 - checks out the `miniscript-2-agent-skill` submodule at `.agents/skills/miniscript-2`
@@ -310,6 +310,9 @@ A clone made without `--recurse-submodules` leaves those three folders empty; ru
   own repository, which also opens in VS Code on its own with `F5`
 - checks out the `micro-cli` submodule at `src/cli`, the argument parser in its own
   repository; `src/main.ms` imports it as `"cli/cli"` and aliases the map back to `cli`
+- checks out the `micro-logging` submodule at `src/logging`, the logger in its own
+  repository, likewise imported as `"logging/logging"` and aliased; its own suite travels
+  with it
 - downloads `miniscript-win.zip` from the
   [MiniScript 2 releases page](https://github.com/JoeStrout/miniscript2/releases) into
   `3rd-party/`, unpacks it in place so it lands as `3rd-party/miniscript-win/`, and deletes
@@ -317,7 +320,7 @@ A clone made without `--recurse-submodules` leaves those three folders empty; ru
 - writes `.env` beside the runner if there is none, and leaves an existing one alone, since
   it may point at an interpreter you installed yourself
 
-By hand, the same steps: `git submodule update --init` populates all three submodule folders;
+By hand, the same steps: `git submodule update --init` populates all four submodule folders;
 download the archive for your platform - on Windows `miniscript-win.zip`, which unpacks to a
 folder holding `miniscript.exe` - and put the absolute path to that executable in a `.env`:
 
@@ -382,16 +385,16 @@ fall back on:
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-178 passed, 0 failed
+122 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
 for the session or paste the path in its place.
 
-The 178 checks are split by area: display and parsing (12), command-line parsing (32),
-proofs and explanations (19), recursion and cycle handling (13), relations including the
-family rules (46), and logging's templates, levels, tags, directories, file names, the
-file sink and prune (56). One
+The 122 checks are split by area: display and parsing (12), command-line parsing (32),
+proofs and explanations (19), recursion and cycle handling (13), and relations including the
+family rules (46). The logger keeps its own 56 checks, which moved with it to its own
+repository. One
 caveat worth knowing, because it affects how you read a failed run: in this interpreter an
 uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real
 signal, not the exit code.
