@@ -183,7 +183,7 @@ Type a fact, a question, or a rule as 'head <- conditions'. /help lists the comm
 When a question has no answer, the session reads the same report and asks for the fact that
 would let a rule reach one - never for the query's own shape while a rule can still use the
 fact, because asserting the answer proves nothing. The fact being filled is shown above its
-question, and its variables are asked for one at a time:
+question, and the variables it brings itself are asked for one at a time:
 
 ```
 ? uncle-of(?p, susan)
@@ -201,6 +201,13 @@ question, and its variables are asked for one at a time:
   uncle-of(bill, susan)
   uncle-of(henry, susan)
 ```
+
+Only the variables a fact brings itself are asked for, so `parent-of(?p', ?p)` asks for `?p'`
+alone: `?p` is the variable the question named. When nothing else is left to fill -
+`sibling-of(?p, george)` - the question's variable is asked for, since naming it is the only
+way to complete the fact. A fact that would still be incomplete once its own variables are
+filled is shown with what is left and not added, rather than writing the answer into the
+knowledge base.
 
 A fact that needs no variable at all is offered with `add it? [y/N]` rather than assumed, and
 a value left empty stops the asking with the report standing. `/undo` takes back the last
@@ -274,7 +281,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-164 passed, 0 failed
+165 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
@@ -283,9 +290,9 @@ interpreter an uncaught runtime error still exits `0`, so the `N passed, M faile
 the real signal, not the exit code.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 164 here cover the program itself: display and parsing (12),
+56 respectively), and the 165 here cover the program itself: display and parsing (12),
 proofs and explanations (19), the missing-fact report (24), recursion and cycle handling
-(13), relations including the family rules (46), and the session at the prompt (50).
+(13), relations including the family rules (46), and the session at the prompt (51).
 
 ## Repository layout
 
@@ -297,7 +304,7 @@ src/facts.ms         the 54 facts
 src/rules.ms         the nine rules
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 164 checks and their runner
+test/                the 165 checks and their runner
 docs/                the long-form write-up
 bootstrap.bat        submodules, interpreter, .env
 micro-expert.bat     runs the entry point named in .env

@@ -198,7 +198,7 @@ askGoal = function(session, goal)
 		end if
 		// Taking a fact back changes the knowledge base as much as adding one does, so
 		// that round starts over too.
-		if fillMissing(session, options) == "stopped" then return
+		if fillMissing(session, options, goal) == "stopped" then return
 	end while
 end function
 
@@ -215,12 +215,13 @@ showProofs = function(session, goal, proofs)
 	end for
 end function
 
-fillMissing = function(session, options)
+fillMissing = function(session, options, goal)
 	"Asks for the first missing fact; says whether it was added, taken back, or given up on."
 	found = firstMissing(session, options)
 	if found == null then return "stopped"
-	if not session.triples.hasUnknowns(found.need.triple) then
-		return confirmFact(session, found.need.triple)
+	triple = found.need.triple
+	if not session.triples.hasUnknowns(triple) then
+		return confirmFact(session, triple)
 	end if
 	labels = session.triples.reportLabels(options)
 	// A rule's fact is shown above its question, because the report listed it among
@@ -229,15 +230,43 @@ fillMissing = function(session, options)
 		style = session.triples.filledStyle(session.style)
 		session.io.say("  " + session.triples.neededFactText(found.need, labels, style))
 	end if
+	asked = session.triples.unboundVars(triple)
+	// The question's own variables are the answer being looked for, so a fact is filled
+	// in by the variables it brings itself. A fact that brings none - the query's own
+	// shape, or a condition the report has already narrowed down to the answer - is asked
+	// about for them, because naming them is the only way to answer the question here.
+	introduced = introducedVars(asked, session.triples.unboundVars(goal))
+	if introduced.len > 0 then asked = introduced
 	binds = {}
-	for variable in session.triples.unboundVars(found.need.triple)
+	for variable in asked
 		value = askValue(session, variable, labels)
 		if value == null then return "stopped"
 		if value == undoMark then return "undone"
 		binds[variable.name] = value
 	end for
-	addFact(session, session.triples.substitute(found.need.triple, binds))
+	filled = session.triples.substitute(triple, binds)
+	// What is left is the question's own variable, so this fact cannot be completed from
+	// here: filling it in would assert the answer rather than find it.
+	if session.triples.hasUnknowns(filled) then
+		session.io.say("  " + session.triples.paint(session.style, "fact", filled.text) +
+			session.triples.paint(session.style, "note", "  (not added: what is left is the question's own)"))
+		return "stopped"
+	end if
+	addFact(session, filled)
 	return "added"
+end function
+
+introducedVars = function(variables, goalVars)
+	"Of a fact's variables, the ones the question it came from does not name itself."
+	named = {}
+	for variable in goalVars
+		named[variable.name] = 1
+	end for
+	introduced = []
+	for variable in variables
+		if named.hasIndex(variable.name) == 0 then introduced.push(variable)
+	end for
+	return introduced
 end function
 
 firstMissing = function(session, options)

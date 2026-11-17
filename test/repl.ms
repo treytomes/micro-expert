@@ -145,6 +145,16 @@ run = function(t, rules, repl, h)
 	h.check("no leaves the fact out", declined.session.facts.len == 4 and
 		not holds(declined.answers.lines, "  added has-gender"))
 
+	// A rule's fact is filled in by the variables it brings itself. ?p is the answer the
+	// question asks for, so it is asked about in the question and not again underneath it:
+	// filling it in there would assert the answer instead of finding it.
+	apart = family + [spo("bill", "sibling-of", "george"), spo("bill", "has-gender", "male")]
+	tangled = startSession(apart + [], [uncleRule], ["uncle-of(bill, ?p)", "george", "quit"])
+	h.check("a rule's fact is asked about for the variables it introduces",
+		printed(tangled.answers.lines, "      parent-of(?p', ?p)") and
+			tangled.answers.asked[1] == "  ?p' = " and tangled.answers.asked[2] == "? " and
+			tangled.session.facts.len == 4)
+
 	// ── The query's own shape is the last thing offered ─────────────────────
 
 	// A rule in the knowledge base that cannot conclude this query leaves the query's
