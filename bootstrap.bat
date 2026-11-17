@@ -33,10 +33,10 @@ rem checked out, and a name for the log. Extracting another one is a single line
 rem No goto, and no call to a label, anywhere in this script: cmd.exe cannot find a label
 rem in a batch file with Unix line endings, so a stray "\n" would break this path.
 for %%M in (
-    ".agents/skills/miniscript-2|SKILL.md|agent skill"
+    ".agents/skills/miniscript-2|SKILL.md|Agent skill"
     "vscode-miniscript|package.json|VS Code extension"
-    "src/cli|cli.ms|command-line library"
-    "src/logging|logging.ms|logger"
+    "src/cli|cli.ms|Command-line library"
+    "src/logging|logging.ms|Logger"
 ) do for /f "tokens=1-3 delims=|" %%P in ("%%~M") do (
     if not exist "%%~P/%%Q" (
         echo [bootstrap] Cloning %%~P ...
