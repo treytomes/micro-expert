@@ -191,6 +191,9 @@ end function
 askGoal = function(session, goal)
 	"Answers a question, asking for the variables that would complete a missing fact."
 	lastReport = null
+	// What has been given for this question already, by the label the report shows each
+	// variable under: the question comes round again, and nothing is asked for twice.
+	given = {}
 	while true
 		proofs = session.triples.proveGoals(goal, session.facts, session.rules, session.depth)
 		if proofs.len > 0 then
@@ -208,11 +211,14 @@ askGoal = function(session, goal)
 			for line in report
 				session.io.say(line)
 			end for
+			// A different report labels its variables differently, so what was given
+			// before no longer names anything in it.
+			if lastReport != null then given = {}
 			lastReport = report.join("\n")
 		end if
 		// Taking a fact back changes the knowledge base as much as adding one does, so
 		// that round starts over too.
-		if fillMissing(session, options, goal) == "stopped" then return
+		if fillMissing(session, options, goal, given) == "stopped" then return
 	end while
 end function
 
@@ -229,7 +235,7 @@ showProofs = function(session, goal, proofs)
 	end for
 end function
 
-fillMissing = function(session, options, goal)
+fillMissing = function(session, options, goal, given)
 	"Asks for the facts of the best missing rule one after another, carrying each answer to the next; says whether it stopped or changed the knowledge base."
 	found = firstMissing(session, options)
 	if found == null then return "stopped"
@@ -240,6 +246,13 @@ fillMissing = function(session, options, goal)
 	// The facts of one rule share their variables, so an answer given under one of them is
 	// carried to the rest: what was a check becomes a fact with nothing left to fill.
 	for need in found.option.needs
+		// A value the user gave under one of these labels is still an answer to this
+		// question, so it goes back in before deciding what is left to ask.
+		for variable in session.triples.unboundVars(need.triple)
+			if given.hasIndex(labels[variable.name]) then
+				binds[variable.name] = given[labels[variable.name]]
+			end if
+		end for
 		triple = session.triples.substitute(need.triple, binds)
 		if not session.triples.hasUnknowns(triple) then
 			if alreadyKnown(session, triple) then continue
@@ -258,6 +271,7 @@ fillMissing = function(session, options, goal)
 			if value == null then return "stopped"
 			if value == changedMark then return "changed"
 			binds[variable.name] = value
+			given[labels[variable.name]] = value
 		end for
 		filled = session.triples.substitute(triple, binds)
 		// What is left is the question's own variable, so this fact cannot be completed

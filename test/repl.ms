@@ -164,6 +164,16 @@ run = function(t, rules, repl, h)
 			printed(carried.answers.lines, "  added sibling-of(bill, sam)") and
 			carried.session.facts.len == 5)
 
+	// What was given is remembered for as long as the report stands, so the question that
+	// comes round again shows the fact with the value in it and asks only what is left.
+	remembered = startSession(apart + [], [uncleRule],
+		["uncle-of(bill, ?p)", "sam", "y", "alfonso"])
+	h.check("a value given once is not asked for a second time",
+		printed(remembered.answers.lines, "  parent-of(sam, ?p)") and
+			remembered.answers.asked[3] == "  ?p = " and
+			printed(remembered.answers.lines, "  added parent-of(sam, alfonso)") and
+			remembered.answers.lines[remembered.answers.lines.len - 1] == "  uncle-of(bill, alfonso)")
+
 	// ── The query's own shape is the last thing offered ─────────────────────
 
 	// A rule in the knowledge base that cannot conclude this query leaves the query's
