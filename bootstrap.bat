@@ -1,14 +1,17 @@
 @echo off
 setlocal
 
-rem One-time setup for a fresh clone: the agent skill submodule at
-rem .agents\skills\miniscript-2\, the MiniScript 2 interpreter in 3rd-party\ (a
-rem gitignored folder, so a clone carries no binary), and a .env beside the runner.
+rem One-time setup for a fresh clone: the two submodules (the agent skill at
+rem .agents\skills\miniscript-2\ and the VS Code extension at vscode-miniscript\),
+rem the MiniScript 2 interpreter in 3rd-party\ (a gitignored folder, so a clone
+rem carries no binary), and a .env beside the runner.
 rem Safe to re-run; run it from anywhere.
 
 set "ROOT=%~dp0"
 set "SKILL_DIR=%ROOT%.agents\skills\miniscript-2"
 set "SKILL_FILE=%SKILL_DIR%\SKILL.md"
+set "EXT_DIR=%ROOT%vscode-miniscript"
+set "EXT_FILE=%EXT_DIR%\package.json"
 set "THIRD_DIR=%ROOT%3rd-party"
 set "ZIP_PATH=%THIRD_DIR%\miniscript-win.zip"
 set "EXE_PATH=%THIRD_DIR%\miniscript-win\miniscript.exe"
@@ -29,7 +32,9 @@ if not exist "%ROOT%.gitmodules" (
 
 pushd "%ROOT%"
 
-rem --- the agent skill submodule ----------------------------------------------
+rem --- the submodules ---------------------------------------------------------
+rem No goto anywhere in this script: cmd.exe cannot find a label in a batch file
+rem with Unix line endings, so a stray "\n" would break the skip-some-steps path.
 if not exist "%SKILL_FILE%" (
     echo [bootstrap] Cloning .agents\skills\miniscript-2 ...
     rem sync re-reads the URLs from .gitmodules, so a renamed or moved remote is
@@ -47,9 +52,20 @@ if not exist "%SKILL_FILE%" (
 )
 echo [bootstrap] Agent skill in place: .agents\skills\miniscript-2
 
+if not exist "%EXT_FILE%" (
+    echo [bootstrap] Cloning vscode-miniscript ...
+    git submodule sync --quiet --recursive
+    git submodule update --init --recursive -- vscode-miniscript
+)
+if not exist "%EXT_FILE%" (
+    echo [bootstrap] package.json is missing at "%EXT_FILE%".
+    echo [bootstrap] Check that .gitmodules lists vscode-miniscript.
+    popd
+    exit /b 1
+)
+echo [bootstrap] VS Code extension in place: vscode-miniscript
+
 rem --- the interpreter in 3rd-party\ -----------------------------------------
-rem No goto anywhere in this script: cmd.exe cannot find a label in a batch file
-rem with Unix line endings, so a stray "\n" would break the skip-some-steps path.
 if not exist "%EXE_PATH%" (
     if not exist "%THIRD_DIR%" mkdir "%THIRD_DIR%"
 
@@ -115,7 +131,7 @@ if defined DOWNLOADED (
 )
 
 echo [bootstrap] Ready.
-git submodule status -- .agents/skills/miniscript-2
+git submodule status
 popd
 
 exit /b 0

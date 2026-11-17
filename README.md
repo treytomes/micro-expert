@@ -291,19 +291,22 @@ grandchildOf = rule(
 
 ### Getting a working copy
 
-Two things a plain clone does not give you: the agent skill at
-`.agents/skills/miniscript-2`, which is a submodule, and the interpreter, which lives in
-`3rd-party/` and is gitignored, so no binary is checked in. `bootstrap.bat` supplies both:
+Three things a plain clone does not give you: the agent skill at
+`.agents/skills/miniscript-2` and the VS Code extension at `vscode-miniscript`, which are
+submodules, and the interpreter, which lives in `3rd-party/` and is gitignored, so no binary
+is checked in. `bootstrap.bat` supplies all three:
 
 ```
 > git clone --recurse-submodules https://github.com/treytomes/micro-expert.git
 > bootstrap
 ```
 
-A clone made without `--recurse-submodules` leaves `.agents/skills/miniscript-2` empty;
-running `bootstrap.bat` afterwards fills it in. The script is safe to re-run, and it:
+A clone made without `--recurse-submodules` leaves those two folders empty; running
+`bootstrap.bat` afterwards fills them in. The script is safe to re-run, and it:
 
 - checks out the `miniscript-2-agent-skill` submodule at `.agents/skills/miniscript-2`
+- checks out the `vscode-miniscript-2` submodule at `vscode-miniscript`, the extension in its
+  own repository, which also opens in VS Code on its own with `F5`
 - downloads `miniscript-win.zip` from the
   [MiniScript 2 releases page](https://github.com/JoeStrout/miniscript2/releases) into
   `3rd-party/`, unpacks it in place so it lands as `3rd-party/miniscript-win/`, and deletes
@@ -311,7 +314,7 @@ running `bootstrap.bat` afterwards fills it in. The script is safe to re-run, an
 - writes `.env` beside the runner if there is none, and leaves an existing one alone, since
   it may point at an interpreter you installed yourself
 
-By hand, the same three steps: `git submodule update --init` to populate the skill folder;
+By hand, the same steps: `git submodule update --init` populates both submodule folders;
 download the archive for your platform - on Windows `miniscript-win.zip`, which unpacks to a
 folder holding `miniscript.exe` - and put the absolute path to that executable in a `.env`:
 
