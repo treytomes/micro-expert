@@ -15,43 +15,34 @@
 // without a seven-argument list:
 //
 //   session = {"triples": triples, "Rule": Rule, "facts": facts, "rules": rules,
-//       "depth": 8, "style": style, "io": {"read": reader, "say": writer}}
+//       "depth": 8, "verbose": 0, "style": style, "io": {"read": reader, "say": writer}}
 //
 // io is how a session talks, and the reason its checks need no terminal: read takes
 // the prompt and returns a line (null ends the session), say takes a finished line.
 //
 // One line has one meaning, the one the report already draws: a line with <- is a
 // rule, a line with a variable in it is a question, and a ground line is a fact.
-
-// The report's roles live in triples.ms; these are the session's own, and the one
-// style map main.ms builds carries both, so a single NO_COLOR turns all of it off.
-
-plainStyle = {"normal": "", "prompt": "", "added": "", "answer": "", "warning": "",
-	"note": ""}
-
-filledStyle = function(style)
-	"A complete style map: these roles empty, with the caller's own text for those it names."
-	if style == null then return plainStyle + {}
-	return plainStyle + style
-end function
-
-paint = function(style, role, text)
-	"One piece of a line in its role's color."
-	return style[role] + text + style.normal
-end function
+//
+// Nothing here knows what a color is either: paint comes from triples.ms, and the one
+// style map main.ms builds carries the report's roles and the session's alike, so a
+// single NO_COLOR leaves the whole run plain.
 
 say = function(session, role, text)
 	"Prints one line in a role's color through the session's output."
-	session.io.say(paint(session.style, role, text))
+	session.io.say(session.triples.paint(session.style, role, text))
+end function
+
+ask = function(session, question)
+	"Shows a prompt and reads what is typed after it."
+	return session.io.read(session.triples.paint(session.style, "prompt", question))
 end function
 
 run = function(session)
 	"Reads lines until the user leaves, adding facts and rules and answering questions."
-	session.style = filledStyle(session.style)
 	say(session, "note",
 		"Type a fact to add it, a question to ask it, or a rule as 'head <- conditions'. 'quit' leaves.")
 	while true
-		line = session.io.read(paint(session.style, "prompt", "? "))
+		line = ask(session, "? ")
 		if line == null then break
 		line = session.triples.trimSpace(line)
 		if line == "" then continue
@@ -102,15 +93,15 @@ askGoal = function(session, goal)
 	while true
 		proofs = session.triples.proveGoals(goal, session.facts, session.rules, session.depth)
 		if proofs.len > 0 then
-			for proof in proofs
-				say(session, "answer", "  " + session.triples.substitute(goal, proof.binds).text)
-			end for
+			showProofs(session, goal, proofs)
 			return
 		end if
-		// The report changes as facts are added, so it is repeated only when it says
-		// something new.
-		report = session.triples.neededFactLines(goal, session.facts, session.rules,
-			session.depth, session.style)
+		// One walk over the goal feeds both the report and the question, so the
+		// variables asked about are the ones the report showed.
+		options = session.triples.needsFor(goal, session.facts, session.rules, session.depth)
+		report = session.triples.reportLines(options, session.style)
+		// The report changes as facts are added, so it is repeated only when it has
+		// something new to say.
 		if report.join("\n") != lastReport then
 			say(session, "warning", "  no solution found at depth " + session.depth)
 			for line in report
@@ -118,13 +109,25 @@ askGoal = function(session, goal)
 			end for
 			lastReport = report.join("\n")
 		end if
-		if not fillMissing(session, goal) then return
+		if not fillMissing(session, options) then return
 	end while
 end function
 
-fillMissing = function(session, goal)
+showProofs = function(session, goal, proofs)
+	"Prints each answer - the proof tree behind it too, when the session is verbose."
+	for proof in proofs
+		if session.verbose then
+			for line in session.triples.proofLines(proof, "  ")
+				session.io.say(line)
+			end for
+		else
+			say(session, "answer", "  " + session.triples.substitute(goal, proof.binds).text)
+		end if
+	end for
+end function
+
+fillMissing = function(session, options)
 	"Asks for the variables of the first missing fact that has any; false when none was added."
-	options = session.triples.needsFor(goal, session.facts, session.rules, session.depth)
 	labels = session.triples.reportLabels(options)
 	missing = firstMissingFact(session, options)
 	if missing == null then return false
@@ -151,7 +154,7 @@ end function
 askValue = function(session, variable, labels)
 	"Asks for one value; null when the user leaves it, or names a variable instead."
 	while true
-		value = session.io.read(paint(session.style, "prompt", "  ?" + labels[variable.name] + " = "))
+		value = ask(session, "  ?" + labels[variable.name] + " = ")
 		if value == null then return null
 		value = session.triples.trimSpace(value)
 		if value == "" then return null

@@ -498,8 +498,10 @@ end function
 
 // The report is built from pieces, so it can be painted without the engine knowing
 // what a color is: a style is a map of role -> the text placed before that role's
-// pieces. A caller that leaves a role out gets nothing for it, so the plain style,
-// which is all empty strings, prints the report exactly as the checks expect it.
+// pieces, plus the "normal" text that ends it. A role the caller leaves out gets
+// nothing, so the plain style, which is all empty strings, prints exactly as the
+// checks expect it. paint is the one place that reads the map, so the report, the
+// program that runs one query, and the session at the prompt all paint alike.
 
 plainStyle = {"normal": "", "header": "", "fact": "", "rule": "", "var": "", "note": ""}
 
@@ -507,6 +509,12 @@ filledStyle = function(style)
 	"A complete style map: the plain style, with the caller's own text for the roles it names."
 	if style == null then return plainStyle + {}
 	return plainStyle + style
+end function
+
+paint = function(style, role, text)
+	"One piece in its role's color, or as it is when the style has nothing for that role."
+	if style == null or style.hasIndex(role) == 0 then return text
+	return style[role] + text + style.normal
 end function
 
 // A variable that came through standardizeApart carries a number in its name, so
@@ -567,12 +575,11 @@ primedVariable = function(labels)
 	return false
 end function
 
-neededFactLines = function(goal, facts, rules, depth, style=null)
-	"The lines to print when goal has no answer: the facts that would allow one, painted with style."
+reportLines = function(options, style=null)
+	"The lines that describe these alternatives, painted with style."
 	style = filledStyle(style)
-	options = needsFor(goal, facts, rules, depth)
 	labels = reportLabels(options)
-	lines = [style.header + "  A solution would need one of these:" + style.normal]
+	lines = [paint(style, "header", "  A solution would need one of these:")]
 	seen = {}
 	for option in options
 		block = optionLines(option, labels, style)
@@ -583,10 +590,15 @@ neededFactLines = function(goal, facts, rules, depth, style=null)
 		end if
 	end for
 	if primedVariable(labels) then
-		lines.push(style.note + "    (a name ending in ' is the rule's own variable, not one you asked about)" +
-			style.normal)
+		lines.push(paint(style, "note",
+			"    (a name ending in ' is the rule's own variable, not one you asked about)"))
 	end if
 	return lines
+end function
+
+neededFactLines = function(goal, facts, rules, depth, style=null)
+	"The lines to print when goal has no answer: the facts that would allow one, painted with style."
+	return reportLines(needsFor(goal, facts, rules, depth), style)
 end function
 
 optionLines = function(option, labels, style)
@@ -594,7 +606,7 @@ optionLines = function(option, labels, style)
 	if option.rule == null then
 		return ["    a fact like " + neededFactText(option.needs[0], labels, style)]
 	end if
-	block = [style.rule + "    through rule " + option.rule.text + style.normal]
+	block = [paint(style, "rule", "    through rule " + option.rule.text)]
 	for needed in option.needs
 		block.push("      " + neededFactText(needed, labels, style))
 	end for
@@ -604,20 +616,20 @@ end function
 neededFactText = function(need, labels, style)
 	"One missing fact as it reads, tagged when a fact listed above it would settle the condition."
 	triple = need.triple
-	fact = style.fact + shownTerm(triple.predicate, labels, style) + "(" +
+	fact = paint(style, "fact", shownTerm(triple.predicate, labels, style) + "(" +
 		shownTerm(triple.subject, labels, style) + ", " +
-		shownTerm(triple.object, labels, style) + ")" + style.normal
+		shownTerm(triple.object, labels, style) + ")")
 	if not need.settled then return fact
-	return fact + style.note + "  (checked once the facts above exist)" + style.normal
+	return fact + paint(style, "note", "  (checked once the facts above exist)")
 end function
 
 shownTerm = function(term, labels, style)
 	"One field of a needed fact: a value as it is, a variable as the label the report gave it."
 	if not (term isa Var) then return term
-	label = labels[term.name]
+	shown = paint(style, "var", "?" + labels[term.name])
 	// Dimming a variable ends the paint it sits in, so a painted fact reopens it.
-	if style.var == "" then return "?" + label
-	return style.var + "?" + label + style.normal + style.fact
+	if style.var == "" then return shown
+	return shown + style.fact
 end function
 
 plainName = function(name)

@@ -38,7 +38,8 @@ end if
 // A partly loaded module would otherwise surface as a puzzling error inside one
 // case, so check the surface the suite relies on up front.
 for name in ["SpoTriple", "proveGoals", "substitute", "NotEqual", "proofLines",
-	"standardizeApart", "parseRule", "needsFor", "reportLabels", "unboundVars"]
+	"standardizeApart", "parseRule", "needsFor", "reportLines", "reportLabels", "unboundVars",
+	"paint"]
 	if triples.hasIndex(name) == 0 then
 		print "error: ../src/triples loaded without " + name
 		exit 1

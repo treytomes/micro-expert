@@ -165,12 +165,6 @@ reportStyle = function
 	}
 end function
 
-paint = function(style, role, text)
-	"One report line in its role's color, or the plain text when colors are off."
-	if style == null then return text
-	return style[role] + text + style.normal
-end function
-
 runQuery = function(query)
 	print "Query: " + query.text
 	proofs = triples.proveGoals(query, facts, rules, options.values.depth)
@@ -178,7 +172,7 @@ runQuery = function(query)
 	// turn it into an answer, so the missing knowledge is the result.
 	if proofs.len == 0 then
 		style = reportStyle()
-		print paint(style, "warning", "  no solution found at depth " + options.values.depth)
+		print triples.paint(style, "warning", "  no solution found at depth " + options.values.depth)
 		for line in triples.neededFactLines(query, facts, rules, options.values.depth, style)
 			print line
 		end for
@@ -249,6 +243,7 @@ replSession = function()
 		"facts": facts,
 		"rules": rules,
 		"depth": options.values.depth,
+		"verbose": options.values.verbose,
 		"style": reportStyle(),
 		"io": {
 			"read": function(question)

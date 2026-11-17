@@ -33,7 +33,7 @@ run = function(t, rules, repl, h)
 	// ── A scripted session ───────────────────────────────────────────────────
 
 	// A session over a script of typed lines, recording what it printed and asked.
-	startSession = function(facts, ruleList, script, style=null)
+	startSession = function(facts, ruleList, script, style=null, verbose=0)
 		answers = {"lines": [], "asked": [], "at": 0}
 		reader = function(question)
 			answers.asked.push(question)
@@ -45,7 +45,8 @@ run = function(t, rules, repl, h)
 			answers.lines.push(line)
 		end function
 		session = {"triples": t, "Rule": rules.Rule, "facts": facts, "rules": ruleList,
-			"depth": 8, "style": style, "io": {"read": @reader, "say": @writer}}
+			"depth": 8, "verbose": verbose, "style": style,
+			"io": {"read": @reader, "say": @writer}}
 		repl.run(session)
 		return {"session": session, "answers": answers}
 	end function
@@ -92,6 +93,15 @@ run = function(t, rules, repl, h)
 			stumbling.answers.lines[1].indexOf("parent-of(walter") != null)
 	h.check("the session carries on after it",
 		stumbling.answers.lines[3] == "  parent-of(walter, susan)")
+
+	// ── --verbose gives the tree behind each answer, as a run does ──────────
+
+	verbose = startSession(family + [], [], ["parent-of(?p, susan)", "walter", "quit"], null, 1)
+	h.check("a verbose session prints the proof tree behind an answer",
+		verbose.answers.lines[5] == "  parent-of(walter, susan)  <- fact")
+	verboseRule = startSession(family + [], [], [ruleLine, "grandparent(bill, ?y)"], null, 1)
+	h.check("a verbose answer names the rule behind it",
+		verboseRule.answers.lines[2].indexOf("  <- rule grandparent(?x, ?y)") != null)
 
 	// ── Painting is the same style table, so it is opt-in the same way ──────
 

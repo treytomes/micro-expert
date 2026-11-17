@@ -180,7 +180,8 @@ missing fact leaves open, adds it, and asks again - one variable at a time, so a
 report standing. Nothing is written back: the session adds to the arrays `src/main.ms`
 built, so what it learns lasts for the run and the files stay as they were. A rule is read
 from the line `Rule.text` prints, and a line that will not parse is refused with itself
-quoted. `--depth` bounds the session's search the way it bounds a run.
+quoted. `--depth` bounds the session's search the way it bounds a run, and `--verbose`
+prints the proof tree behind each answer here too.
 
 The session paints from the same style table as the report - a bold prompt, olive additions,
 green answers - so `NO_COLOR` turns the whole run plain, prompt included.
@@ -237,7 +238,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-138 passed, 0 failed
+140 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
@@ -246,9 +247,9 @@ interpreter an uncaught runtime error still exits `0`, so the `N passed, M faile
 the real signal, not the exit code.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 138 here cover the program itself: display and parsing (12),
+56 respectively), and the 140 here cover the program itself: display and parsing (12),
 proofs and explanations (19), the missing-fact report (21), recursion and cycle handling
-(13), relations including the family rules (46), and the session at the prompt (27).
+(13), relations including the family rules (46), and the session at the prompt (29).
 
 ## Repository layout
 
@@ -260,7 +261,7 @@ src/facts.ms         the 54 facts
 src/rules.ms         the nine rules
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 138 checks and their runner
+test/                the 140 checks and their runner
 docs/                the long-form write-up
 bootstrap.bat        submodules, interpreter, .env
 micro-expert.bat     runs the entry point named in .env
