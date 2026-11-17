@@ -182,8 +182,9 @@ Type a fact, a question, or a rule as 'head <- conditions'. /help lists the comm
 
 When a question has no answer, the session reads the same report and asks for the fact that
 would let a rule reach one - never for the query's own shape while a rule can still use the
-fact, because asserting the answer proves nothing. The fact being filled is shown above its
-question, and the variables it brings itself are asked for one at a time:
+fact. The fact being filled is shown above its question with the values given so far in it,
+the report reads that way too, and the variables a fact brings itself are asked for one at a
+time:
 
 ```
 ? uncle-of(?p, susan)
@@ -198,6 +199,9 @@ question, and the variables it brings itself are asked for one at a time:
   parent-of(?p', susan)
   ?p' = george
   added parent-of(george, susan)
+  sibling-of(?p, george)
+  ?p = bill
+  added sibling-of(bill, george)
   uncle-of(bill, susan)
   uncle-of(henry, susan)
 ```
@@ -289,7 +293,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-169 passed, 0 failed
+170 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
@@ -298,9 +302,9 @@ interpreter an uncaught runtime error still exits `0`, so the `N passed, M faile
 the real signal, not the exit code.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 169 here cover the program itself: display and parsing (12),
+56 respectively), and the 170 here cover the program itself: display and parsing (12),
 proofs and explanations (19), the missing-fact report (24), recursion and cycle handling
-(13), relations including the family rules (46), and the session at the prompt (55).
+(13), relations including the family rules (46), and the session at the prompt (56).
 
 ## Repository layout
 
@@ -312,7 +316,7 @@ src/facts.ms         the 54 facts
 src/rules.ms         the nine rules
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 169 checks and their runner
+test/                the 170 checks and their runner
 docs/                the long-form write-up
 bootstrap.bat        submodules, interpreter, .env
 micro-expert.bat     runs the entry point named in .env

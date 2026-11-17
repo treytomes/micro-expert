@@ -173,6 +173,10 @@ run = function(t, rules, repl, h)
 			remembered.answers.asked[3] == "  ?p = " and
 			printed(remembered.answers.lines, "  added parent-of(sam, alfonso)") and
 			remembered.answers.lines[remembered.answers.lines.len - 1] == "  uncle-of(bill, alfonso)")
+	// The block above reads the same way, so the report and the question agree.
+	h.check("the report block shows the values already given",
+		printed(remembered.answers.lines, "      parent-of(sam, ?p)") and
+			printed(remembered.answers.lines, "      sibling-of(bill, sam)  (checked once the facts above exist)"))
 
 	// ── The query's own shape is the last thing offered ─────────────────────
 
