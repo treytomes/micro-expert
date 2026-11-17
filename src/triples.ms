@@ -27,16 +27,6 @@ mapWith = function(items, f, arg=null)
 	return results
 end function
 
-fieldOf = function(record, key)
-	"One field of a record."
-	return record[key]
-end function
-
-pluck = function(records, key)
-	"One field from each record, in order."
-	return mapWith(records, @fieldOf, key)
-end function
-
 // ── Var: a logic variable, written ?x ────────────────────────────────────────
 
 Var = {}
@@ -418,17 +408,19 @@ needsFor = function(goal, facts, rules, depth, binds=null, open=null)
 	end if
 	if depth <= 0 then return options
 	for candidate in matchingRules(goal, rules, binds)
-		for needs in bodyRequirements(candidate.body, facts, rules, depth - 1, candidate.binds, path, {})
+		for result in bodyRequirements(candidate.body, facts, rules, depth - 1, candidate.binds, path, {})
 			// A body that needs no new fact was provable already, so it is no option.
-			if needs.len > 0 then options.push({"rule": candidate.rule, "needs": needs})
+			if result.needs.len > 0 then
+				options.push({"rule": candidate.rule, "needs": result.needs})
+			end if
 		end for
 	end for
 	return options
 end function
 
 bodyRequirements = function(conditions, facts, rules, depth, binds, open, newVars)
-	"Every set of facts that would prove a rule body, or [] when a constraint rules the body out; newVars are the variables the facts found so far would bind."
-	if conditions.len == 0 then return [[]]
+	"Every way of proving a rule body: the bindings it would leave, and the facts it would still need; newVars are the variables the facts found so far would bind."
+	if conditions.len == 0 then return [{"binds": binds, "needs": []}]
 	first = conditions[0]
 	if not (first isa SpoTriple) then
 		// A constraint is checked here rather than proved, so it asks for no fact.
@@ -436,26 +428,49 @@ bodyRequirements = function(conditions, facts, rules, depth, binds, open, newVar
 		return bodyRequirements(conditions[1:], facts, rules, depth, binds, open, newVars)
 	end if
 	options = []
+	// The bindings a condition proves carry into the conditions after it, so each of
+	// them is judged against what this one settled.
 	for head in firstRequirements(first, facts, rules, depth, binds, open, newVars)
-		for tail in bodyRequirements(conditions[1:], facts, rules, depth, binds, open,
-			extendVars(newVars, head))
-			options.push(head + tail)
+		for tail in bodyRequirements(conditions[1:], facts, rules, depth, head.binds, open,
+			extendVars(newVars, head.needs))
+			options.push({"binds": tail.binds, "needs": head.needs + tail.needs})
 		end for
 	end for
 	return options
 end function
 
 firstRequirements = function(condition, facts, rules, depth, binds, open, newVars)
-	"The ways a body's condition can be met: [[]] when it is proved already, else what it adds to the report."
+	"The ways a body's condition can be met: what it settles, and what it adds to the report."
 	grounded = substitute(condition, binds)
 	// A fact still to be added would bind these variables, so this condition cannot
 	// be judged against what is known. When the facts found so far bind all of them,
 	// it is a condition to check rather than a fact to add.
 	if newVars.len > 0 and hasUnknowns(grounded) then
-		return [[missingFact(grounded, coveredBy(grounded, newVars))]]
+		return [{"binds": binds, "needs": [missingFact(grounded, coveredBy(grounded, newVars))]}]
 	end if
-	if proveGoals(condition, facts, rules, depth, binds, open).len > 0 then return [[]]
-	return pluck(needsFor(condition, facts, rules, depth, binds, open), "needs")
+	proofs = proveGoals(condition, facts, rules, depth, binds, open)
+	if proofs.len > 0 then return [{"binds": agreeingBinds(proofs), "needs": []}]
+	return mapWith(needsFor(condition, facts, rules, depth, binds, open), @requirement, binds)
+end function
+
+agreeingBinds = function(proofs)
+	"The bindings every proof agrees on, so a report names a value only when the search forces it."
+	agreed = proofs[0].binds
+	for proof in proofs[1:]
+		shared = {}
+		for name in agreed.indexes
+			if proof.binds.hasIndex(name) and proof.binds[name] == agreed[name] then
+				shared[name] = agreed[name]
+			end if
+		end for
+		agreed = shared
+	end for
+	return agreed
+end function
+
+requirement = function(option, binds)
+	"One of needsFor's options as a step of a body: its facts, and the bindings that stay as they are."
+	return {"binds": binds, "needs": option.needs}
 end function
 
 missingFact = function(triple, settled)
@@ -626,9 +641,10 @@ end function
 shownTerm = function(term, labels, style)
 	"One field of a needed fact: a value as it is, a variable as the label the report gave it."
 	if not (term isa Var) then return term
-	shown = paint(style, "var", "?" + labels[term.name])
+	plain = "?" + labels[term.name]
+	shown = paint(style, "var", plain)
 	// Dimming a variable ends the paint it sits in, so a painted fact reopens it.
-	if style.var == "" then return shown
+	if shown == plain then return plain
 	return shown + style.fact
 end function
 

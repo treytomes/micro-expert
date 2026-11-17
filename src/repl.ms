@@ -20,8 +20,10 @@
 // io is how a session talks, and the reason its checks need no terminal: read takes
 // the prompt and returns a line (null ends the session), say takes a finished line.
 //
-// One line has one meaning, the one the report already draws: a line with <- is a
-// rule, a line with a variable in it is a question, and a ground line is a fact.
+// A line starting with / is a command for the session itself (see commandList); any
+// other line is knowledge or a question, and the report already draws the difference:
+// a line with <- is a rule, a line with a variable in it is a question, and a ground
+// line is a fact.
 //
 // Nothing here knows what a color is either: paint comes from triples.ms, and the one
 // style map main.ms builds carries the report's roles and the session's alike, so a
@@ -37,16 +39,78 @@ ask = function(session, question)
 	return session.io.read(session.triples.paint(session.style, "prompt", question))
 end function
 
+// ── Slash commands ───────────────────────────────────────────────────────────
+// One line that starts with / is aimed at the session rather than the knowledge
+// base. runCommand dispatches by name and commandList is what /help shows, in the
+// same order.
+
+commandList = [
+	{"name": "/exit", "note": "leave the session"},
+	{"name": "/help", "note": "list these commands"},
+	{"name": "/facts", "note": "list the facts"},
+	{"name": "/rules", "note": "list the rules"},
+]
+
+runCommand = function(session, line)
+	"Runs one slash command, answering whether the session should end."
+	name = line.split(" ")[0].lower
+	if name == "/exit" then return true
+	if name == "/help" then
+		for command in commandList
+			say(session, "note", "  " + command.name + "  " + command.note)
+		end for
+		return false
+	end if
+	if name == "/facts" then
+		listFacts(session)
+		return false
+	end if
+	if name == "/rules" then
+		listRules(session)
+		return false
+	end if
+	say(session, "warning", "  no such command: " + name + " (/help lists them)")
+	return false
+end function
+
+countText = function(count, singular)
+	"Says '1 rule' or '2 rules'."
+	if count == 1 then return "1 " + singular
+	return str(count) + " " + singular + "s"
+end function
+
+listFacts = function(session)
+	"Prints every fact the session holds, in the order search tries them."
+	say(session, "note", "  " + countText(session.facts.len, "fact"))
+	for known in session.facts
+		session.io.say("    " + session.triples.paint(session.style, "fact", known.text))
+	end for
+end function
+
+listRules = function(session)
+	"Prints every rule the session holds, in the order search tries them."
+	say(session, "note", "  " + countText(session.rules.len, "rule"))
+	for candidate in session.rules
+		session.io.say("    " + session.triples.paint(session.style, "rule", candidate.text))
+	end for
+end function
+
+// ── The session loop ─────────────────────────────────────────────────────────
+
 run = function(session)
 	"Reads lines until the user leaves, adding facts and rules and answering questions."
 	say(session, "note",
-		"Type a fact to add it, a question to ask it, or a rule as 'head <- conditions'. 'quit' leaves.")
+		"Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.")
 	while true
 		line = ask(session, "? ")
 		if line == null then break
 		line = session.triples.trimSpace(line)
 		if line == "" then continue
 		if line == "q" or line == "quit" then break
+		if line[0] == "/" then
+			if runCommand(session, line) then break
+			continue
+		end if
 		handleLine(session, line)
 	end while
 end function
@@ -127,28 +191,54 @@ showProofs = function(session, goal, proofs)
 end function
 
 fillMissing = function(session, options)
-	"Asks for the variables of the first missing fact that has any; false when none was added."
+	"Asks for the first missing fact - its variables, or a yes to add it whole; false when nothing was added."
+	found = firstMissing(session, options)
+	if found == null then return false
+	if not session.triples.hasUnknowns(found.need.triple) then
+		return confirmFact(session, found.need.triple)
+	end if
 	labels = session.triples.reportLabels(options)
-	missing = firstMissingFact(session, options)
-	if missing == null then return false
+	// A rule's fact is shown above its question, because the report listed it among
+	// other lines; the query's own shape was named right above the prompt instead.
+	if found.option.rule != null then
+		style = session.triples.filledStyle(session.style)
+		session.io.say("  " + session.triples.neededFactText(found.need, labels, style))
+	end if
 	binds = {}
-	for variable in session.triples.unboundVars(missing)
+	for variable in session.triples.unboundVars(found.need.triple)
 		value = askValue(session, variable, labels)
 		if value == null then return false
 		binds[variable.name] = value
 	end for
-	addFact(session, session.triples.substitute(missing, binds))
+	addFact(session, session.triples.substitute(found.need.triple, binds))
 	return true
 end function
 
-firstMissingFact = function(session, options)
-	"The first fact the report lists that still has a variable to fill in."
+firstMissing = function(session, options)
+	"The missing fact to ask about: a rule's before the query's own shape, one with a variable before one without."
+	best = null
 	for option in options
 		for need in option.needs
-			if session.triples.hasUnknowns(need.triple) then return need.triple
+			// A fact shaped like the query asserts the answer instead of giving the rules
+			// what they need, so a rule's fact is always the better one to ask about.
+			rank = session.triples.hasUnknowns(need.triple) + 2 * (option.rule != null)
+			if best == null or rank > best.rank then
+				best = {"option": option, "need": need, "rank": rank}
+			end if
 		end for
 	end for
-	return null
+	return best
+end function
+
+confirmFact = function(session, triple)
+	"Offers to add a missing fact that has no variables to fill in; false when it is declined."
+	session.io.say("  " + session.triples.paint(session.style, "fact", triple.text))
+	answer = ask(session, "  add it? [y/N] ")
+	if answer == null then return false
+	answer = session.triples.trimSpace(answer).lower
+	if answer != "y" and answer != "yes" then return false
+	addFact(session, triple)
+	return true
 end function
 
 askValue = function(session, variable, labels)

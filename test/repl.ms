@@ -5,8 +5,22 @@ run = function(t, rules, repl, h)
 	spo = function(s, p, o)
 		return t.SpoTriple.make(s, p, o)
 	end function
+	v = function(name)
+		return t.var(name)
+	end function
 	readable = function(result)
 		return not (result isa error)
+	end function
+	printed = function(lines, text)
+		"Whether a transcript holds this line exactly."
+		return lines.indexOf(text) != null
+	end function
+	holds = function(lines, piece)
+		"Whether any transcript line holds this piece of text."
+		for line in lines
+			if line.indexOf(piece) != null then return true
+		end for
+		return false
 	end function
 
 	// ── A rule line is the line Rule.text prints ─────────────────────────────
@@ -56,17 +70,19 @@ run = function(t, rules, repl, h)
 	// A question nothing answers, and the one value it asks for.
 	asked = startSession(family + [], [], ["parent-of(?p, susan)", "walter", "quit"])
 	lines = asked.answers.lines
-	h.check("the session opens with what it takes", lines[0].indexOf("'quit' leaves") != null)
+	h.check("the session says where the commands are", lines[0].indexOf("/help") != null)
 	h.check("a question with no answer says so",
-		lines[1] == "  no solution found at depth 8")
+		printed(lines, "  no solution found at depth 8"))
 	h.check("the report names the fact still missing",
-		lines[3] == "    a fact like parent-of(?p, susan)")
+		printed(lines, "    a fact like parent-of(?p, susan)"))
 	h.check("the session asks for the variable the report left open",
 		asked.answers.asked[1] == "  ?p = ")
 	h.check("the value it is given becomes a fact",
-		lines[4] == "  added parent-of(walter, susan)")
+		printed(lines, "  added parent-of(walter, susan)"))
+	h.check("the query's own fact is not repeated above the prompt",
+		not printed(lines, "  parent-of(?p, susan)"))
 	h.check("the fact answers the question on the next pass",
-		lines[5] == "  parent-of(walter, susan)")
+		printed(lines, "  parent-of(walter, susan)"))
 	h.check("the fact stays in the session", asked.session.facts.len == 3)
 
 	// A missing fact with two variables is asked about one at a time.
@@ -74,34 +90,104 @@ run = function(t, rules, repl, h)
 	h.check("a two-variable fact is asked for a variable at a time",
 		pair.answers.asked[1] == "  ?p = " and pair.answers.asked[2] == "  ?q = ")
 	h.check("both answers make the one fact",
-		pair.answers.lines[4] == "  added aunt-of(doris, nina)")
-	h.check("the question is answered too", pair.answers.lines[5] == "  aunt-of(doris, nina)")
+		printed(pair.answers.lines, "  added aunt-of(doris, nina)"))
+	h.check("the question is answered too",
+		printed(pair.answers.lines, "  aunt-of(doris, nina)"))
 
 	// A rule typed at the prompt joins the search.
 	ruleLine = "grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)"
 	ruled = startSession(family + [], [], [ruleLine, "grandparent(?p, ?y)"])
 	h.check("a rule typed at the prompt is added",
-		ruled.answers.lines[1] == "  added rule " + ruleLine)
+		printed(ruled.answers.lines, "  added rule " + ruleLine))
 	h.check("the new rule answers the next question",
-		ruled.answers.lines[2] == "  grandparent(bill, anna)")
+		printed(ruled.answers.lines, "  grandparent(bill, anna)"))
 
 	// A malformed line is refused, quoted, and the session carries on.
 	stumbling = startSession(family + [], [],
 		["parent-of(walter", "parent-of(walter, susan)", "parent-of(?p, susan)"])
 	h.check("a bad line is refused with the line quoted",
-		stumbling.answers.lines[1].indexOf("malformed spo") != null and
-			stumbling.answers.lines[1].indexOf("parent-of(walter") != null)
+		holds(stumbling.answers.lines, "malformed spo") and
+			holds(stumbling.answers.lines, "parent-of(walter"))
 	h.check("the session carries on after it",
-		stumbling.answers.lines[3] == "  parent-of(walter, susan)")
+		printed(stumbling.answers.lines, "  added parent-of(walter, susan)"))
+
+	// ── A rule's own facts are asked for, not the query's shape ────────────
+
+	// The uncle rule is the case where asking the query's own variable would end the
+	// session by assertion: ?p is the uncle, so the report needs a parent of Susan and
+	// a male sibling of that parent.
+	uncleRule = rules.Rule.make(spo(v("x"), "uncle-of", v("y")),
+		[spo(v("p"), "parent-of", v("y")), spo(v("x"), "sibling-of", v("p")),
+			spo(v("x"), "has-gender", "male")])
+	uncle = startSession(family + [], [uncleRule],
+		["uncle-of(?p, susan)", "george", "alfonso", "y"])
+	uncleLines = uncle.answers.lines
+	uncleAsked = uncle.answers.asked
+	h.check("a rule's fact is asked for before the query's own shape",
+		uncleAsked[1] == "  ?p' = ")
+	h.check("the fact being filled is shown above its question",
+		printed(uncleLines, "  parent-of(?p', susan)"))
+	h.check("that answer is added as a fact",
+		printed(uncleLines, "  added parent-of(george, susan)"))
+	h.check("the sibling condition follows, named against the parent just given",
+		printed(uncleLines, "  sibling-of(?p, george)") and uncleAsked[2] == "  ?p = ")
+	h.check("a fact with no variable left is offered instead of asked about",
+		printed(uncleLines, "  has-gender(alfonso, male)") and
+			uncleAsked[3] == "  add it? [y/N] ")
+	h.check("yes adds it and the rules reach the answer from those facts",
+		printed(uncleLines, "  added has-gender(alfonso, male)") and
+			uncleLines[uncleLines.len - 1] == "  uncle-of(alfonso, susan)")
+	h.check("the query's own fact was never asserted", uncle.session.facts.len == 5)
+
+	// Declining the offer leaves the knowledge base as it was.
+	declined = startSession(family + [], [uncleRule],
+		["uncle-of(?p, susan)", "george", "alfonso", "n"])
+	h.check("no leaves the fact out", declined.session.facts.len == 4 and
+		not holds(declined.answers.lines, "  added has-gender"))
+
+	// ── The query's own shape is the last thing offered ─────────────────────
+
+	// A rule in the knowledge base that cannot conclude this query leaves the query's
+	// own shape as the only fact there is to ask about.
+	unrelated = rules.Rule.make(spo(v("x"), "child-of", v("y")),
+		[spo(v("y"), "parent-of", v("x"))])
+	ownShape = startSession(family + [], [unrelated], ["parent-of(?p, susan)", "walter", "quit"])
+	h.check("the query's own shape is asked when no rule can conclude it",
+		ownShape.answers.asked[1] == "  ?p = " and
+			printed(ownShape.answers.lines, "  added parent-of(walter, susan)"))
+
+	// A goal with no variable at all is a fact to add, not a question to ask, so the
+	// ranking above only ever decides between facts that still have one.
+	settled = family + [spo("george", "parent-of", "susan")]
+	asserted = startSession(settled + [], [uncleRule], ["uncle-of(zed, susan)"])
+	h.check("a ground line is a fact, even when nothing proves it",
+		printed(asserted.answers.lines, "  added uncle-of(zed, susan)"))
 
 	// ── --verbose gives the tree behind each answer, as a run does ──────────
 
 	verbose = startSession(family + [], [], ["parent-of(?p, susan)", "walter", "quit"], null, 1)
 	h.check("a verbose session prints the proof tree behind an answer",
-		verbose.answers.lines[5] == "  parent-of(walter, susan)  <- fact")
+		printed(verbose.answers.lines, "  parent-of(walter, susan)  <- fact"))
 	verboseRule = startSession(family + [], [], [ruleLine, "grandparent(bill, ?y)"], null, 1)
 	h.check("a verbose answer names the rule behind it",
-		verboseRule.answers.lines[2].indexOf("  <- rule grandparent(?x, ?y)") != null)
+		holds(verboseRule.answers.lines, "  <- rule grandparent(?x, ?y)"))
+
+	// ── Slash commands ──────────────────────────────────────────────────────
+
+	commands = startSession(family + [], [uncleRule],
+		["/help", "/facts", "/rules", "/nope", "/exit", "parent-of(?p, susan)"])
+	commandLines = commands.answers.lines
+	h.check("/help lists every command",
+		printed(commandLines, "  /exit  leave the session") and
+			printed(commandLines, "  /rules  list the rules"))
+	h.check("/facts lists the facts it holds",
+		printed(commandLines, "  2 facts") and printed(commandLines, "    parent-of(bill, tim)"))
+	h.check("/rules lists the rules it holds",
+		printed(commandLines, "  1 rule") and
+			holds(commandLines, "    uncle-of(?x, ?y) <- parent-of(?p, ?y)"))
+	h.check("an unknown command is refused",
+		printed(commandLines, "  no such command: /nope (/help lists them)"))
+	h.check("/exit leaves before the next line is read", commands.answers.asked.len == 5)
 
 	// ── Painting is the same style table, so it is opt-in the same way ──────
 
@@ -109,9 +195,9 @@ run = function(t, rules, repl, h)
 	painted = startSession(family + [], [], ["parent-of(?p, susan)", "walter", "quit"], mark)
 	h.check("a painted prompt opens and closes", painted.answers.asked[0] == "<p>? </>")
 	h.check("a painted gap warning closes its line",
-		painted.answers.lines[1] == "<w>  no solution found at depth 8</>")
+		printed(painted.answers.lines, "<w>  no solution found at depth 8</>"))
 	h.check("a painted added fact is marked as such",
-		painted.answers.lines[4] == "<a>  added parent-of(walter, susan)</>")
+		printed(painted.answers.lines, "<a>  added parent-of(walter, susan)</>"))
 	h.check("a painted answer wraps the whole line",
-		painted.answers.lines[5] == "<n>  parent-of(walter, susan)</>")
+		printed(painted.answers.lines, "<n>  parent-of(walter, susan)</>"))
 end function

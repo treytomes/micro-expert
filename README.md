@@ -154,12 +154,13 @@ grandmother/grandchild pair - seven of them, all Doris.
 
 ## A session at the prompt
 
-`--repl` trades the fixed questions for a session, where one line has one meaning: a ground
-line adds a fact, a line with a variable asks a question, and a line with `<-` adds a rule.
+`--repl` trades the fixed questions for a session. One line has one meaning: a ground line
+adds a fact, a line with a variable asks a question, a line with `<-` adds a rule, and a line
+starting with `/` is a command for the session itself.
 
 ```
 > micro-expert --repl
-Type a fact to add it, a question to ask it, or a rule as 'head <- conditions'. 'quit' leaves.
+Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
 ? parent-of(?p, susan)
   no solution found at depth 8
   A solution would need one of these:
@@ -174,14 +175,41 @@ Type a fact to add it, a question to ask it, or a rule as 'head <- conditions'. 
   grandparent(doris, tim)
 ```
 
-When a question has no answer, the session reads the same report, asks for the value the
-missing fact leaves open, adds it, and asks again - one variable at a time, so a missing
-`parent-of(?p, ?q)` takes two answers, and a value left empty stops the asking with the
-report standing. Nothing is written back: the session adds to the arrays `src/main.ms`
-built, so what it learns lasts for the run and the files stay as they were. A rule is read
-from the line `Rule.text` prints, and a line that will not parse is refused with itself
-quoted. `--depth` bounds the session's search the way it bounds a run, and `--verbose`
-prints the proof tree behind each answer here too.
+When a question has no answer, the session reads the same report and asks for the fact that
+would let a rule reach one - never for the query's own shape while a rule can still use the
+fact, because asserting the answer proves nothing. The fact being filled is shown above its
+question, and its variables are asked for one at a time:
+
+```
+? uncle-of(?p, susan)
+  no solution found at depth 8
+  A solution would need one of these:
+    a fact like uncle-of(?p, susan)
+    through rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
+      parent-of(?p', susan)
+      sibling-of(?p, ?p')
+      has-gender(?p, male)  (checked once the facts above exist)
+    (a name ending in ' is the rule's own variable, not one you asked about)
+  parent-of(?p', susan)
+  ?p' = george
+  added parent-of(george, susan)
+  uncle-of(bill, susan)
+  uncle-of(henry, susan)
+```
+
+A fact that needs no variable at all is offered with `add it? [y/N]` rather than assumed, and
+a value left empty stops the asking with the report standing. Nothing is written back: the
+session adds to the arrays `src/main.ms` built, so what it learns lasts for the run and the
+files stay as they were. A rule is read from the line `Rule.text` prints, and a line that
+will not parse is refused with itself quoted. `--depth` bounds the session's search the way
+it bounds a run, and `--verbose` prints the proof tree behind each answer here too.
+
+| Command | Meaning |
+| --- | --- |
+| `/exit` | Leave the session |
+| `/help` | List the commands |
+| `/facts` | List the facts the session holds |
+| `/rules` | List the rules the session holds |
 
 The session paints from the same style table as the report - a bold prompt, olive additions,
 green answers - so `NO_COLOR` turns the whole run plain, prompt included.
@@ -238,7 +266,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-140 passed, 0 failed
+156 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
@@ -247,9 +275,9 @@ interpreter an uncaught runtime error still exits `0`, so the `N passed, M faile
 the real signal, not the exit code.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 140 here cover the program itself: display and parsing (12),
+56 respectively), and the 156 here cover the program itself: display and parsing (12),
 proofs and explanations (19), the missing-fact report (21), recursion and cycle handling
-(13), relations including the family rules (46), and the session at the prompt (29).
+(13), relations including the family rules (46), and the session at the prompt (45).
 
 ## Repository layout
 
@@ -261,7 +289,7 @@ src/facts.ms         the 54 facts
 src/rules.ms         the nine rules
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 140 checks and their runner
+test/                the 156 checks and their runner
 docs/                the long-form write-up
 bootstrap.bat        submodules, interpreter, .env
 micro-expert.bat     runs the entry point named in .env
