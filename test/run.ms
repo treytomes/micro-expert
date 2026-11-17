@@ -16,6 +16,7 @@ import "../src/rule"
 import "harness"
 import "display"
 import "proofs"
+import "absence"
 import "recursion"
 import "relations"
 
@@ -43,6 +44,7 @@ end if
 
 display.run(triples, harness)
 proofs.run(triples, rules, harness)
+absence.run(triples, rules, harness)
 recursion.run(triples, rules, harness)
 relations.run(triples, rules, harness)
 

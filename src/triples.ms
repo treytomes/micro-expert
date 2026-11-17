@@ -372,6 +372,139 @@ appendConditions = function(conditions, indent, lines)
 	appendConditions(conditions[1:], indent, lines)
 end function
 
+// ── What would be needed ──────────────────────────────────────────────────────
+
+// A query can fail because nothing in the knowledge base matches it. Everything
+// below answers the question that follows: which facts would have to be added for
+// a solution to exist? There is one answer per way the goal could be proved - a
+// fact with the goal's own shape, or a rule whose body still needs something - and
+// each answer is the facts that way would need, with the rule that would use them.
+
+needsFor = function(goal, facts, rules, depth, binds=null, open=null)
+	"Every way goal could still be answered: the facts it needs, and the rule that would use them."
+	path = enterGoal(goal, binds, open)
+	if path == null then return []
+	options = []
+	matched = false
+	for fact in facts
+		if unify(goal, fact, binds) != null then matched = true
+	end for
+	// One more fact, shaped like the goal, would answer it outright.
+	if not matched then options.push({"rule": null, "needs": [substitute(goal, binds)]})
+	if depth <= 0 then return options
+	for candidate in rules
+		fresh = standardizeApart(candidate)
+		headBinds = unify(fresh.head, goal, binds)
+		if headBinds != null then
+			for needs in bodyRequirements(fresh.body, facts, rules, depth - 1, headBinds, path, false)
+				options.push({"rule": candidate, "needs": needs})
+			end for
+		end if
+	end for
+	return options
+end function
+
+bodyRequirements = function(conditions, facts, rules, depth, binds, open, blocked)
+	"Every set of facts that would prove a rule body, or [] when a constraint rules the body out."
+	if conditions.len == 0 then return [[]]
+	first = conditions[0]
+	if not (first isa SpoTriple) then
+		if not holdsConstraint(first, binds) then return []
+		return bodyRequirements(conditions[1:], facts, rules, depth, binds, open, blocked)
+	end if
+	firstOptions = []
+	if blocked and hasUnknowns(first, binds) then
+		// A fact still to be added would bind these variables, so this condition
+		// cannot be judged against what is known: it has to be listed as needed too.
+		firstOptions = [[substitute(first, binds)]]
+	else if proveGoals(first, facts, rules, depth, binds, open).len > 0 then
+		firstOptions = [[]]
+	else
+		for option in needsFor(first, facts, rules, depth, binds, open)
+			firstOptions.push(option.needs)
+		end for
+	end if
+	options = []
+	for head in firstOptions
+		for tail in bodyRequirements(conditions[1:], facts, rules, depth, binds, open,
+			blocked or head.len > 0)
+			options.push(head + tail)
+		end for
+	end for
+	return options
+end function
+
+hasUnknowns = function(triple, binds)
+	"Says whether any field is still a variable once binds are applied."
+	grounded = substitute(triple, binds)
+	for part in grounded.parts
+		if part isa Var then return true
+	end for
+	return false
+end function
+
+neededFactLines = function(goal, facts, rules, depth)
+	"The lines to print when goal has no answer: the facts that would allow one."
+	lines = ["  A solution would need one of these:"]
+	seen = {}
+	for option in needsFor(goal, facts, rules, depth)
+		block = optionLines(option)
+		if block.len == 0 then continue
+		key = block.join("|")
+		if seen.hasIndex(key) == 0 then
+			seen[key] = 1
+			lines = lines + block
+		end if
+	end for
+	return lines
+end function
+
+optionLines = function(option)
+	"The lines for one alternative: a fact, or a rule and the facts its body would still need."
+	if option.needs.len == 0 then return []
+	if option.rule == null then return ["    a fact like " + neededFactText(option.needs[0])]
+	block = ["    through rule " + option.rule.text]
+	for needed in option.needs
+		block.push("      " + neededFactText(needed))
+	end for
+	return block
+end function
+
+neededFactText = function(triple)
+	"Renders a needed fact, with variable names as they read rather than as they were renamed."
+	labels = {}
+	return shownTerm(triple.predicate, labels) + "(" + shownTerm(triple.subject, labels) +
+		", " + shownTerm(triple.object, labels) + ")"
+end function
+
+shownTerm = function(term, labels)
+	"One field of a needed fact: a value as it is, a variable as ?name; labels is keyed by the names already shown."
+	if not (term isa Var) then return term
+	base = plainName(term.name)
+	label = base
+	count = 2
+	// A different variable that would read the same gets numbered, so ?p and ?p_4
+	// stay distinct on the page.
+	while labels.hasIndex(label) and labels[label] != term.name
+		label = base + str(count)
+		count = count + 1
+	end while
+	labels[label] = term.name
+	return "?" + label
+end function
+
+plainName = function(name)
+	"The variable's name without the numeric suffix standardizeApart added, so ?x_3 reads ?x."
+	pieces = name.split("_")
+	if pieces.len < 2 then return name
+	last = pieces[-1]
+	if last == "" then return name
+	for c in last
+		if c.code < 48 or c.code > 57 then return name
+	end for
+	return pieces[:-1].join("_")
+end function
+
 // ── Parsing ───────────────────────────────────────────────────────────────────
 
 parseLine = function(line)

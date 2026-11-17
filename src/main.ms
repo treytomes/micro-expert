@@ -132,7 +132,17 @@ end function
 
 runQuery = function(query)
 	print "Query: " + query.text
-	for proof in triples.proveGoals(query, facts, rules, options.values.depth)
+	proofs = triples.proveGoals(query, facts, rules, options.values.depth)
+	// A quiet empty answer set is a dead end: say so, and say which facts would
+	// turn it into an answer, so the missing knowledge is the result.
+	if proofs.len == 0 then
+		print "  no solution found at depth " + options.values.depth
+		for line in triples.neededFactLines(query, facts, rules, options.values.depth)
+			print line
+		end for
+		return
+	end if
+	for proof in proofs
 		if options.values.verbose then
 			for line in triples.proofLines(proof, "  ")
 				print line
@@ -181,6 +191,7 @@ end for
 // --depth bounds how many rules deep the search may go; 0 means facts only.
 
 // runQuery fact(var("x"), "child-of", var("y"))
-runQuery fact("bill", "uncle-of", var("?p"))
+// runQuery fact("bill", "uncle-of", var("?p"))
+runQuery fact(var("?p"), "parent-of", "susan")
 
 finish 0

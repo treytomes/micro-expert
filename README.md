@@ -103,9 +103,27 @@ Query: uncle-of(bill, ?p)
 | `--version`, `-v` | Version line |
 
 `--depth 1` is a good sanity check: `uncle-of` is two rule levels above the facts
-(`uncle-of` -> `sibling-of` -> facts), so it correctly answers nothing. `--log-level debug`
-prints all 54 facts as they load and all nine rules as they are registered, which is the
-fastest way to see what the engine was actually given.
+(`uncle-of` -> `sibling-of` -> facts), so it answers nothing and says what it would need.
+`--log-level debug` prints all 54 facts as they load and all nine rules as they are
+registered, which is the fastest way to see what the engine was actually given.
+
+### When there is no answer
+
+An empty answer set is not left blank: the run says so, then names the facts that would
+allow an answer. Nothing here knows who Susan's parents are, so the query below reports the
+shape of the fact that is missing:
+
+```
+> micro-expert
+Query: parent-of(?p, susan)
+  no solution found at depth 8
+  A solution would need one of these:
+    a fact like parent-of(?p, susan)
+```
+
+A query aimed at a derived relation lists each rule that could conclude it and the facts its
+body would still need underneath, and `--depth` bounds that report the same way it bounds
+the search.
 
 The question lives at the bottom of `src/main.ms`:
 
@@ -172,7 +190,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-90 passed, 0 failed
+103 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
@@ -181,9 +199,9 @@ interpreter an uncaught runtime error still exits `0`, so the `N passed, M faile
 the real signal, not the exit code.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 90 here cover the program itself: display and parsing (12),
-proofs and explanations (19), recursion and cycle handling (13), and relations including the
-family rules (46).
+56 respectively), and the 103 here cover the program itself: display and parsing (12),
+proofs and explanations (19), the missing-fact report (13), recursion and cycle handling
+(13), and relations including the family rules (46).
 
 ## Repository layout
 
@@ -195,7 +213,7 @@ src/facts.ms         the 54 facts
 src/rules.ms         the nine rules
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 90 checks and their runner
+test/                the 103 checks and their runner
 docs/                the long-form write-up
 bootstrap.bat        submodules, interpreter, .env
 micro-expert.bat     runs the entry point named in .env

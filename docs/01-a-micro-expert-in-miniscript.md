@@ -54,7 +54,7 @@ The last row is the honest one. This program cannot read *"who are Bill's nephew
 What a rules engine buys you, concretely, in an era of cheap text generation:
 
 - **Auditability.** Every claim has a proof you can print. There is no "the model said so" step to defend to a reviewer, an auditor, or yourself in six months.
-- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 90 assertions and they either pass or they don't.
+- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 103 assertions and they either pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility, scheduling constraints, device diagnostics, family relationships — questions where the rule is the requirement and being consistently right matters more than being fluent.
 - **Knowledge as a reviewed artifact.** Adding a rule is a five-line pull request with a test. There is no training run, and nothing else silently changes.
 - **No data leaving the machine.** The facts are the data, and they are text files.
@@ -123,7 +123,8 @@ Three details in that loop are where a toy implementation turns into a solver:
 
 **Unification and fresh variables.** Matching a pattern against a triple assigns variables or fails; it never mutates the rule. Before a rule is used, its variables are **standardized apart** — renamed to fresh names like `?x_3` — so one use of a rule cannot capture the bindings of another. Without that, `uncle-of(bill, george)` and `uncle-of(bill, anna)` could not both be derived in one search.
 
-**Depth.** `--depth` bounds how many rule levels the search may go down. `0` means facts only. `uncle-of` needs two levels (`uncle-of` → `sibling-of` → facts), so `--depth 1` correctly answers nothing.
+**Depth.** `--depth` bounds how many rule levels the search may go down. `0` means facts only. `uncle-of` needs two levels (`uncle-of` → `sibling-of` → facts), so `--depth 1` answers nothing — and says which
+fact would change that.
 
 **Cycles.** A rule like `married-to(?y, ?x) <- married-to(?x, ?y)` can cheerfully call itself forever. The search therefore keeps the chain of goals on the current branch and refuses to re-enter a goal it is already inside, comparing goals with variables renamed away so that `?x` and `?x_7` are recognised as the same goal.
 
@@ -251,12 +252,12 @@ Try `fact(var("x"), "grandma-of", var("y"))` for every  grandmother/grandchild p
 
 ```plaintext
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-90 passed, 0 failed
+103 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it for the session or paste the path in its place.
 
-The 90 checks are split by area: display and parsing (12), proofs and explanations (19), recursion and cycle handling (13), and relations including the family rules (46). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
+The 103 checks are split by area: display and parsing (12), proofs and explanations (19), the missing-fact report (13), recursion and cycle handling (13), and relations including the family rules (46). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
 
 ## Where an LLM fits
 
@@ -280,7 +281,7 @@ The contract that makes this worth doing:
 
 - **The LLM never asserts a fact the engine did not prove.** Its job is to translate, not to know. Anything it proposes goes through the engine, and an unknown predicate is a refusal, not a guess.
 - **The proof travels with the answer.** Render the proof (or a summary of it) next to the sentence, so the fluent answer is still auditable. The engine's `--verbose` tree is already that artifact.
-- **Failures are visible.** "No answer" is a first-class result here — missing fact, or a rule that does not fire — and it is exactly the signal an LLM alone cannot give you.
+- **Failures are visible.** "No answer" is a first-class result here — missing fact, or a rule that does not fire — and it is exactly the signal an LLM alone cannot give you. The program spells it out: it reports the absence, then the facts that would have allowed an answer.
 
 None of this needs a frontier model. The pattern has been tested end to end with models as small as **3B parameters**, small enough to run on a CPU with no graphics card at all: the model only has to turn a sentence into a handful of triples and a rule name, and the engine does the part that has to be right. That puts the whole stack - language front door and
 reasoner - on one ordinary machine, offline.
