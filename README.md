@@ -209,8 +209,8 @@ The engine is `src/triples.ms`, and it holds five things:
 | Terms | `Var` (a logic variable) and plain values; `SpoTriple` for triples |
 | Unification | `unify`, `unifyParts`, `unifyTerms`, `deref`, `resolveBindings`, `substitute` |
 | Constraints | `NotEqual`, `holdsConstraint`, and renaming for `standardizeApart` |
-| Search | `proveGoals`, `proveConditions`, `mergeAnswer` |
-| Explanation | `proofLines`, `derivationLines`, plus cycle keys (`goalKey`, `canonicalText`) and parsing (`parseLine`, `parseCall`) |
+| Search | `proveGoals` (loop check, facts, rules), `proveConditions`, `mergeAnswer` |
+| Explanation | `proofLines`, plus cycle keys (`goalKey`, `canonicalText`) and parsing (`parseLine`, `parseCall`) |
 
 If you have met Prolog or Datalog, the mapping is direct: a triple is an atomic goal, a
 rule is a clause, unification is unification, and `proveGoals` is a depth-bounded

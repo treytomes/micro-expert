@@ -128,7 +128,7 @@ runQuery = function(query)
 	print "Query: " + query.text
 	for proof in triples.proveGoals(query, facts, rules, options.values.depth)
 		if options.values.verbose then
-			for line in triples.proofLines(query, proof, "  ")
+			for line in triples.proofLines(proof, "  ")
 				print line
 			end for
 		else

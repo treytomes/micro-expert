@@ -187,9 +187,12 @@ end function
 //
 //   answer = {"goal": SpoTriple, "binds": map, "reasons": [reason]}
 //   reason = {"rule": Rule or null, "conditions": [answer]}
+//   results = {"list": [answer], "byText": {rendered goal: answer}}
 //
 // An answer keeps every way it was proved; a reason is one of them - a fact when
 // rule is null, otherwise the rule plus the answers that proved its conditions.
+// A results record gathers answers in order and by rendered goal, so a goal that
+// is proved several ways still appears once.
 
 renameCounter = {"uses": 0}
 
@@ -269,31 +272,50 @@ end function
 
 proveGoals = function(goal, facts, rules, depth, binds=null, open=null)
 	"Every answer to goal, at most depth rules deep, each with all its derivations; open is the chain of goals being proved, so a loop stops that branch."
+	path = enterGoal(goal, binds, open)
+	if path == null then return []
+	results = emptyResults()
+	mergeFactAnswers(results, goal, facts, binds)
+	if depth <= 0 then return results.list
+	mergeRuleAnswers(results, goal, facts, rules, depth, binds, path)
+	return results.list
+end function
+
+emptyResults = function()
+	"Where answers gather: the list in order, and the same answers by rendered goal."
+	return {"list": [], "byText": {}}
+end function
+
+enterGoal = function(goal, binds, open)
+	"The chain of goals being proved with this one added, or null when it is already on it."
 	if open == null then open = {}
 	key = goalKey(goal, binds)
-	if open.hasIndex(key) then return []
+	if open.hasIndex(key) then return null
 	// A new map, so one branch's ancestors do not prune its siblings.
-	path = withBinding(open, key, 1)
+	return withBinding(open, key, 1)
+end function
 
-	answers = []
-	byText = {}
+mergeFactAnswers = function(results, goal, facts, binds)
+	"Adds every fact that matches the goal as a derivation of it."
 	for fact in facts
 		matched = unify(goal, fact, binds)
 		if matched != null then
-			mergeAnswer(answers, byText, goal, matched, {"rule": null, "conditions": []})
+			mergeAnswer(results, goal, matched, {"rule": null, "conditions": []})
 		end if
 	end for
-	if depth <= 0 then return answers
+end function
+
+mergeRuleAnswers = function(results, goal, facts, rules, depth, binds, open)
+	"Adds every rule whose head matches, once for each way its body proved."
 	for candidate in rules
 		fresh = standardizeApart(candidate)
 		matched = unify(fresh.head, goal, binds)
 		if matched != null then
-			for proved in proveConditions(fresh.body, facts, rules, depth - 1, matched, path)
-				mergeAnswer(answers, byText, goal, proved.binds, {"rule": candidate, "conditions": proved.proofs})
+			for proved in proveConditions(fresh.body, facts, rules, depth - 1, matched, open)
+				mergeAnswer(results, goal, proved.binds, {"rule": candidate, "conditions": proved.proofs})
 			end for
 		end if
 	end for
-	return answers
 end function
 
 proveConditions = function(conditions, facts, rules, depth, binds, open=null)
@@ -315,14 +337,14 @@ proveConditions = function(conditions, facts, rules, depth, binds, open=null)
 	return results
 end function
 
-mergeAnswer = function(answers, byText, goal, binds, reason)
+mergeAnswer = function(results, goal, binds, reason)
 	"One entry per answer, holding every way that answer was proved."
 	key = substitute(goal, binds).text
-	if byText.hasIndex(key) == 0 then
-		byText[key] = {"goal": goal, "binds": binds, "reasons": []}
-		answers.push(byText[key])
+	if results.byText.hasIndex(key) == 0 then
+		results.byText[key] = {"goal": goal, "binds": binds, "reasons": []}
+		results.list.push(results.byText[key])
 	end if
-	byText[key].reasons.push(reason)
+	results.byText[key].reasons.push(reason)
 end function
 
 reasonText = function(reason)
@@ -331,30 +353,27 @@ reasonText = function(reason)
 	return "rule " + reason.rule.text
 end function
 
-proofLines = function(goal, answer, indent="")
+proofLines = function(answer, indent="")
 	"Describes every derivation of an answer, with the conditions behind each."
-	return appendDerivations(goal, answer.binds, answer.reasons, indent, [])
-end function
-
-derivationLines = function(goal, binds, reason, indent)
-	"One derivation: the answer, where it came from, then its conditions."
-	return appendDerivations(goal, binds, [reason], indent, [])
+	lines = []
+	appendDerivations(answer.goal, answer.binds, answer.reasons, indent, lines)
+	return lines
 end function
 
 appendDerivations = function(goal, binds, reasons, indent, lines)
-	"Recurses over derivations, appending each block to one buffer."
-	if reasons.len == 0 then return lines
+	"Appends each derivation's line, then the block behind each of its conditions."
+	if reasons.len == 0 then return null
 	reason = reasons[0]
 	lines.push(indent + substitute(goal, binds).text + "  <- " + reasonText(reason))
 	appendConditions(reason.conditions, indent + "  ", lines)
-	return appendDerivations(goal, binds, reasons[1:], indent, lines)
+	appendDerivations(goal, binds, reasons[1:], indent, lines)
 end function
 
 appendConditions = function(conditions, indent, lines)
-	"Recurses over a rule's proved conditions, appending each block in turn."
-	if conditions.len == 0 then return lines
+	"Appends the block behind each proved condition, in order."
+	if conditions.len == 0 then return null
 	appendDerivations(conditions[0].goal, conditions[0].binds, conditions[0].reasons, indent, lines)
-	return appendConditions(conditions[1:], indent, lines)
+	appendConditions(conditions[1:], indent, lines)
 end function
 
 // ── Parsing ───────────────────────────────────────────────────────────────────
