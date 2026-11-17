@@ -39,13 +39,10 @@ ask = function(session, question)
 	return session.io.read(session.triples.paint(session.style, "prompt", question))
 end function
 
-// What askValue answers when the user takes a fact back instead of giving a value:
-// a map, so a typed value can never be mistaken for it.
-undoMark = {"undo": 1}
-
-// What askValue answers when the user asserts a fact instead of giving a value: the
-// deliberate way to answer by fiat, since a line that is a whole fact is a fact.
-factMark = {"fact": 1}
+// What askValue answers when the user changes the knowledge base rather than giving a
+// value - taking a fact back, or asserting one. A map, so a typed value can never be
+// mistaken for it, and both mean the same thing to the fill: start the round again.
+changedMark = {"changed": 1}
 
 // ── Slash commands ───────────────────────────────────────────────────────────
 // One line that starts with / is aimed at the session rather than the knowledge
@@ -220,7 +217,7 @@ showProofs = function(session, goal, proofs)
 end function
 
 fillMissing = function(session, options, goal)
-	"Asks for the first missing fact; says whether it was added, taken back, or given up on."
+	"Asks for the first missing fact; says whether it stopped, or changed the knowledge base."
 	found = firstMissing(session, options)
 	if found == null then return "stopped"
 	triple = found.need.triple
@@ -238,8 +235,7 @@ fillMissing = function(session, options, goal)
 	for variable in askedVars(session, triple, goal)
 		value = askValue(session, variable, labels)
 		if value == null then return "stopped"
-		if value == undoMark then return "undone"
-		if value == factMark then return "added"
+		if value == changedMark then return "changed"
 		binds[variable.name] = value
 	end for
 	filled = session.triples.substitute(triple, binds)
@@ -289,44 +285,45 @@ firstMissing = function(session, options)
 end function
 
 confirmFact = function(session, triple)
-	"Offers to add a missing fact that has no variables to fill in; says what was chosen."
+	"Offers to add a missing fact that has no variables to fill in; says whether that changed the knowledge base."
 	session.io.say("  " + session.triples.paint(session.style, "fact", triple.text))
 	answer = ask(session, "  add it? [y/N] ")
 	if answer == null then return "stopped"
 	answer = session.triples.trimSpace(answer).lower
 	if answer == "/undo" then
-		if undo(session) then return "undone"
+		if undo(session) then return "changed"
 		return "stopped"
 	end if
 	if answer != "y" and answer != "yes" then return "stopped"
 	addFact(session, triple)
-	return "added"
+	return "changed"
 end function
 
 askValue = function(session, variable, labels)
-	"Asks for one value; null when the user leaves it, undoMark when they take a fact back, factMark when they assert one."
+	"Asks for one value; null when the user leaves it, changedMark when they change the knowledge base instead."
 	while true
 		value = ask(session, "  ?" + labels[variable.name] + " = ")
 		if value == null then return null
 		value = session.triples.trimSpace(value)
 		if value == "" then return null
 		if value == "/undo" then
-			if undo(session) then return undoMark
+			if undo(session) then return changedMark
 			continue
 		end if
-		if value[0] != "?" then
-			triple = session.triples.SpoTriple.parse(value)
-			if triple isa error then return value
-			// A whole fact is a fact wherever it is typed, so asserting one here is how to
-			// answer by fiat: it is added, and the question starts again from it. One that
-			// still holds a variable is neither a fact nor a value, so it is refused.
-			if not session.triples.hasUnknowns(triple) then
-				addFact(session, triple)
-				return factMark
-			end if
+		triple = session.triples.SpoTriple.parse(value)
+		// A whole fact is a fact wherever it is typed, so asserting one here is how to
+		// answer by fiat: it is added, and the question starts again from it.
+		if not (triple isa error) and not session.triples.hasUnknowns(triple) then
+			addFact(session, triple)
+			return changedMark
+		end if
+		// A value is a name, so a fact that still holds a variable - or a variable itself -
+		// is neither a fact nor a value: it is refused and the question is put again.
+		if not (triple isa error) then
 			say(session, "warning", "  " + value + " still holds a variable: type a value, or a fact without one")
 			continue
 		end if
+		if value[0] != "?" then return value
 		say(session, "warning", "  ?" + labels[variable.name] + " takes a value, not a variable")
 	end while
 end function
