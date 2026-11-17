@@ -77,7 +77,7 @@ What a rules engine buys you, concretely, in an era of cheap text generation:
 - **Auditability.** Every claim has a proof you can print. There is no "the model said
   so" step to defend to a reviewer, an auditor, or yourself in six months.
 - **Determinism.** The same facts and the same question give the same answer, byte for
-  byte. That is what makes it testable: this repo ships 128 assertions and they either
+  byte. That is what makes it testable: this repo ships 148 assertions and they either
   pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility,
   scheduling constraints, device diagnostics, family relationships — questions where the
@@ -324,15 +324,15 @@ fall back on:
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-128 passed, 0 failed
+148 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
 for the session or paste the path in its place.
 
-The 128 checks are split by area: display and parsing (12), command-line parsing (32),
+The 148 checks are split by area: display and parsing (12), command-line parsing (32),
 proofs and explanations (19), recursion and cycle handling (13), relations including the
-family rules (46), and logging's rolling-file prune (6). One
+family rules (46), and logging's templates, level ranks, file names and prune (26). One
 caveat worth knowing, because it affects how you read a failed run: in this interpreter an
 uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real
 signal, not the exit code.

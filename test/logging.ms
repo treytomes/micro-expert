@@ -1,4 +1,4 @@
-// Cases for logging.ms, aimed at the rolling-file prune.
+// Cases for logging.ms: message templates, level ranks, rolling file names and the prune.
 //
 // The prune deletes real files, so each case works in its own folder under the system
 // temp directory and clears it away afterwards. The stamps are far in the past, so those
@@ -63,8 +63,41 @@ loggerOn = function(log, dir, retained, extra=null)
 end function
 
 run = function(log, h)
-	"Checks which files the prune keeps, and which files it counts at all."
+	"Checks message templates, level ranks, rolling file names and the prune."
 	dir = scratchDir()
+
+	// ── Message templates ────────────────────────────────────────────────────
+
+	h.check("render fills a hole", log.render("Hello {Name}!", {"Name": "Trey"}) == "Hello Trey!")
+	h.check("render keeps a hole with no property as written", log.render("Hello {Name}!", {}) == "Hello {Name}!")
+	h.check("render drops a format clause", log.render("{@Count:000}", {"Count": 7}) == "7")
+	h.check("render keeps an unterminated brace", log.render("open {Name", {"Name": "x"}) == "open {Name")
+	h.check("render leaves a template with no holes alone", log.render("plain text", {"Name": "x"}) == "plain text")
+	h.check("render without properties keeps the template", log.render("{Name}", null) == "{Name}")
+
+	// ── Hole names ───────────────────────────────────────────────────────────
+
+	h.check("holeName reads a bare name", log.holeName("Name") == "Name")
+	h.check("holeName drops a format clause", log.holeName("Name:l") == "Name")
+	h.check("holeName drops a destructuring sigil", log.holeName("@Name") == "Name")
+	h.check("holeName drops a stringify sigil", log.holeName("$Name") == "Name")
+	h.check("holeName drops both", log.holeName("@Name:l") == "Name")
+
+	// ── Levels ───────────────────────────────────────────────────────────────
+
+	h.check("levelRank reads a name", log.levelRank("debug") == 0)
+	h.check("levelRank ignores case", log.levelRank("WARNING") == 2)
+	h.check("levelRank passes a number through", log.levelRank(4) == 4)
+	h.check("levelRank has no rank for an unknown name", log.levelRank("verbose") == null)
+	h.check("levelRank has no rank for null", log.levelRank(null) == null)
+
+	// ── Which names count as rolled ──────────────────────────────────────────
+
+	rolling = loggerOn(log, dir, 7)
+	h.check("a dated name is a rolling file", rolling.isRollingFile("t-20261117.log"))
+	h.check("letters in the date are not a rolling file", rolling.isRollingFile("t-2026ab17.log") == 0)
+	h.check("a short name is not a rolling file", rolling.isRollingFile("t-2026.log") == 0)
+	h.check("another prefix is not a rolling file", rolling.isRollingFile("x-20261117.log") == 0)
 
 	// ── How many are kept ────────────────────────────────────────────────────
 
