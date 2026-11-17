@@ -190,7 +190,7 @@ end function
 
 askGoal = function(session, goal)
 	"Answers a question, asking for the variables that would complete a missing fact."
-	shown = null
+	printed = null
 	shape = null
 	// What has been given for this question already, by the label the report shows each
 	// variable under: the question comes round again, and nothing is asked for twice.
@@ -201,16 +201,15 @@ askGoal = function(session, goal)
 			showProofs(session, goal, proofs)
 			return
 		end if
-		// One walk over the goal feeds both the report and the question, so the
-		// variables asked about are the ones the report showed.
+		// One walk over the goal feeds both the report and the question, so the variables
+		// asked about are the ones the report showed - with the values given so far
+		// already in them, so the report says what the question underneath is about.
 		options = session.triples.needsFor(goal, session.facts, session.rules, session.depth)
-		// The report reads with the values given so far, so it says what the question
-		// underneath it is about.
-		answers = withGiven(session, options, goal, given)
-		report = session.triples.reportLines(answers, session.style)
+		shown = withGiven(session, options, goal, given)
+		report = session.triples.reportLines(shown, session.style)
 		// The report changes as facts are added and as values are given, so it is
 		// repeated only when it has something new to say.
-		if report.join("\n") != shown then
+		if report.join("\n") != printed then
 			say(session, "warning", "  no solution found at depth " + session.depth)
 			for line in report
 				session.io.say(line)
@@ -220,11 +219,11 @@ askGoal = function(session, goal)
 			whole = session.triples.reportLines(options, session.style).join("\n")
 			if shape != null and whole != shape then given = {}
 			shape = whole
-			shown = report.join("\n")
+			printed = report.join("\n")
 		end if
 		// Taking a fact back changes the knowledge base as much as adding one does, so
 		// that round starts over too.
-		if fillMissing(session, answers, goal, given) == "stopped" then return
+		if fillMissing(session, shown, goal, given) == "stopped" then return
 	end while
 end function
 
@@ -243,34 +242,36 @@ end function
 
 withGiven = function(session, options, goal, given)
 	"The options as they read with the values given so far put in, so the report and the question agree."
-	goalVars = {}
-	for variable in session.triples.unboundVars(goal)
-		goalVars[variable.name] = 1
-	end for
+	if given.len == 0 then return options
+	goalVars = nameSet(session, goal)
 	labels = session.triples.reportLabels(options)
-	binds = {}
-	for option in options
-		for need in option.needs
-			for variable in session.triples.unboundVars(need.triple)
-				if goalVars.hasIndex(variable.name) == 0 and given.hasIndex(labels[variable.name]) then
-					binds[variable.name] = given[labels[variable.name]]
-				end if
-			end for
-		end for
-	end for
-	if binds.len == 0 then return options
-	// The question's own variables stay as they are: they are what the search is solving
-	// for, and naming them here would be asserting the answer.
 	answers = []
 	for option in options
 		needs = []
 		for need in option.needs
-			needs.push({"triple": session.triples.substitute(need.triple, binds),
+			// The question's own variables stay as they are: they are what the search is
+			// solving for, and naming one would be asserting the answer.
+			values = {}
+			for variable in session.triples.unboundVars(need.triple)
+				if goalVars.hasIndex(variable.name) == 0 and given.hasIndex(labels[variable.name]) then
+					values[variable.name] = given[labels[variable.name]]
+				end if
+			end for
+			needs.push({"triple": session.triples.substitute(need.triple, values),
 				"settled": need.settled})
 		end for
 		answers.push({"rule": option.rule, "needs": needs})
 	end for
 	return answers
+end function
+
+nameSet = function(session, triple)
+	"The names of a triple's variables, as a set."
+	names = {}
+	for variable in session.triples.unboundVars(triple)
+		names[variable.name] = 1
+	end for
+	return names
 end function
 
 fillMissing = function(session, options, goal, given)
@@ -322,10 +323,7 @@ end function
 askedVars = function(session, triple, goal)
 	"The variables to ask about for a missing fact: the ones it brings itself, or all of them when it brings none."
 	own = session.triples.unboundVars(triple)
-	goalVars = {}
-	for variable in session.triples.unboundVars(goal)
-		goalVars[variable.name] = 1
-	end for
+	goalVars = nameSet(session, goal)
 	introduced = []
 	for variable in own
 		if goalVars.hasIndex(variable.name) == 0 then introduced.push(variable)
