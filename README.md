@@ -77,7 +77,7 @@ What a rules engine buys you, concretely, in an era of cheap text generation:
 - **Auditability.** Every claim has a proof you can print. There is no "the model said
   so" step to defend to a reviewer, an auditor, or yourself in six months.
 - **Determinism.** The same facts and the same question give the same answer, byte for
-  byte. That is what makes it testable: this repo ships 122 assertions and they either
+  byte. That is what makes it testable: this repo ships 90 assertions and they either
   pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility,
   scheduling constraints, device diagnostics, family relationships — questions where the
@@ -309,7 +309,8 @@ A clone made without `--recurse-submodules` leaves those four folders empty; run
 - checks out the `vscode-miniscript-2` submodule at `vscode-miniscript`, the extension in its
   own repository, which also opens in VS Code on its own with `F5`
 - checks out the `micro-cli` submodule at `src/cli`, the argument parser in its own
-  repository; `src/main.ms` imports it as `"cli/cli"` and aliases the map back to `cli`
+  repository; `src/main.ms` imports it as `"cli/cli"` and aliases the map back to `cli`, and
+  its own suite travels with it
 - checks out the `micro-logging` submodule at `src/logging`, the logger in its own
   repository, likewise imported as `"logging/logging"` and aliased; its own suite travels
   with it
@@ -385,18 +386,19 @@ fall back on:
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-122 passed, 0 failed
+90 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
 for the session or paste the path in its place.
 
-The 122 checks are split by area: display and parsing (12), command-line parsing (32),
-proofs and explanations (19), recursion and cycle handling (13), and relations including the
-family rules (46). The logger keeps its own 56 checks, which moved with it to its own
-repository. One caveat worth knowing, because it affects how you read a failed run: in this
-interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is
-the real signal, not the exit code.
+The 90 checks are split by area: display and parsing (12), proofs and explanations (19),
+recursion and cycle handling (13), and relations including the family rules (46). The parser's
+32 checks and the logger's 56 moved with their libraries into their own repositories. One
+caveat worth knowing, because it affects how you read a failed run: in this interpreter an
+uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal,
+not the exit code.
+
 
 ## Where an LLM fits
 
