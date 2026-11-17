@@ -158,9 +158,22 @@ handleLine = function(session, line)
 end function
 
 addFact = function(session, triple)
-	"Adds a fact to the session's knowledge base, and says which one."
+	"Adds a fact to the session's knowledge base, and says which one; nothing is added twice."
+	if alreadyKnown(session, triple) then
+		say(session, "note", "  already known: " + triple.text)
+		return false
+	end if
 	session.facts.push(triple)
 	say(session, "added", "  added " + triple.text)
+	return true
+end function
+
+alreadyKnown = function(session, triple)
+	"Says whether the session already holds this fact."
+	for known in session.facts
+		if known.text == triple.text then return true
+	end for
+	return false
 end function
 
 addRule = function(session, line)
@@ -217,37 +230,48 @@ showProofs = function(session, goal, proofs)
 end function
 
 fillMissing = function(session, options, goal)
-	"Asks for the first missing fact; says whether it stopped, or changed the knowledge base."
+	"Asks for the facts of the best missing rule one after another, carrying each answer to the next; says whether it stopped or changed the knowledge base."
 	found = firstMissing(session, options)
 	if found == null then return "stopped"
-	triple = found.need.triple
-	if not session.triples.hasUnknowns(triple) then
-		return confirmFact(session, triple)
-	end if
 	labels = session.triples.reportLabels(options)
-	// A rule's fact is shown above its question, because the report listed it among
-	// other lines; the query's own shape was named right above the prompt instead.
-	if found.option.rule != null then
-		style = session.triples.filledStyle(session.style)
-		session.io.say("  " + session.triples.neededFactText(found.need, labels, style))
-	end if
+	style = session.triples.filledStyle(session.style)
 	binds = {}
-	for variable in askedVars(session, triple, goal)
-		value = askValue(session, variable, labels)
-		if value == null then return "stopped"
-		if value == changedMark then return "changed"
-		binds[variable.name] = value
+	changed = false
+	// The facts of one rule share their variables, so an answer given under one of them is
+	// carried to the rest: what was a check becomes a fact with nothing left to fill.
+	for need in found.option.needs
+		triple = session.triples.substitute(need.triple, binds)
+		if not session.triples.hasUnknowns(triple) then
+			if alreadyKnown(session, triple) then continue
+			if confirmFact(session, triple) == "stopped" then return "stopped"
+			changed = true
+			continue
+		end if
+		// A rule's fact is shown above its question, because the report listed it among
+		// other lines; the query's own shape was named right above the prompt instead.
+		if found.option.rule != null then
+			session.io.say("  " + session.triples.neededFactText(
+				{"triple": triple, "settled": need.settled}, labels, style))
+		end if
+		for variable in askedVars(session, triple, goal)
+			value = askValue(session, variable, labels)
+			if value == null then return "stopped"
+			if value == changedMark then return "changed"
+			binds[variable.name] = value
+		end for
+		filled = session.triples.substitute(triple, binds)
+		// What is left is the question's own variable, so this fact cannot be completed
+		// from here - filling it in would assert the answer rather than find it. The
+		// answers so far still count for the facts after it.
+		if session.triples.hasUnknowns(filled) then
+			session.io.say("  " + session.triples.paint(session.style, "fact", filled.text) +
+				session.triples.paint(session.style, "note", "  (not added: what is left is the question's own)"))
+			continue
+		end if
+		if addFact(session, filled) then changed = true
 	end for
-	filled = session.triples.substitute(triple, binds)
-	// What is left is the question's own variable, so this fact cannot be completed from
-	// here: filling it in would assert the answer rather than find it.
-	if session.triples.hasUnknowns(filled) then
-		session.io.say("  " + session.triples.paint(session.style, "fact", filled.text) +
-			session.triples.paint(session.style, "note", "  (not added: what is left is the question's own)"))
-		return "stopped"
-	end if
-	addFact(session, filled)
-	return "added"
+	if changed then return "changed"
+	return "stopped"
 end function
 
 askedVars = function(session, triple, goal)
@@ -295,8 +319,8 @@ confirmFact = function(session, triple)
 		return "stopped"
 	end if
 	if answer != "y" and answer != "yes" then return "stopped"
-	addFact(session, triple)
-	return "changed"
+	if addFact(session, triple) then return "changed"
+	return "stopped"
 end function
 
 askValue = function(session, variable, labels)

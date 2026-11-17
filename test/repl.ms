@@ -155,6 +155,15 @@ run = function(t, rules, repl, h)
 			tangled.answers.asked[1] == "  ?p' = " and tangled.answers.asked[2] == "? " and
 			tangled.session.facts.len == 4)
 
+	// An answer given under one line of a rule's block is carried to the next: ?p' = sam
+	// turns the check below it into a fact with nothing left to fill, so it is kept.
+	carried = startSession(apart + [], [uncleRule], ["uncle-of(bill, ?p)", "sam", "y"])
+	h.check("an answer is carried to the next fact of the block",
+		carried.answers.asked[1] == "  ?p' = " and
+			carried.answers.asked[2] == "  add it? [y/N] " and
+			printed(carried.answers.lines, "  added sibling-of(bill, sam)") and
+			carried.session.facts.len == 5)
+
 	// ── The query's own shape is the last thing offered ─────────────────────
 
 	// A rule in the knowledge base that cannot conclude this query leaves the query's
