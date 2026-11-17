@@ -15,176 +15,72 @@ Query: uncle-of(bill, ?p)
   ...
 ```
 
-Abridged: five more answers follow - mark, clara, jack, nina and oliver - each with a
-tree of that shape. The tree is three levels deep, `uncle-of` via `sibling-of` via the
-parent facts, and the sibling step shows up twice under one answer because Bill and George
-share both parents, so both license the same conclusion. Every leaf is a fact, every branch
-names the rule it used, and there is nothing in there you have to take on trust.
+Nothing is stored about uncles. The engine derives each answer from the facts you assert
+and the rules you write, and hands back the tree of steps that got there: every leaf is a
+fact, every branch names the rule it used. No weights, no API key, no network.
 
-No weights, no API key, no network. About 1,400 lines of MiniScript across seven
-modules, 402 of them the engine itself, and nothing needs retraining to change.
+The full story - why a rules engine in 2026, how backward chaining and unification work
+here, and where an LLM fits in front of it - is in
+[docs/01-a-micro-expert-in-miniscript.md](docs/01-a-micro-expert-in-miniscript.md).
 
----
+## Getting started
 
-## What is an expert system?
-
-An expert system encodes knowledge as **explicit facts and rules** and reasons over it
-with an **inference engine**. The engine knows nothing about families, medicine or tax
-law; it knows how to prove a goal from what it was given. The domain lives entirely in
-the facts and rules you hand it.
-
-That split is the whole idea, and it is old: MYCIN diagnosed blood infections in the
-1970s by chaining a few hundred if/then rules and, crucially, by being able to say which
-rules fired and why. The knowledge was auditable by doctors who could not read the
-program.
-
-Three properties follow from the design, and every section below is a consequence of
-them:
-
-- **The knowledge is data.** A fact is a triple you can list, diff and review. A rule is
-  four lines you can argue about in code review.
-- **Answers are derived, not recalled.** The engine never "remembers" that Bill is an
-  uncle; it derives that, every run, from facts about parents and siblings.
-- **Every answer carries its proof.** For each result the engine hands back the tree of
-  facts and rule applications that produced it, so "why?" has a mechanical answer.
-
-What makes a system *expert*, in this framing, is the rule base — the curated knowledge
-— not the engine. The engine here is small on purpose.
-
-## Why should I care in 2026? Why not just use an LLM?
-
-Because for a large class of questions you want the opposite of a plausible answer: you
-want a correct, reproducible, inspectable one, and you want to know when there isn't
-one. An LLM is a language model; a rules engine is a proof procedure. They fail in
-different directions.
-
-| | Rules engine (this) | LLM |
-| --- | --- | --- |
-| Input | triples you assert | natural language, images, files |
-| Answer | deterministic: same facts, same answer | sampled; can vary run to run |
-| "Why?" | the exact proof tree, every step a fact or a rule | a narrative that reads like an explanation |
-| Wrong answers | trace to a bad fact or a missing rule, which you fix | surface unpredictably, and confidently |
-| Cost per query | microseconds, local, no tokens | network, latency, money |
-| Changing behavior | edit one fact or rule | retrain, re-prompt, or hope the neighbors don't move |
-| Common sense, paraphrase, messy input | none whatsoever | strong |
-
-The last row is the honest one. This program cannot read *"who are Bill's nephews?"* —
-it has no idea what a sentence is. That is not a gap to paper over; it is the boundary
-that makes the hybrid in [Where an LLM fits](#where-an-llm-fits) worth building.
-
-What a rules engine buys you, concretely, in an era of cheap text generation:
-
-- **Auditability.** Every claim has a proof you can print. There is no "the model said
-  so" step to defend to a reviewer, an auditor, or yourself in six months.
-- **Determinism.** The same facts and the same question give the same answer, byte for
-  byte. That is what makes it testable: this repo ships 90 assertions and they either
-  pass or they don't.
-- **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility,
-  scheduling constraints, device diagnostics, family relationships — questions where the
-  rule is the requirement and being consistently right matters more than being fluent.
-- **Knowledge as a reviewed artifact.** Adding a rule is a five-line pull request with a
-  test. There is no training run, and nothing else silently changes.
-- **No data leaving the machine.** The facts are the data, and they are text files.
-
-Use an LLM where the input is language, ambiguity, or volume. Use something like this
-where the output must be right and explainable.
-
-## SPOs, rules, and backward chaining
-
-### Triples
-
-Everything the program knows is a **subject–predicate–object triple**:
+A plain clone does not carry the submodules or an interpreter, so use `--recurse-submodules`
+or run `bootstrap` afterwards:
 
 ```
-walter  parent-of  bill
-bill    has-gender male
+> git clone --recurse-submodules https://github.com/treytomes/micro-expert.git
+> cd micro-expert
+> bootstrap
+> micro-expert
 ```
 
-It prints in a predicate-first call form, which reads like the query you asked:
+`bootstrap.bat` is safe to re-run, and it:
+
+- checks out the four submodules: the agent skill at `.agents/skills/miniscript-2`, the
+  VS Code extension at `vscode-miniscript`, and the parser and logger at `src/cli` and
+  `src/logging`
+- downloads `miniscript-win.zip` from the
+  [MiniScript 2 releases page](https://github.com/JoeStrout/miniscript2/releases) into
+  `3rd-party/`, unpacks it there, and removes the archive
+- writes `.env` beside the runner if there is none, and leaves an existing one alone
+
+By hand, the same two steps: `git submodule update --init`, then put the absolute path to
+your interpreter in a `.env`:
 
 ```
-parent-of(walter, bill)
+MINISCRIPT_EXE_PATH=C:\path\to\miniscript.exe
+ENTRY_POINT=./src/main.ms
 ```
 
-A triple may hold **variables** in any position, written `?x`. `parent-of(?p, ?x)` is
-the pattern "someone is the parent of ?x". The parser accepts that call form and the old
-pipe form (`walter | parent-of | bill`), and rejects malformed calls rather than
-guessing.
+`micro-expert.bat` reads that file, forwards every argument to the entry point, and passes
+the script's exit code back.
 
-- A **fact** is a triple with no variables. Facts are the leaves of every answer: `54` of
-  them live in `src/facts.ms`.
-- A **rule** has a head — one triple it can prove — and a body: the conditions that must
-  all hold first. Rules live in `src/rules.ms`, print as `head <- conditions`, and are
-  written in the same Lisp-ish shape as the comment above them:
-
-```miniscript
-// (<- (uncle-of ?x ?y) (parent-of ?p ?y) (sibling-of ?x ?p) (has-gender ?x male)):
-// ?x is an uncle of ?y when ?x is a male sibling of one of ?y's parents.
-uncleOf = rule(
-	fact(var("x"), "uncle-of", var("y")),
-	[fact(var("p"), "parent-of", var("y")), fact(var("x"), "sibling-of", var("p")),
-		fact(var("x"), "has-gender", "male")])
-```
-
-A body item does not have to be a triple. It can be a **constraint**, checked against the
-bindings rather than proved by search — here is the sibling rule, which must exclude
-a person paired with themselves:
-
-```miniscript
-// (<- (sibling-of ?x ?y) (parent-of ?p ?x) (parent-of ?p ?y) (?x != ?y))
-siblingOf = rule(
-	fact(var("x"), "sibling-of", var("y")),
-	[
-		fact(var("p"), "parent-of", var("x")),
-		fact(var("p"), "parent-of", var("y")),
-		notEqual(var("x"), var("y")),
-	])
-```
-
-Sharing *at least one* parent is deliberate, because a half-sibling should count. This
-family happens to have none - Walter and Doris are both parents to all three sons - so every
-sibling pair here shares both parents and every answer carries both derivations. The rule
-does not care either way: one `parent-of` fact is enough, and the test suite exercises the
-half-sibling case with a Henry who has only Walter for a father.
-
-### Backward chaining
-
-The engine answers a goal by working backwards from it:
-
-1. Unify the goal with every fact. Each match is an answer.
-2. Unify the goal with the **head** of every rule. A match is a lead, not an answer: the
-   rule is only usable if all of its body conditions can themselves be proved.
-3. Prove each body condition the same way, carrying the bindings forward.
-4. Substitute the final bindings into the goal to get the answer, and keep the tree of
-   steps that got there.
-
-This is goal-directed, so it only explores what the question needs. Asking
-`uncle-of(bill, ?p)` never touches ages; asking about `has-age` never wakes the sibling
-rule.
-
-Three details in that loop are where a toy implementation turns into a solver:
-
-**Unification and fresh variables.** Matching a pattern against a triple assigns
-variables or fails; it never mutates the rule. Before a rule is used, its variables are
-**standardized apart** — renamed to fresh names like `?x_3` — so one use of a rule cannot
-capture the bindings of another. Without that, `uncle-of(bill, george)` and
-`uncle-of(bill, anna)` could not both be derived in one search.
-
-**Depth.** `--depth` bounds how many rule levels the search may go down. `0` means facts
-only. `uncle-of` needs two levels (`uncle-of` → `sibling-of` → facts), so `--depth 1`
-correctly answers nothing.
-
-**Cycles.** A rule like `married-to(?y, ?x) <- married-to(?x, ?y)` can cheerfully call
-itself forever. The search therefore keeps the chain of goals on the current branch and
-refuses to re-enter a goal it is already inside, comparing goals with variables renamed
-away so that `?x` and `?x_7` are recognized as the same goal.
-
-**Every derivation is kept.** Ask `sibling-of(bill, george)` and one answer comes back
-carrying two derivations — one through Walter, one through Doris — because both are true
-and a reasoner that silently drops one is hiding information. `--verbose` shows them:
+## Running a proof
 
 ```
-$ micro-expert --verbose
+> micro-expert
+[INF] micro-expert: micro-expert 0.1.0 starting
+[INF] micro-expert: Command-line arguments (0): (none)
+[INF] micro-expert: depth:      8
+[INF] micro-expert: verbose:    0
+[INF] micro-expert: log-level:  information
+Query: uncle-of(bill, ?p)
+  uncle-of(bill, anna)
+  uncle-of(bill, mark)
+  uncle-of(bill, clara)
+  uncle-of(bill, jack)
+  uncle-of(bill, nina)
+  uncle-of(bill, oliver)
+[INF] micro-expert: micro-expert exiting with code 0
+```
+
+(timestamps trimmed for width; the fact and rule dump `--log-level debug` adds is left out)
+
+That is the answer set. `--verbose` adds the proof tree behind each one:
+
+```
+> micro-expert --verbose
 Verbose run: depth 8
 Query: uncle-of(bill, ?p)
   uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
@@ -192,69 +88,46 @@ Query: uncle-of(bill, ?p)
     sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y
       parent-of(walter, bill)  <- fact
       parent-of(walter, george)  <- fact
-    sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y
-      parent-of(doris, bill)  <- fact
-      parent-of(doris, george)  <- fact
-    has-gender(bill, male)  <- fact
+    ...
+  ...
 ```
 
-Each line is either `<- fact` or `<- rule ...`; nothing else is allowed to be a reason.
+(timestamps and the header log lines trimmed again)
 
-## How to build an expert system in MiniScript
-
-The engine is `src/triples.ms`, and it holds five things:
-
-| Piece | What it is |
+| Option | Meaning |
 | --- | --- |
-| Terms | `Var` (a logic variable) and plain values; `SpoTriple` for triples |
-| Unification | `unify`, `unifyParts`, `unifyTerms`, `deref`, `resolveBindings`, `substitute` |
-| Constraints | `NotEqual`, `holdsConstraint`, and renaming for `standardizeApart` |
-| Search | `proveGoals` (loop check, facts, rules), `proveConditions`, `mergeAnswer` |
-| Explanation | `proofLines`, plus cycle keys (`goalKey`, `canonicalText`) and parsing (`parseLine`, `parseCall`) |
+| `--depth <NUM>` | Maximum backward-chaining depth, default `8`; `0` is facts only |
+| `--verbose` | Print the proof tree behind each answer |
+| `--log-level <TEXT>` | `debug`, `information`, `warning`, `error`, `fatal`; default `information` |
+| `--help`, `-h` | Usage, generated from the same option declarations the parser uses |
+| `--version`, `-v` | Version line |
 
-If you have met Prolog or Datalog, the mapping is direct: a triple is an atomic goal, a
-rule is a clause, unification is unification, and `proveGoals` is a depth-bounded
-SLD-style resolution that returns proofs instead of a yes/no.
+`--depth 1` is a good sanity check: `uncle-of` is two rule levels above the facts
+(`uncle-of` -> `sibling-of` -> facts), so it correctly answers nothing. `--log-level debug`
+prints all 54 facts as they load and all nine rules as they are registered, which is the
+fastest way to see what the engine was actually given.
 
-### What the interpreter does with names and recursion
+The question lives at the bottom of `src/main.ms`:
 
-The manual has no recursion example at all — not one occurrence of "recurs", "factorial" or
-"Fibonacci" - and it documents `self` only for methods invoked by dot indexing. Everything
-below was established by experiment against the bundled interpreter, and this code depends
-on it:
+```miniscript
+runQuery fact("bill", "uncle-of", var("?p"))
+```
 
-- **A function is invoked by lookup.** `alias = double` calls `double` and stores its result;
-  `ref = @double` stores the function itself. That bites when passing one along: inside a
-  helper, `walk(items[1:], @each)` is required, because a bare `each` is called on the spot
-  with no arguments and its error value is what gets passed.
-- **Inside a module, names resolve in the module's own globals first, then in the entry
-  script's.** `globals` in a module is the entry script's map, so `triples.ms` can read a
-  variable that only `main.ms` defines — and `globals.count` cannot reach a module's own
-  function.
-- **A module's own name is not bound inside it.** `triples.proveGoals(...)` written inside
-  `triples.ms` works only while the entry script imported it under that name; reached through
-  a wrapper module it fails with `Undefined Identifier`. The reliable form is the bare name
-  inside its own module — what every function in the solver uses — or a member of a
-  module-level map, where `tools.count` may call `tools.count`.
-- **`self` is the receiver of a dot-indexed call, and null otherwise.** `self.name(...)` works
-  inside a function that `main.ms` calls as `triples.proveGoals`; a sibling that calls it
-  plainly gets `Can't index into null`. `super` follows the same rule.
-- **A nested function sees the enclosing function's locals and the imported modules, not its
-  module's own globals** — hence `Rule = rule.Rule` inside `rules.ms`'s `build`, and the
-  hand-the-module-in pattern that `facts.ms` and `rules.ms` share.
+Every predicate has the same shape - `relation(?x, ?y)` reads "?x is the relation of ?y" -
+so `uncle-of(bill, ?p)` puts Bill where the uncle goes and asks who he is an uncle of: his
+six nieces and nephews above, through his brothers George and Henry. Put the variable where
+the unknown is: `fact(var("who"), "grandpa-of", "tim")` reads "?who is the grandpa of tim"
+and answers `walter`, and `fact(var("x"), "grandma-of", var("y"))` lists every
+grandmother/grandchild pair - seven of them, all Doris.
 
-The upshot: recursion here is by bare name inside a module, modules take the triples module
-as a parameter instead of importing it, and nothing relies on `self`, `globals.<function>`
-or a module's own import name.
+## Setting up your own facts and rules
 
-### Knowledge lives in its own files
+The family is only data. `src/facts.ms` and `src/rules.ms` are the knowledge base, and
+nothing else in the repo knows what a family is, so a new domain means rewriting those two
+files and changing the query.
 
-`src/facts.ms` and `src/rules.ms` hold the domain, and nothing else in the repo knows
-what a family is. Each exposes a `build` function rather than a top-level array, because
-of a real constraint in this interpreter: **a module that imports `triples.ms` gets its
-own copy of its classes**, and `isa` checks only agree inside one copy. A facts file that
-imported `triples.ms` directly would build triples the solver does not recognize. So the
-caller hands its copy in:
+Both files expose a `build` function instead of a top-level array, and `src/main.ms` hands
+its copy of the solver in:
 
 ```miniscript
 import "facts"
@@ -265,19 +138,24 @@ facts = globals["facts"].build(triples)
 rules = globals["rules"].build(triples)
 ```
 
-Nothing else is needed to add a domain. Rewrite those two files, keep the shape, and the
-engine answers questions about invoices or network devices instead of aunts.
+That is not ceremony. A module that imports `triples.ms` gets its own copy of its classes,
+and `isa` checks only agree inside one copy, so a facts file that imported `triples.ms`
+directly would build triples the solver does not recognise.
 
-### Adding a rule
+A fact is one triple, written with the local `fact(subject, predicate, object)` shorthand:
 
-Three steps, and the test suite has a spot for each rule you add:
+```miniscript
+fact("walter", "parent-of", "bill"),
+fact("bill", "has-gender", "male"),
+```
 
-1. Write the rule in `src/rules.ms` with the local `rule(head, body)` helper, and put the
-   Lisp form in the comment above it.
+A rule is a head - the one triple it can prove - and a body of conditions that must all
+hold first. Three steps to add one:
+
+1. Write it in `src/rules.ms` with the local `rule(head, body)` helper, and put the Lisp
+   form in the comment above it.
 2. Add it to the array `build` returns.
 3. Add a check to `test/relations.ms` that asserts both a positive and a negative case.
-
-For example, grandparenthood from the child's side:
 
 ```miniscript
 // (<- (grandchild-of ?x ?y) (parent-of ?p ?x) (parent-of ?y ?p)): ?y is a grandparent
@@ -287,102 +165,10 @@ grandchildOf = rule(
 	[fact(var("p"), "parent-of", var("x")), fact(var("y"), "parent-of", var("p"))])
 ```
 
-## How to use this demo
+## Running the tests
 
-### Getting a working copy
-
-Five things a plain clone does not give you: the agent skill at
-`.agents/skills/miniscript-2`, the VS Code extension at `vscode-miniscript`, the
-command-line library at `src/cli` and the logger at `src/logging`, which are submodules, and
-the interpreter, which lives in `3rd-party/` and is gitignored, so no binary is checked in.
-`bootstrap.bat` supplies all five:
-
-```
-> git clone --recurse-submodules https://github.com/treytomes/micro-expert.git
-> bootstrap
-```
-
-A clone made without `--recurse-submodules` leaves those four folders empty; running
-`bootstrap.bat` afterwards fills them in. The script is safe to re-run, and it:
-
-- checks out the `miniscript-2-agent-skill` submodule at `.agents/skills/miniscript-2`
-- checks out the `vscode-miniscript-2` submodule at `vscode-miniscript`, the extension in its
-  own repository, which also opens in VS Code on its own with `F5`
-- checks out the `micro-cli` submodule at `src/cli`, the argument parser in its own
-  repository; `src/main.ms` imports it as `"cli/cli"` and aliases the map back to `cli`, and
-  its own suite travels with it
-- checks out the `micro-logging` submodule at `src/logging`, the logger in its own
-  repository, likewise imported as `"logging/logging"` and aliased; its own suite travels
-  with it
-- downloads `miniscript-win.zip` from the
-  [MiniScript 2 releases page](https://github.com/JoeStrout/miniscript2/releases) into
-  `3rd-party/`, unpacks it in place so it lands as `3rd-party/miniscript-win/`, and deletes
-  the archive once the executable is there
-- writes `.env` beside the runner if there is none, and leaves an existing one alone, since
-  it may point at an interpreter you installed yourself
-
-By hand, the same steps: `git submodule update --init` populates all four submodule folders;
-download the archive for your platform - on Windows `miniscript-win.zip`, which unpacks to a
-folder holding `miniscript.exe` - and put the absolute path to that executable in a `.env`:
-
-```
-MINISCRIPT_EXE_PATH=C:\path	o\miniscript.exe
-ENTRY_POINT=./src/main.ms
-```
-
-`micro-expert.bat` reads `.env`, forwards every argument to the entry point, and passes
-the script's exit code back. Then:
-
-```
-> micro-expert
-[INF] micro-expert: micro-expert 0.1.0 starting
-[INF] micro-expert: depth:      8
-[INF] micro-expert: verbose:    1
-[INF] micro-expert: log-level:  information
-
-Verbose run: depth 8
-Query: uncle-of(bill, ?p)
-  uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
-    parent-of(george, anna)  <- fact
-    ...
-  ...
-[INF] micro-expert: micro-expert exiting with code 0
-```
-
-(timestamps trimmed for width)
-
-| Option | Meaning |
-| --- | --- |
-| `--depth <NUM>` | Maximum backward-chaining depth, default `8`; `0` is facts only |
-| `--verbose` | Print the proof tree behind each answer; on by default in this demo |
-| `--log-level <TEXT>` | `debug`, `information`, `warning`, `error`, `fatal`; default `information` |
-| `--help`, `-h` | Usage, generated from the same option declarations the parser uses |
-| `--version`, `-v` | Version line |
-
-`--log-level debug` is the interesting one: it prints all 54 facts as they load and all
-nine rules as they are registered, which is the fastest way to see what the engine was
-actually given.
-
-```
-[DBG] micro-expert: (fact) parent-of(walter, bill)
-...
-[DBG] micro-expert: (rule) sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y
-[DBG] micro-expert: (rule) uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
-```
-
-**Change the question** by editing the last `runQuery` line of `src/main.ms`:
-
-```miniscript
-runQuery fact("bill", "uncle-of", var("?p"))
-```
-
-Try `fact(var("x"), "grandma-of", var("y"))` for every grandmother/grandchild pair (seven
-of them), or `fact(var("who"), "grandpa-of", "tim")` for Tim's grandfather: the
-predicate reads "?who is the grandpa of tim", so the variable goes in the subject.
-
-**Run the tests** with the same interpreter your `.env` points at. The runner is for the
-program, not the suite, and `3rd-party/` is gitignored, so there is no checked-in binary to
-fall back on:
+The suite needs the same interpreter your `.env` points at; `3rd-party/` is gitignored, so
+there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
@@ -390,69 +176,36 @@ fall back on:
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
-for the session or paste the path in its place.
+for the session or paste the path in its place. One caveat worth knowing: in this
+interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is
+the real signal, not the exit code.
 
-The 90 checks are split by area: display and parsing (12), proofs and explanations (19),
-recursion and cycle handling (13), and relations including the family rules (46). The parser's
-32 checks and the logger's 56 moved with their libraries into their own repositories. One
-caveat worth knowing, because it affects how you read a failed run: in this interpreter an
-uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal,
-not the exit code.
+The parser and the logger are their own repositories with their own suites (32 checks and
+56 respectively), and the 90 here cover the program itself: display and parsing (12),
+proofs and explanations (19), recursion and cycle handling (13), and relations including the
+family rules (46).
 
-
-## Where an LLM fits
-
-The interesting 2026 architecture is not LLM *or* rules engine. It is an LLM as the
-language front door and a rules engine as the authority behind it:
+## Repository layout
 
 ```
-"who are bill's nephews?"          natural language
-        │
-        ├── LLM: plans the question, proposes triples/queries
-        │        uncle-of(bill, ?x)? validate predicate against the rule base
-        ▼
-   engine: unifies, chains, returns answers *with proof trees*
-        │
-        ├── LLM: renders the phrasing a human wants to read
-        ▼
-"Bill has six nieces and nephews: Anna, Mark, Clara, Jack, Nina and Oliver.
- Every one is the child of his brothers George and Henry."
+src/main.ms          options, logging, and the query at the bottom
+src/triples.ms       the solver: terms, unification, search, proofs
+src/rule.ms          the Rule class
+src/facts.ms         the 54 facts
+src/rules.ms         the nine rules
+src/cli/             submodule: micro-cli, the argument parser
+src/logging/         submodule: micro-logging, the logger
+test/                the 90 checks and their runner
+docs/                the long-form write-up
+bootstrap.bat        submodules, interpreter, .env
+micro-expert.bat     runs the entry point named in .env
 ```
 
-The contract that makes this worth doing:
-
-- **The LLM never asserts a fact the engine did not prove.** Its job is to translate, not
-  to know. Anything it proposes goes through the engine, and an unknown predicate is a
-  refusal, not a guess.
-- **The proof travels with the answer.** Render the proof (or a summary of it) next to the
-  sentence, so the fluent answer is still auditable. The engine's `--verbose` tree is
-  already that artifact.
-- **Failures are visible.** "No answer" is a first-class result here — missing fact, or a
-  rule that does not fire — and it is exactly the signal an LLM alone cannot give you.
-
-None of this needs a frontier model. The pattern has been tested end to end with models as
-small as **3B parameters**, small enough to run on a CPU with no graphics card at all: the
-model only has to turn a sentence into a handful of triples and a rule name, and the engine
-does the part that has to be right. That puts the whole stack - language front door and
-reasoner - on one ordinary machine, offline.
-
-You get the interface people expect from a chatbot, with the answer coming from a system
-that can be reviewed, tested and argued with.
+The other two submodules are tooling rather than program code: `vscode-miniscript` is the
+MiniScript 2 language extension, which also opens in VS Code on its own with `F5`, and
+`.agents/skills/miniscript-2` is an agent skill describing the language for coding
+assistants.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Copyright © 2026 Trey Tomes.
-
-## About MiniScript
-
-MiniScript is a small, clean language built for embedding and for learning, created by Joe
-Strout. [MiniScript 2.0](https://dev.to/joestrout/announcing-miniscript-20-gl4) landed in
-October 2026 as a from-the-ground-up rewrite: 45-50x faster than 1.x on some benchmarks and
-10-15x on average, with real error handling, frozen lists and maps, computed lists and
-mark-and-sweep garbage collection. Its command-line build — Linux, Windows, macOS and
-anything with .NET — is what runs this demo.
-
-It turns out to be a good host for a rules engine: `import` for keeping the knowledge apart
-from the solver, maps and classes for the term types, closures for the little shorthands,
-and a REPL for poking at triples by hand. The language manual ships inside the download,
-along with *What's New in MiniScript 2.0* for anyone arriving from 1.x.
+MIT - see [LICENSE](LICENSE). Copyright © 2026 Trey Tomes.
