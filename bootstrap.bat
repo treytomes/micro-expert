@@ -30,8 +30,10 @@ pushd "%ROOT%"
 rem --- the submodules ---------------------------------------------------------
 rem One line per submodule: its path as .gitmodules spells it, a file that proves it
 rem checked out, and a name for the log. Extracting another one is a single line here.
-rem No goto, and no call to a label, anywhere in this script: cmd.exe cannot find a label
-rem in a batch file with Unix line endings, so a stray "\n" would break this path.
+rem No goto, no call to a label, and no exit /b inside the loop: cmd.exe cannot find a
+rem label in a batch file with Unix line endings, and an exit inside these nested blocks
+rem loses its code, so failures are collected and the exit happens after the loop.
+set "MISSING="
 for %%M in (
     ".agents/skills/miniscript-2|SKILL.md|Agent skill"
     "vscode-miniscript|package.json|VS Code extension"
@@ -50,10 +52,15 @@ for %%M in (
     if not exist "%%~P/%%Q" (
         echo [bootstrap] %%~Q is missing at "%%~P/%%Q".
         echo [bootstrap] Check that .gitmodules lists %%~P.
-        popd
-        exit /b 1
+        set "MISSING=%%~P"
+    ) else (
+        echo [bootstrap] %%~R in place: %%~P
     )
-    echo [bootstrap] %%~R in place: %%~P
+)
+if defined MISSING (
+    echo [bootstrap] Giving up on "%MISSING%" - fix .gitmodules and run this again.
+    popd
+    exit /b 1
 )
 
 rem --- the interpreter in 3rd-party\ -----------------------------------------
