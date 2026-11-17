@@ -1,4 +1,5 @@
-// Cases for logging.ms: message templates, level ranks, rolling file names and the prune.
+// Cases for logging.ms: message templates, levels, tags, file names, directories, the
+// rolling-file prune and the file sink.
 //
 // The prune deletes real files, so each case works in its own folder under the system
 // temp directory and clears it away afterwards. The stamps are far in the past, so those
@@ -14,11 +15,16 @@ scratchDir = function()
 end function
 
 clearDir = function(dir)
-	"Removes the files in dir, then dir itself; a folder that is not there is left alone."
+	"Removes everything in dir, then dir itself; a path that is not a folder is left alone."
 	names = file.children(dir)
 	if names isa error then return null
 	for name in names
-		file.delete(file.child(dir, name))
+		path = file.child(dir, name)
+		if file.children(path) isa error then
+			file.delete(path)
+		else
+			clearDir(path)
+		end if
 	end for
 	file.delete(dir)
 	return null
@@ -54,6 +60,20 @@ namesIn = function(dir)
 	return names.sort
 end function
 
+fileLines = function(path)
+	"Every line of a text file, without its line endings."
+	handle = file.open(path, "r")
+	if handle isa error then return []
+	lines = []
+	line = handle.readLine
+	while line != null
+		lines.push(line)
+		line = handle.readLine
+	end while
+	handle.close
+	return lines
+end function
+
 loggerOn = function(log, dir, retained, extra=null)
 	"A logger that prunes dir, with no console output and no writes of its own."
 	settings = {"name": "test", "path": dir, "fileName": "t-.log",
@@ -63,7 +83,7 @@ loggerOn = function(log, dir, retained, extra=null)
 end function
 
 run = function(log, h)
-	"Checks message templates, level ranks, rolling file names and the prune."
+	"Checks templates, levels, tags, file names, directories, the prune and the file sink."
 	dir = scratchDir()
 
 	// ── Message templates ────────────────────────────────────────────────────
@@ -91,6 +111,31 @@ run = function(log, h)
 	h.check("levelRank has no rank for an unknown name", log.levelRank("verbose") == null)
 	h.check("levelRank has no rank for null", log.levelRank(null) == null)
 
+	// ── Minimum level ────────────────────────────────────────────────────────
+
+	gated = loggerOn(log, dir, 7)
+	h.check("setMinimumLevel accepts a level name", gated.setMinimumLevel("warning") == null)
+	h.check("setMinimumLevel rejects an unknown name", gated.setMinimumLevel("verbose") isa error)
+	h.check("isEnabled drops a level below the minimum", gated.isEnabled("information") == 0)
+	h.check("isEnabled admits the minimum level", gated.isEnabled("warning") == 1)
+	h.check("isEnabled treats an unknown name as information", gated.isEnabled("loud") == 0)
+
+	// ── Level tags ───────────────────────────────────────────────────────────
+
+	plainTags = loggerOn(log, dir, 7, {"colors": 0})
+	h.check("levelTag names the level plainly", plainTags.levelTag(1) == "INF")
+	h.check("levelTag names fatal plainly", plainTags.levelTag(4) == "FTL")
+	tinted = loggerOn(log, dir, 7, {"colors": 1})
+	tag = tinted.levelTag(2)
+	h.check("levelTag wraps the label when colours are on",
+		tinted.colors == 0 or (tag.indexOf("WRN") != null and tag.len > 3))
+
+	// ── Property values ──────────────────────────────────────────────────────
+
+	h.check("formatValue leaves a string alone", log.formatValue("x") == "x")
+	h.check("formatValue renders a number", log.formatValue(7) == "7")
+	h.check("formatValue renders null", log.formatValue(null) == "null")
+
 	// ── Which names count as rolled ──────────────────────────────────────────
 
 	rolling = loggerOn(log, dir, 7)
@@ -98,6 +143,22 @@ run = function(log, h)
 	h.check("letters in the date are not a rolling file", rolling.isRollingFile("t-2026ab17.log") == 0)
 	h.check("a short name is not a rolling file", rolling.isRollingFile("t-2026.log") == 0)
 	h.check("another prefix is not a rolling file", rolling.isRollingFile("x-20261117.log") == 0)
+
+	// ── File names ───────────────────────────────────────────────────────────
+
+	today = dateTime.str(dateTime.nowVal, "yyyyMMdd")
+	h.check("rollingName adds the day stamp", rolling.rollingName == "t-" + today + ".log")
+	h.check("rollingName has no stamp for an infinite interval",
+		loggerOn(log, dir, 7, {"rollingInterval": "infinite"}).rollingName == "t-.log")
+	h.check("rollingPath joins the folder and the name",
+		rolling.rollingPath == file.child(dir, rolling.rollingName))
+
+	// ── Directories ──────────────────────────────────────────────────────────
+
+	nested = file.child(file.child(dir, "sub"), "deeper")
+	h.check("ensureDirectory makes a nested path",
+		log.ensureDirectory(nested) == null and file.exists(nested) == 1)
+	h.check("ensureDirectory accepts a path that exists", log.ensureDirectory(nested) == null)
 
 	// ── How many are kept ────────────────────────────────────────────────────
 
@@ -141,6 +202,24 @@ run = function(log, h)
 	loggerOn(log, dir, 2)
 	h.check("prune spares the file it is about to write",
 		namesIn(dir).join(",") == "t-20000105.log," + current)
+
+	// ── Writing to the file sink ────────────────────────────────────────────
+
+	startDir(dir)
+	sink = loggerOn(log, dir, 7, {"file": 1})
+	h.check("an event call answers with nothing", sink.info("Hello {Name}", {"Name": "world"}) == null)
+	h.check("write creates the rolling file", namesIn(dir) == [sink.rollingName])
+	lines = fileLines(file.child(dir, sink.rollingName))
+	h.check("the line carries the level and the message",
+		lines.len == 1 and lines[0].indexOf("[INF] test: Hello world") != null)
+	sink.warning("Second")
+	h.check("a second event appends another line",
+		fileLines(file.child(dir, sink.rollingName)).len == 2)
+
+	startDir(dir)
+	dropped = loggerOn(log, dir, 7, {"file": 1, "minimumLevel": "error"})
+	dropped.info("dropped")
+	h.check("a level below the minimum writes nothing", namesIn(dir).len == 0)
 
 	clearDir(dir)
 end function

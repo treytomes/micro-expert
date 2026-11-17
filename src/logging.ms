@@ -304,6 +304,12 @@ end function
 
 ensureDirectory = function(path)
 	"Makes path and any missing parents, like Directory.CreateDirectory."
+	// file.parent hands back parents ending in a separator, and a folder written that way
+	// reads as its own parent, which would stop the recursion below one level short.
+	if path.len > 1 then
+		last = path[-1]
+		if last == char(92) or last == "/" then return ensureDirectory(path[:-1])
+	end if
 	if file.exists(path) then return null
 	parent = file.parent(path)
 	if parent != null then
@@ -312,7 +318,9 @@ ensureDirectory = function(path)
 			if problem isa error then return problem
 		end if
 	end if
-	return file.makedir(path)
+	problem = file.makedir(path)
+	if problem isa error then return problem
+	return null
 end function
 
 removeFile = function(path)

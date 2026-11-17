@@ -77,7 +77,7 @@ What a rules engine buys you, concretely, in an era of cheap text generation:
 - **Auditability.** Every claim has a proof you can print. There is no "the model said
   so" step to defend to a reviewer, an auditor, or yourself in six months.
 - **Determinism.** The same facts and the same question give the same answer, byte for
-  byte. That is what makes it testable: this repo ships 148 assertions and they either
+  byte. That is what makes it testable: this repo ships 169 assertions and they either
   pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility,
   scheduling constraints, device diagnostics, family relationships — questions where the
@@ -216,6 +216,37 @@ If you have met Prolog or Datalog, the mapping is direct: a triple is an atomic 
 rule is a clause, unification is unification, and `proveGoals` is a depth-bounded
 SLD-style resolution that returns proofs instead of a yes/no.
 
+### What the interpreter does with names and recursion
+
+The manual has no recursion example at all — not one occurrence of "recurs", "factorial" or
+"Fibonacci" - and it documents `self` only for methods invoked by dot indexing. Everything
+below was established by experiment against the bundled interpreter, and this code depends
+on it:
+
+- **A function is invoked by lookup.** `alias = double` calls `double` and stores its result;
+  `ref = @double` stores the function itself. That bites when passing one along: inside a
+  helper, `walk(items[1:], @each)` is required, because a bare `each` is called on the spot
+  with no arguments and its error value is what gets passed.
+- **Inside a module, names resolve in the module's own globals first, then in the entry
+  script's.** `globals` in a module is the entry script's map, so `triples.ms` can read a
+  variable that only `main.ms` defines — and `globals.count` cannot reach a module's own
+  function.
+- **A module's own name is not bound inside it.** `triples.proveGoals(...)` written inside
+  `triples.ms` works only while the entry script imported it under that name; reached through
+  a wrapper module it fails with `Undefined Identifier`. The reliable form is the bare name
+  inside its own module — what every function in the solver uses — or a member of a
+  module-level map, where `tools.count` may call `tools.count`.
+- **`self` is the receiver of a dot-indexed call, and null otherwise.** `self.name(...)` works
+  inside a function that `main.ms` calls as `triples.proveGoals`; a sibling that calls it
+  plainly gets `Can't index into null`. `super` follows the same rule.
+- **A nested function sees the enclosing function's locals and the imported modules, not its
+  module's own globals** — hence `Rule = rule.Rule` inside `rules.ms`'s `build`, and the
+  hand-the-module-in pattern that `facts.ms` and `rules.ms` share.
+
+The upshot: recursion here is by bare name inside a module, modules take the triples module
+as a parameter instead of importing it, and nothing relies on `self`, `globals.<function>`
+or a module's own import name.
+
 ### Knowledge lives in its own files
 
 `src/facts.ms` and `src/rules.ms` hold the domain, and nothing else in the repo knows
@@ -324,15 +355,16 @@ fall back on:
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-148 passed, 0 failed
+169 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
 for the session or paste the path in its place.
 
-The 148 checks are split by area: display and parsing (12), command-line parsing (32),
+The 169 checks are split by area: display and parsing (12), command-line parsing (32),
 proofs and explanations (19), recursion and cycle handling (13), relations including the
-family rules (46), and logging's templates, level ranks, file names and prune (26). One
+family rules (46), and logging's templates, levels, tags, directories, file names, the
+file sink and prune (47). One
 caveat worth knowing, because it affects how you read a failed run: in this interpreter an
 uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real
 signal, not the exit code.
