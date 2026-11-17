@@ -14,6 +14,29 @@
 //   print triples.unify(triples.SpoTriple.parse("child(?x, ?y)"),
 //       triples.SpoTriple.parse("child(susan, bill)"))   // {"x": "susan", "y": "bill"}
 
+// ── List combinators ─────────────────────────────────────────────────────────
+// Small list operations, so the functions below can say what they do with a list
+// rather than walk it. mapWith hands each item and one shared argument to f.
+
+mapWith = function(items, f, arg=null)
+	"One result per item, in order; f takes the item and the argument."
+	results = []
+	for item in items
+		results.push(f(item, arg))
+	end for
+	return results
+end function
+
+fieldOf = function(record, key)
+	"One field of a record."
+	return record[key]
+end function
+
+pluck = function(records, key)
+	"One field from each record, in order."
+	return mapWith(records, @fieldOf, key)
+end function
+
 // ── Var: a logic variable, written ?x ────────────────────────────────────────
 
 Var = {}
@@ -94,8 +117,7 @@ end function
 
 unify = function(pattern, fact, binds=null)
 	"Unifies a pattern against a fact, returning the bindings it adds, or null."
-	working = binds
-	if working == null then working = {}
+	working = copyBinds(binds)
 	if pattern isa SpoTriple then
 		if not (fact isa SpoTriple) then return null
 		return unifyParts(pattern.parts, fact.parts, working)
@@ -231,8 +253,7 @@ end function
 
 renameConditions = function(conditions, suffix)
 	"Every condition renamed, in order."
-	if conditions.len == 0 then return []
-	return [renameCondition(conditions[0], suffix)] + renameConditions(conditions[1:], suffix)
+	return mapWith(conditions, @renameCondition, suffix)
 end function
 
 renameCondition = function(condition, suffix)
@@ -248,8 +269,7 @@ end function
 
 canonicalLabels = function(parts, names)
 	"One label per field, numbering each variable the first time it is seen."
-	if parts.len == 0 then return []
-	return [canonicalLabel(parts[0], names)] + canonicalLabels(parts[1:], names)
+	return mapWith(parts, @canonicalLabel, names)
 end function
 
 canonicalLabel = function(part, names)
@@ -271,9 +291,17 @@ proveGoals = function(goal, facts, rules, depth, binds=null, open=null)
 	path = enterGoal(goal, binds, open)
 	if path == null then return []
 	results = emptyResults()
-	mergeFactAnswers(results, goal, facts, binds)
+	// A fact is a derivation on its own; a rule is one derivation per way its body
+	// proves, so both are collected from their matches and merged the same way.
+	for matched in matchingFacts(goal, facts, binds)
+		mergeAnswer(results, goal, matched, {"rule": null, "conditions": []})
+	end for
 	if depth <= 0 then return results.list
-	mergeRuleAnswers(results, goal, facts, rules, depth, binds, path)
+	for candidate in matchingRules(goal, rules, binds)
+		for proved in proveConditions(candidate.body, facts, rules, depth - 1, candidate.binds, path)
+			mergeAnswer(results, goal, proved.binds, {"rule": candidate.rule, "conditions": proved.proofs})
+		end for
+	end for
 	return results.list
 end function
 
@@ -291,27 +319,27 @@ enterGoal = function(goal, binds, open)
 	return withBinding(open, key, 1)
 end function
 
-mergeFactAnswers = function(results, goal, facts, binds)
-	"Adds every fact that matches the goal as a derivation of it."
+matchingFacts = function(goal, facts, binds)
+	"The bindings of every fact that meets the goal, in order."
+	matches = []
 	for fact in facts
 		matched = unify(goal, fact, binds)
-		if matched != null then
-			mergeAnswer(results, goal, matched, {"rule": null, "conditions": []})
-		end if
+		if matched != null then matches.push(matched)
 	end for
+	return matches
 end function
 
-mergeRuleAnswers = function(results, goal, facts, rules, depth, binds, open)
-	"Adds every rule whose head matches, once for each way its body proved."
+matchingRules = function(goal, rules, binds)
+	"Every rule whose head meets the goal: the rule, a fresh copy of its body, and the bindings."
+	matches = []
 	for candidate in rules
 		fresh = standardizeApart(candidate)
 		matched = unify(fresh.head, goal, binds)
 		if matched != null then
-			for proved in proveConditions(fresh.body, facts, rules, depth - 1, matched, open)
-				mergeAnswer(results, goal, proved.binds, {"rule": candidate, "conditions": proved.proofs})
-			end for
+			matches.push({"rule": candidate, "body": fresh.body, "binds": matched})
 		end if
 	end for
+	return matches
 end function
 
 proveConditions = function(conditions, facts, rules, depth, binds, open=null)
@@ -358,18 +386,17 @@ end function
 
 appendDerivations = function(goal, binds, reasons, indent, lines)
 	"Appends each derivation's line, then the block behind each of its conditions."
-	if reasons.len == 0 then return null
-	reason = reasons[0]
-	lines.push(indent + substitute(goal, binds).text + "  <- " + reasonText(reason))
-	appendConditions(reason.conditions, indent + "  ", lines)
-	appendDerivations(goal, binds, reasons[1:], indent, lines)
+	for reason in reasons
+		lines.push(indent + substitute(goal, binds).text + "  <- " + reasonText(reason))
+		appendConditions(reason.conditions, indent + "  ", lines)
+	end for
 end function
 
 appendConditions = function(conditions, indent, lines)
 	"Appends the block behind each proved condition, in order."
-	if conditions.len == 0 then return null
-	appendDerivations(conditions[0].goal, conditions[0].binds, conditions[0].reasons, indent, lines)
-	appendConditions(conditions[1:], indent, lines)
+	for condition in conditions
+		appendDerivations(condition.goal, condition.binds, condition.reasons, indent, lines)
+	end for
 end function
 
 // ── What would be needed ──────────────────────────────────────────────────────
@@ -384,22 +411,16 @@ needsFor = function(goal, facts, rules, depth, binds=null, open=null)
 	"Every way goal could still be answered: the facts it needs, and the rule that would use them."
 	path = enterGoal(goal, binds, open)
 	if path == null then return []
-	options = []
-	matched = false
-	for fact in facts
-		if unify(goal, fact, binds) != null then matched = true
-	end for
 	// One more fact, shaped like the goal, would answer it outright.
-	if not matched then options.push({"rule": null, "needs": [substitute(goal, binds)]})
+	options = []
+	if matchingFacts(goal, facts, binds).len == 0 then
+		options.push({"rule": null, "needs": [substitute(goal, binds)]})
+	end if
 	if depth <= 0 then return options
-	for candidate in rules
-		fresh = standardizeApart(candidate)
-		headBinds = unify(fresh.head, goal, binds)
-		if headBinds != null then
-			for needs in bodyRequirements(fresh.body, facts, rules, depth - 1, headBinds, path, false)
-				options.push({"rule": candidate, "needs": needs})
-			end for
-		end if
+	for candidate in matchingRules(goal, rules, binds)
+		for needs in bodyRequirements(candidate.body, facts, rules, depth - 1, candidate.binds, path, false)
+			options.push({"rule": candidate.rule, "needs": needs})
+		end for
 	end for
 	return options
 end function
@@ -409,29 +430,29 @@ bodyRequirements = function(conditions, facts, rules, depth, binds, open, blocke
 	if conditions.len == 0 then return [[]]
 	first = conditions[0]
 	if not (first isa SpoTriple) then
+		// A constraint is checked here rather than proved, so it asks for no fact.
 		if not holdsConstraint(first, binds) then return []
 		return bodyRequirements(conditions[1:], facts, rules, depth, binds, open, blocked)
 	end if
-	firstOptions = []
-	if blocked and hasUnknowns(first, binds) then
-		// A fact still to be added would bind these variables, so this condition
-		// cannot be judged against what is known: it has to be listed as needed too.
-		firstOptions = [[substitute(first, binds)]]
-	else if proveGoals(first, facts, rules, depth, binds, open).len > 0 then
-		firstOptions = [[]]
-	else
-		for option in needsFor(first, facts, rules, depth, binds, open)
-			firstOptions.push(option.needs)
-		end for
-	end if
 	options = []
-	for head in firstOptions
+	for head in firstRequirements(first, facts, rules, depth, binds, open, blocked)
 		for tail in bodyRequirements(conditions[1:], facts, rules, depth, binds, open,
 			blocked or head.len > 0)
 			options.push(head + tail)
 		end for
 	end for
 	return options
+end function
+
+firstRequirements = function(condition, facts, rules, depth, binds, open, blocked)
+	"The ways a body's condition can be met: [[]] when it is proved already, else the facts it needs."
+	if blocked and hasUnknowns(condition, binds) then
+		// A fact still to be added would bind these variables, so this condition
+		// cannot be judged against what is known: it has to be listed as needed too.
+		return [[substitute(condition, binds)]]
+	end if
+	if proveGoals(condition, facts, rules, depth, binds, open).len > 0 then return [[]]
+	return pluck(needsFor(condition, facts, rules, depth, binds, open), "needs")
 end function
 
 hasUnknowns = function(triple, binds)
@@ -520,15 +541,25 @@ parseLine = function(line)
 		return called
 	end if
 
+	return parsePipe(text, line)
+end function
+
+parsePipe = function(text, line)
+	"Reads 'subject | predicate | object' into [subject, predicate, object], else an error."
 	fields = text.split("|")
 	if fields.len != 3 then return err(badLine(line))
-
-	for i in range(0, 2)
-		fields[i] = trimSpace(fields[i])
-		if fields[i] == "" then return err("malformed spo: empty field: " + line)
-		fields[i] = termOf(fields[i])
+	terms = mapWith(fields, @fieldTerm, line)
+	for term in terms
+		if term isa error then return term
 	end for
-	return fields
+	return terms
+end function
+
+fieldTerm = function(field, line)
+	"One pipe-form field as a term: trimmed, non-empty, and a Var when it reads ?x."
+	term = trimSpace(field)
+	if term == "" then return err("malformed spo: empty field: " + line)
+	return termOf(term)
 end function
 
 parseCall = function(text)
