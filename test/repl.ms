@@ -173,6 +173,14 @@ run = function(t, rules, repl, h)
 	h.check("a ground line is a fact, even when nothing proves it",
 		printed(asserted.answers.lines, "  added uncle-of(zed, susan)"))
 
+	// Answering by fiat is deliberate but still there: a whole fact typed where a value is
+	// asked for is a fact, with the standing any typed fact has, and the question starts
+	// again from it.
+	fiat = startSession(family + [], [uncleRule], ["uncle-of(bill, ?p)", "uncle-of(bill, zed)"])
+	h.check("a fact typed instead of a value is added, and answers the question",
+		printed(fiat.answers.lines, "  added uncle-of(bill, zed)") and
+			fiat.answers.lines[fiat.answers.lines.len - 1] == "  uncle-of(bill, zed)")
+
 	// ── --verbose gives the tree behind each answer, as a run does ──────────
 
 	verbose = startSession(family + [], [], ["parent-of(?p, susan)", "walter", "quit"], null, 1)

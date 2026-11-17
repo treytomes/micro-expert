@@ -43,6 +43,10 @@ end function
 // a map, so a typed value can never be mistaken for it.
 undoMark = {"undo": 1}
 
+// What askValue answers when the user asserts a fact instead of giving a value: the
+// deliberate way to answer by fiat, since a line that is a whole fact is a fact.
+factMark = {"fact": 1}
+
 // ── Slash commands ───────────────────────────────────────────────────────────
 // One line that starts with / is aimed at the session rather than the knowledge
 // base. runCommand dispatches by name and commandList is what /help shows, in the
@@ -235,6 +239,7 @@ fillMissing = function(session, options, goal)
 		value = askValue(session, variable, labels)
 		if value == null then return "stopped"
 		if value == undoMark then return "undone"
+		if value == factMark then return "added"
 		binds[variable.name] = value
 	end for
 	filled = session.triples.substitute(triple, binds)
@@ -299,7 +304,7 @@ confirmFact = function(session, triple)
 end function
 
 askValue = function(session, variable, labels)
-	"Asks for one value; null when the user leaves it, undoMark when they take a fact back."
+	"Asks for one value; null when the user leaves it, undoMark when they take a fact back, factMark when they assert one."
 	while true
 		value = ask(session, "  ?" + labels[variable.name] + " = ")
 		if value == null then return null
@@ -309,7 +314,16 @@ askValue = function(session, variable, labels)
 			if undo(session) then return undoMark
 			continue
 		end if
-		if value[0] != "?" then return value
+		if value[0] != "?" then
+			// A whole fact is a fact wherever it is typed, so asserting one here is how to
+			// answer by fiat: it is added, and the question starts again from it.
+			triple = session.triples.SpoTriple.parse(value)
+			if not (triple isa error) and not session.triples.hasUnknowns(triple) then
+				addFact(session, triple)
+				return factMark
+			end if
+			return value
+		end if
 		say(session, "warning", "  ?" + labels[variable.name] + " takes a value, not a variable")
 	end while
 end function
