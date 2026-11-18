@@ -309,10 +309,25 @@ enterGoal = function(goal, binds, open)
 	return withBinding(open, key, 1)
 end function
 
+// A ground predicate can only meet the same one, so those pairs are ruled out before
+// anything is copied or unified: standardizeApart builds a fresh copy of every rule it
+// is handed, and unifying predicates that cannot agree settles nothing.
+
+predicatesMeet = function(goal, triple, binds)
+	"Says whether a goal and a candidate could still agree on their predicates."
+	wanted = deref(goal.predicate, binds)
+	if wanted isa Var then return true
+	// The candidate's variables are renamed before it is used, so they are not this
+	// goal's to resolve through its bindings; a variable predicate there meets anything.
+	if triple.predicate isa Var then return true
+	return wanted == triple.predicate
+end function
+
 matchingFacts = function(goal, facts, binds)
 	"The bindings of every fact that meets the goal, in order."
 	matches = []
 	for fact in facts
+		if not predicatesMeet(goal, fact, binds) then continue
 		matched = unify(goal, fact, binds)
 		if matched != null then matches.push(matched)
 	end for
@@ -323,6 +338,7 @@ matchingRules = function(goal, rules, binds)
 	"Every rule whose head meets the goal: the rule, a fresh copy of its body, and the bindings."
 	matches = []
 	for candidate in rules
+		if not predicatesMeet(goal, candidate.head, binds) then continue
 		fresh = standardizeApart(candidate)
 		matched = unify(fresh.head, goal, binds)
 		if matched != null then
