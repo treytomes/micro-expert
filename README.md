@@ -294,7 +294,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-171 passed, 0 failed
+174 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
@@ -302,10 +302,29 @@ for the session or paste the path in its place. One caveat worth knowing: in thi
 interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is
 the real signal, not the exit code.
 
+A test runner asks for part of the suite instead, and `test/harness.ms` gives it a line
+per check to read:
+
+```
+> "%MINISCRIPT_EXE_PATH%" test\run.ms --json --file repl.ms --filter "a rule line parses"
+PASS  a rule line parses
+##TEST {"name":"a rule line parses","status":"pass","file":"repl.ms","line":30}
+
+1 passed, 0 failed, 173 skipped
+##END {"passed":1,"failed":0,"skipped":173}
+```
+
+`--filter` takes a substring of a check's name, `--file` the name of a case module, and
+`--json` the records; a check runs when it matches any of each that are given. The `##END`
+line is the one the exit code cannot give you - see the caveat above - so it is what says
+the suite reached the end. The VS Code extension's Testing panel passes exactly these
+arguments, so its tree and its runs come from the suite rather than from a list kept
+beside it.
+
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 171 here cover the program itself: display and parsing (12),
+56 respectively), and the 174 here cover the program itself: display and parsing (12),
 proofs and explanations (19), the missing-fact report (24), recursion and cycle handling
-(13), relations including the family rules (46), and the session at the prompt (57).
+(13), relations including the family rules (46), and the session at the prompt (60).
 
 ## Repository layout
 
@@ -317,7 +336,7 @@ src/facts.ms         the 54 facts
 src/rules.ms         the nine rules
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 171 checks and their runner
+test/                the 174 checks and their runner
 docs/                the long-form write-up
 bootstrap.bat        submodules, interpreter, .env
 micro-expert.bat     runs the entry point named in .env

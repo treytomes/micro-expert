@@ -39,9 +39,7 @@ rem The version VS Code compares when installing: bump it in package.json for
 rem each change you want VS Code to take as an update.
 for /f "delims=" %%V in ('node -p "require('./package.json').version"') do set "VERSION=%%V"
 if not defined VERSION set "VERSION=unknown"
-rem --allow-missing-repository keeps vsce from stopping on an interactive prompt
-rem when package.json has no repository field.
-call %VSCE_CMD% package --allow-missing-repository --out "%VSIX%"
+call %VSCE_CMD% package --out "%VSIX%"
 set "EXIT_CODE=%ERRORLEVEL%"
 popd
 
