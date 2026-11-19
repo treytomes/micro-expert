@@ -21,7 +21,7 @@ fact, every branch names the rule it used. No weights, no API key, no network.
 
 The full story - why a rules engine in 2026, how backward chaining and unification work
 here, and where an LLM fits in front of it - is in
-[docs/01-a-micro-expert-in-miniscript.md](docs/01-a-micro-expert-in-miniscript.md).
+[docs/articles/01-a-micro-expert-in-miniscript.md](docs/articles/01-a-micro-expert-in-miniscript.md).
 
 ## Getting started
 
@@ -392,7 +392,7 @@ data/schema.kb       the field types, as text
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
 test/                the 341 checks and their runner
-docs/                the long-form write-up
+docs/articles/       the long-form write-up
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env
 bootstrap.sh         the same for Linux

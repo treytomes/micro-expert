@@ -8,7 +8,7 @@ A little expert system for MiniScript 2: 54 facts about one imaginary family, th
 Query: uncle-of(bill, ?p)
   uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
     parent-of(george, anna)  <- fact
-    sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y
+    sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)
       parent-of(walter, bill)  <- fact
       parent-of(walter, george)  <- fact
     ...
@@ -54,7 +54,7 @@ The last row is the honest one. This program cannot read *"who are Bill's nephew
 What a rules engine buys you, concretely, in an era of cheap text generation:
 
 - **Auditability.** Every claim has a proof you can print. There is no "the model said so" step to defend to a reviewer, an auditor, or yourself in six months.
-- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 340 assertions and they either pass or they don't.
+- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 341 assertions and they either pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility, scheduling constraints, device diagnostics, family relationships — questions where the rule is the requirement and being consistently right matters more than being fluent.
 - **Knowledge as a reviewed artifact.** Adding a rule is a five-line pull request with a test. There is no training run, and nothing else silently changes.
 - **No data leaving the machine.** The facts are the data, and they are text files.
@@ -92,7 +92,7 @@ The arrow reads "proves". The body is a comma-delimited list of conditions — a
 A body item does not have to be a triple. It can be a **constraint**, checked against the bindings rather than proved by search — here is the sibling rule, which must exclude a person paired with themselves:
 
 ```prolog
-sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y)
+sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y))
 ```
 
 A comparison is the other constraint, written as a call like every other condition: `less-than-or-equal(?n, 18)` reads two numbers and holds when they stand in that order, so `age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))` puts the age where childhood ends into the rule instead of into a column of `is-child` facts. The parser reads a number as a number, which is what makes that arithmetic rather than text — as text, `"9"` would sort after `"18"` — and a side that is not a number ends the branch rather than passing for a zero. A number may also carry an exponent - `1e3` is a thousand - with digits required on both sides of the `e`, so `1e` stays text. `not(...)` then gives the other group without writing the line twice:
@@ -122,7 +122,7 @@ Three details in that loop are where a toy implementation turns into a solver:
 **Depth.** `--depth` bounds how many rule levels the search may go down. `0` means facts only. `uncle-of` needs two levels (`uncle-of` → `sibling-of` → facts), so `--depth 1` answers nothing — and says which
 fact would change that.
 
-**Cycles.** A rule like `married-to(?y, ?x) <- married-to(?x, ?y)` can cheerfully call itself forever. The search therefore keeps the chain of goals on the current branch and refuses to re-enter a goal it is already inside, comparing goals with variables renamed away so that `?x` and `?x_7` are recognised as the same goal.
+**Cycles.** A rule like `married-to(?y, ?x) <- married-to(?x, ?y)` can cheerfully call itself forever. The search therefore keeps the chain of goals on the current branch and refuses to re-enter a goal it is already inside, comparing goals with variables renamed away so that `?x` and `?x_7` are recognized as the same goal.
 
 **Every derivation is kept.** Ask `sibling-of(bill, george)` and one answer comes back carrying two derivations — one through Walter, one through Doris — because both are true and a reasoner that silently drops one is hiding information. `--verbose` shows them:
 
@@ -132,10 +132,10 @@ Verbose run: depth 8
 Query: uncle-of(bill, ?p)
   uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
     parent-of(george, anna)  <- fact
-    sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y
+    sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)
       parent-of(walter, bill)  <- fact
       parent-of(walter, george)  <- fact
-    sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y
+    sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)
       parent-of(doris, bill)  <- fact
       parent-of(doris, george)  <- fact
     has-gender(bill, male)  <- fact
@@ -159,7 +159,7 @@ If you have met Prolog or Datalog, the mapping is direct: a triple is an atomic 
 
 ### Knowledge lives in its own files
 
-`data/facts.kb` and `data/rules.kb` hold the domain, and nothing else in the repo knows what a family is. A third file, `data/schema.kb`, is a table rather than knowledge: one line per predicate the knowledge base uses, giving the type of each field in the order a fact writes them, and `src/schema.ms` loads it so the prompt can refuse `has-age(tim, twenty)` instead of filing it where no rule could reach it. The stored predicates are typed from the facts that use them and the derived ones from the rules that conclude them, so `sibling-of` is two texts because the siblings come from `parent-of`, and `age-group`'s second field is `child|adult` because those are the two words its rules write. The suite holds the two files to each other: every predicate a rule names must be typed, and every constant it writes must fit the type it is given. The solver never reads it. Both are loaded through a `build` function rather than exported as a top-level array, because of a real constraint in this interpreter: **a module that imports `triples.ms` gets its own copy of its classes**, and `isa` checks only agree inside one copy. A loader that imported `triples.ms` directly would build triples the solver does not recognise, so the caller hands its copy in. The data dodge the problem another way: `src/knowledge.ms` parses the text with whichever copy it is handed, and the loaders wrap what it returns.
+`data/facts.kb` and `data/rules.kb` hold the domain, and nothing else in the repo knows what a family is. A third file, `data/schema.kb`, is a table rather than knowledge: one line per predicate the knowledge base uses, giving the type of each field in the order a fact writes them, and `src/schema.ms` loads it so the prompt can refuse `has-age(tim, twenty)` instead of filing it where no rule could reach it. The stored predicates are typed from the facts that use them and the derived ones from the rules that conclude them, so `sibling-of` is two texts because the siblings come from `parent-of`, and `age-group`'s second field is `child|adult` because those are the two words its rules write. The suite holds the two files to each other: every predicate a rule names must be typed, and every constant it writes must fit the type it is given. The solver never reads it. Both are loaded through a `build` function rather than exported as a top-level array, because of a real constraint in this interpreter: **a module that imports `triples.ms` gets its own copy of its classes**, and `isa` checks only agree inside one copy. A loader that imported `triples.ms` directly would build triples the solver does not recognize, so the caller hands its copy in. The data dodge the problem another way: `src/knowledge.ms` parses the text with whichever copy it is handed, and the loaders wrap what it returns.
 
 ```miniscript
 import "facts"
@@ -228,7 +228,7 @@ Query: uncle-of(bill, ?p)
 ```prolog
 [DBG] micro-expert: (fact) parent-of(walter, bill)
 ...
-[DBG] micro-expert: (rule) sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y
+[DBG] micro-expert: (rule) sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)
 [DBG] micro-expert: (rule) uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
 ```
 
@@ -271,12 +271,12 @@ The session paints from the same style table as the report, so `NO_COLOR` turns 
 
 ```plaintext
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-340 passed, 0 failed
+341 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it for the session or paste the path in its place.
 
-The 340 checks are split by area: display and parsing (22), the knowledge data format (58), the predicate schema (25), the loaders (12), proofs and explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (78), and the session at the prompt (77). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
+The 341 checks are split by area: display and parsing (22), the knowledge data format (58), the predicate schema (25), the loaders (12), proofs and explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (78), and the session at the prompt (78). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
 
 ## Where an LLM fits
 
@@ -309,7 +309,7 @@ You get the interface people expect from a chatbot, with the answer coming from 
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Copyright © 2026 Trey Tomes.
+MIT — see [LICENSE](../../LICENSE). Copyright © 2026 Trey Tomes.
 
 ## About MiniScript
 
