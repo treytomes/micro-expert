@@ -276,19 +276,21 @@ goalKey = function(goal, binds)
 	return str(termText(grounded))
 end function
 
-proveGoals = function(goal, facts, rules, depth, binds=null, open=null)
-	"Every answer to goal, at most depth rules deep, each with all its derivations; open is the chain of goals being proved, so a loop stops that branch."
+proveGoals = function(goal, facts, rules, depth, binds=null, open=null, index=null)
+	"Every answer to goal, at most depth rules deep, each with all its derivations; open is the chain of goals being proved, so a loop stops that branch, and index is the facts by predicate, built once and handed down."
+	if index == null then index = factsByPredicate(facts)
 	path = enterGoal(goal, binds, open)
 	if path == null then return []
 	results = emptyResults()
 	// A fact is a derivation on its own; a rule is one derivation per way its body
 	// proves, so both are collected from their matches and merged the same way.
-	for matched in matchingFacts(goal, facts, binds)
+	for matched in matchingFacts(goal, facts, binds, index)
 		mergeAnswer(results, goal, matched, {"rule": null, "conditions": []})
 	end for
 	if depth <= 0 then return results.list
 	for candidate in matchingRules(goal, rules, binds)
-		for proved in proveConditions(candidate.body, facts, rules, depth - 1, candidate.binds, path)
+		for proved in proveConditions(candidate.body, facts, rules, depth - 1, candidate.binds,
+			path, index)
 			mergeAnswer(results, goal, proved.binds, {"rule": candidate.rule, "conditions": proved.proofs})
 		end for
 	end for
@@ -323,11 +325,74 @@ predicatesMeet = function(goal, triple, binds)
 	return wanted == triple.predicate
 end function
 
-matchingFacts = function(goal, facts, binds)
+// A goal whose subject or object has been settled can only be met by a candidate
+// carrying that same one. Comparing two fields costs a fraction of the unification it
+// can replace, so it happens first. The check is one-sided: a variable anywhere - in
+// the goal or in the candidate - can still meet anything.
+
+settledTerm = function(term, binds)
+	"The term once the bindings are applied, or null while it is still a variable."
+	if not (term isa Var) then return term
+	if binds == null then return null
+	value = deref(term, binds)
+	if value isa Var then return null
+	return value
+end function
+
+meetsSettled = function(wanted, candidate)
+	"Says whether a settled field could still agree with a candidate's."
+	if candidate isa Var then return true
+	return wanted == candidate
+end function
+
+fieldsMeet = function(goal, triple, binds)
+	"Says whether the goal's subject and object could still agree with a candidate's."
+	wanted = settledTerm(goal.subject, binds)
+	if wanted != null then
+		if not meetsSettled(wanted, triple.subject) then return false
+	end if
+	wanted = settledTerm(goal.object, binds)
+	if wanted != null then
+		if not meetsSettled(wanted, triple.object) then return false
+	end if
+	return true
+end function
+
+// Looking at every fact for every goal is most of what a query costs, and most of
+// those looks are hopeless: a goal names one predicate, so only the facts carrying
+// it can answer. They are grouped by predicate once per query and handed down, and
+// a goal whose predicate is still a variable - or a knowledge base holding a fact
+// with a variable predicate - falls back to the whole list.
+
+factsByPredicate = function(facts)
+	"The facts grouped by their predicate, or null when one of them has a variable predicate and so could meet any goal."
+	index = {}
+	for fact in facts
+		if fact.predicate isa Var then return null
+		if index.hasIndex(fact.predicate) then
+			index[fact.predicate].push(fact)
+		else
+			index[fact.predicate] = [fact]
+		end if
+	end for
+	return index
+end function
+
+candidateFacts = function(goal, facts, binds, index)
+	"The facts worth trying for this goal: the ones with its predicate, or all of them when that is not settled."
+	if index == null then return facts
+	wanted = deref(goal.predicate, binds)
+	if wanted isa Var then return facts
+	if index.hasIndex(wanted) == 0 then return []
+	return index[wanted]
+end function
+
+matchingFacts = function(goal, facts, binds, index=null)
 	"The bindings of every fact that meets the goal, in order."
 	matches = []
-	for fact in facts
+	for fact in candidateFacts(goal, facts, binds, index)
 		if not predicatesMeet(goal, fact, binds) then continue
+		if not fieldsMeet(goal, fact, binds) then continue
 		matched = unify(goal, fact, binds)
 		if matched != null then matches.push(matched)
 	end for
@@ -348,7 +413,7 @@ matchingRules = function(goal, rules, binds)
 	return matches
 end function
 
-proveConditions = function(conditions, facts, rules, depth, binds, open=null)
+proveConditions = function(conditions, facts, rules, depth, binds, open=null, index=null)
 	"Proves each condition in turn: a goal by search, a constraint by checking it."
 	if conditions.len == 0 then return [{"binds": binds, "proofs": []}]
 	first = conditions[0]
@@ -356,11 +421,12 @@ proveConditions = function(conditions, facts, rules, depth, binds, open=null)
 		// A constraint either holds or the branch ends; it proves nothing, so it
 		// contributes no proof to the tree.
 		if not holdsConstraint(first, binds) then return []
-		return proveConditions(conditions[1:], facts, rules, depth, binds, open)
+		return proveConditions(conditions[1:], facts, rules, depth, binds, open, index)
 	end if
 	results = []
-	for proved in proveGoals(first, facts, rules, depth, binds, open)
-		for rest in proveConditions(conditions[1:], facts, rules, depth, proved.binds, open)
+	for proved in proveGoals(first, facts, rules, depth, binds, open, index)
+		for rest in proveConditions(conditions[1:], facts, rules, depth, proved.binds, open,
+			index)
 			results.push({"binds": rest.binds, "proofs": [proved] + rest.proofs})
 		end for
 	end for
