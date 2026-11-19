@@ -372,7 +372,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-394 passed, 0 failed
+395 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -399,10 +399,10 @@ the suite reached the end. The VS Code extension's Testing panel passes exactly 
 arguments, so its tree and its runs come from the suite rather than from a list kept
 beside it.
 
-The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 394 here cover the program itself: display and parsing (22), the
+The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 395 here cover the program itself: display and parsing (22), the
 knowledge data format (75), the predicate schema (25), the loaders (16), proofs and
 explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations
-including the family rules (78), the session at the prompt (100), and the domain (10).
+including the family rules (78), the session at the prompt (101), and the domain (10).
 
 ## Repository layout
 
@@ -420,7 +420,7 @@ data/rules.kb        the thirteen rules, as text
 data/schema.kb       the field types, as text
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 394 checks and their runner
+test/                the 395 checks and their runner
 docs/articles/       the long-form write-up
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env

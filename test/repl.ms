@@ -526,6 +526,21 @@ run = function(t, rules, repl, h, schema, knowledge)
 			kept[0] == "parent-of(bill, tim)")
 	h.check("and the folder that stood where the temp file goes is still there", stillThere == 1)
 
+	// The name the old file is moved aside to is cleared for a file an interrupted swap
+	// left there, but a folder at that name is nobody's leftover: the save cannot swap its
+	// file in, says so, and leaves the folder and the old file where they are.
+	oldPath = scratch("kept-old-facts.kb")
+	writeFile(oldPath, ["parent-of(bill, tim)"])
+	made = file.makedir(oldPath + ".old")
+	oldBlocked = startSession(family + [], [], ["/save-facts"], null, 0, null, {"facts": oldPath})
+	keptOld = readBack(oldPath)
+	oldStillThere = file.info(oldPath + ".old").isDirectory
+	removed = file.delete(oldPath + ".old")
+	file.delete(oldPath)
+	h.check("a folder where the old copy is moved aside to stays, and the save says why",
+		holds(oldBlocked.answers.lines, "  could not write ") and oldStillThere == 1 and
+			keptOld.len == 1 and keptOld[0] == "parent-of(bill, tim)")
+
 	// A swap that cannot put its temp file in place puts the old one back: the session's
 	// file is where it was, and no copy of it is left beside it. A temp file that is not
 	// there is a swap that cannot finish.

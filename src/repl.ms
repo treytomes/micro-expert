@@ -197,11 +197,11 @@ writeLines = function(path, lines)
 	problem = writeFresh(temp, lines)
 	if problem != null then return problem
 	problem = swapIn(temp, path)
-	// The temp file is swept up now because the save finished writing it, so it is this
-	// save's own to remove; what went wrong with it is already the answer, so its own
-	// failure has nowhere to go. Clearing whatever answers to the name would also delete
-	// what the save never touched, a folder called facts.kb.tmp among them.
-	if problem != null and file.exists(temp) then leftover = file.delete(temp)
+	// A temp file is swept up only once the save has finished writing it, which is what
+	// makes it this save's own to remove: what went wrong with the save is already the
+	// answer, so the sweep's own failure has nowhere to go. Nothing else is ever cleared,
+	// so a folder called facts.kb.tmp outlives a save that could not start.
+	if problem != null then leftover = file.delete(temp)
 	return problem
 end function
 
@@ -215,8 +215,8 @@ writeFresh = function(path, lines)
 			handle.close
 			// The open worked, so the file at path is this write's own and a part-written
 			// temp file must not be left to be taken for a whole one later. An open that
-			// failed leaves whatever is already at path alone, which is not this save's.
-			if file.exists(path) then leftover = file.delete(path)
+			// failed returns above, leaving whatever is at path alone.
+			leftover = file.delete(path)
 			return problem
 		end if
 	end for
@@ -231,12 +231,15 @@ swapIn = function(temp, path)
 	// first and put back if the new one cannot take its place: at no point is there no
 	// copy of what the session started with.
 	old = path + ".old"
-	if file.exists(old) then leftover = file.delete(old)
+	// A copy left by an interrupted swap is cleared so the old file can go there, but
+	// only a file is one of ours: a folder named facts.kb.old is left where it is, and
+	// the move below then fails with nothing lost.
+	if file.exists(old) and file.info(old).isDirectory == 0 then leftover = file.delete(old)
 	problem = file.move(path, old)
 	if problem isa error then return problem
 	problem = moveFile(temp, path)
 	if problem == null then
-		if file.exists(old) then leftover = file.delete(old)
+		leftover = file.delete(old)
 		return null
 	end if
 	// The old file goes back where it was, so the session still has what it started with.
