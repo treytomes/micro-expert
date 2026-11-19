@@ -21,6 +21,7 @@
 import "../src/triples"
 import "../src/rule"
 import "../src/repl"
+import "../src/prompt"
 import "../src/knowledge"
 import "../src/domain"
 import "harness"
@@ -71,6 +72,9 @@ rules = globals["../src/rule"]
 // with the one copy of everything. It is aliased away from `repl`, because that name
 // belongs to this suite's own repl.ms case module.
 prompt = globals["../src/repl"]
+// prompt.ms is the generic part of the prompt, and is aliased to `files` because the name
+// `prompt` above belongs to the session module itself.
+files = globals["../src/prompt"]
 // knowledge.ms is the parser behind the data files, aliased away for the same reason:
 // `knowledge` is this suite's own case module for it.
 parser = globals["../src/knowledge"]
@@ -94,8 +98,8 @@ factsLoader = globals["../src/facts"]
 // The schema loader, for the checks that read data/schema.kb itself.
 schemaLoader = globals["../src/schema"]
 
-if triples == null or rules == null or parser == null then
-	print "error: could not import ../src/triples, ../src/rule and ../src/knowledge"
+if triples == null or rules == null or parser == null or files == null then
+	print "error: could not import ../src/triples, ../src/rule, ../src/knowledge and ../src/prompt"
 	exit 1
 end if
 if rulesLoader == null or factsLoader == null or schemaLoader == null then
@@ -124,7 +128,7 @@ proofs.run(triples, rules, harness)
 absence.run(triples, rules, harness)
 recursion.run(triples, rules, harness)
 relations.run(triples, rules, harness)
-repl.run(triples, rules, prompt, harness, schemaLoader, parser)
+repl.run(triples, rules, prompt, harness, schemaLoader, parser, files)
 schema.run(triples, parser, schemaLoader, harness)
 loaders.run(triples, rulesLoader, factsLoader, schemaLoader, harness)
 globals["domain"].run(domainModule, harness)

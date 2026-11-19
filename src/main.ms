@@ -11,6 +11,7 @@ import "triples"
 import "logging/logging"
 import "vt"
 import "repl"
+import "prompt"
 import "rule"
 import "domain"
 import "knowledge"
@@ -247,6 +248,7 @@ replSession = function()
 		"types": types,
 		"paths": domainPaths,
 		"knowledge": globals["knowledge"],
+		"prompt": globals["prompt"],
 		"io": {
 			"read": function(question)
 				return input(question)

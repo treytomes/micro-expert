@@ -1,6 +1,6 @@
 // Cases for the REPL: a rule line read back as a rule, and a session driven by script.
 
-run = function(t, rules, repl, h, schema, knowledge)
+run = function(t, rules, repl, h, schema, knowledge, files)
 	"Checks rule-line parsing, a session's transcript, and saving its components."
 	spo = function(s, p, o)
 		return t.SpoTriple.make(s, p, o)
@@ -81,7 +81,7 @@ run = function(t, rules, repl, h, schema, knowledge)
 		end function
 		session = {"triples": t, "Rule": rules.Rule, "facts": facts, "rules": ruleList,
 			"depth": 8, "verbose": verbose, "style": style, "schema": schema, "types": types,
-			"paths": paths, "knowledge": knowledge,
+			"paths": paths, "knowledge": knowledge, "prompt": files,
 			"io": {"read": @reader, "say": @writer}}
 		repl.run(session)
 		return {"session": session, "answers": answers}
@@ -546,7 +546,7 @@ run = function(t, rules, repl, h, schema, knowledge)
 	// there is a swap that cannot finish.
 	restorePath = scratch("restore-facts.kb")
 	writeFile(restorePath, ["parent-of(bill, tim)"])
-	putBack = repl.swapIn(scratch("vanished"), restorePath)
+	putBack = files.swapIn(scratch("vanished"), restorePath)
 	restored = readBack(restorePath)
 	oldLeft = file.exists(restorePath + ".old")
 	file.delete(restorePath)
