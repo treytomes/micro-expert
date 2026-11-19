@@ -59,9 +59,8 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 	h.check("every fact in data/facts.kb fits data/schema.kb",
 		not (types isa error) and misfits.len == 0)
 	// Printed only when something drifted, and after the failure it explains, so a
-	// failing run says which facts did.
-	// One line each: a string literal's \n is not a newline in this interpreter, so a
-	// joined list would print as one long line with the escapes in it.
+	// failing run says which facts did. One line each, since a string literal's \n is not
+	// a newline in this interpreter.
 	for problem in misfits
 		print "      " + problem
 	end for
@@ -94,7 +93,6 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 				triplesOf(condition.body, found)
 			end if
 		end for
-		return found
 	end function
 	written = []
 	for rule in loadedRules
@@ -115,10 +113,10 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 		not (types isa error) and untyped.len == 0)
 	if untyped.len > 0 then print "      " + untyped.join(", ")
 
-	// The constants a rule writes are checked the way a typed fact is, so a schema line
-	// that contradicts its rules cannot pass silently: a variable is not a value yet and
-	// fits anything, so this reads the constants alone - has-gender's male and female, and
-	// the two words age-group concludes.
+	// The constants a rule writes are checked the way a typed fact is: a variable is not a
+	// value yet and fits anything, so this reads the words and numbers - has-gender's male
+	// and female, and the two words age-group concludes. A rule that asks for a word its
+	// predicate does not allow fails here instead of quietly proving nothing.
 	mismatched = []
 	if not (types isa error) then
 		for triple in written
@@ -126,7 +124,7 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 			if problem != null then mismatched.push(triple.text + " - " + problem)
 		end for
 	end if
-	h.check("every value the rules write fits data/schema.kb",
+	h.check("every constant the rules write fits data/schema.kb",
 		not (types isa error) and mismatched.len == 0)
 	for problem in mismatched
 		print "      " + problem
