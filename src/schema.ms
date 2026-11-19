@@ -3,9 +3,9 @@
 // The file names each predicate that stores facts, and the type of its two fields in
 // the order a fact writes them:
 //
-//   has-age(name, number)
+//   has-age(text, number)
 //
-// A type is the word number, the word name, or a '|' list of the values allowed, such
+// A type is the word number, text or boolean, or a '|' list of the values allowed, such
 // as male|female. knowledge.ms reads that format; this module finds the file and hands
 // the map back, so the prompt can refuse a fact that does not fit before storing it:
 //

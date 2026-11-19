@@ -15,7 +15,7 @@
 //
 // A condition is a fact, or a constraint such as ?x != ?y. A comparison is a
 // constraint too: ?n <= 18 is checked against two numbers rather than proved, and it
-// holds only when both sides are numbers, so a name never passes for a zero. A value
+// holds only when both sides are numbers, so text never passes for a zero. A value
 // is a name, a number, or a ?x variable. Blank lines and lines starting with // are
 // skipped, and an entry that will not parse names its line.
 //
@@ -27,10 +27,10 @@
 //
 // data/schema.kb is the third file, and it is a table rather than knowledge:
 //
-//   has-age(name, number)
+//   has-age(text, number)
 //
 // one line per predicate that stores facts, giving the type of each field in the order
-// a fact writes them. A type is number, name, or a '|' list of the values allowed. The
+// a fact writes them. A type is number, text, boolean, or a '|' list of the values allowed. The
 // prompt checks what is typed against it, so a fact no rule could ever reach is refused
 // at the door; the solver never reads it, and a predicate it does not name is accepted
 // as written.
@@ -126,14 +126,19 @@ fieldFits = function(term, type)
 	"Says whether one field fits one type; a variable fits any, since it is not a value yet."
 	if not (term isa number) and not (term isa string) then return true
 	if type == "number" then return term isa number
-	if type == "name" then return term isa string
+	if type == "text" then return term isa string
+	// A boolean is the word true or the word false, since that is how one is written in
+	// a fact; MiniScript's own true and false are the numbers 1 and 0, so they belong to
+	// number rather than here.
+	if type == "boolean" then return term == "true" or term == "false"
 	return type.split("|").indexOf(term) != null
 end function
 
 typeText = function(type)
-	"How one type reads in a message: 'a number', 'a name' or 'one of: male, female'."
+	"How one type reads in a message: 'a number', 'text', 'true or false' or 'one of: male, female'."
 	if type == "number" then return "a number"
-	if type == "name" then return "a name"
+	if type == "text" then return "text"
+	if type == "boolean" then return "true or false"
 	return "one of: " + type.split("|").join(", ")
 end function
 

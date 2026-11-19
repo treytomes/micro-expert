@@ -330,7 +330,7 @@ run = function(t, rules, repl, h, schema)
 	h.check("a number typed in a question meets the fact it was stored as",
 		printed(aged.answers.lines, "  has-age(bill, 54)"))
 
-	ageTypes = {"has-age": ["name", "number"]}
+	ageTypes = {"has-age": ["text", "number"]}
 	missed = startSession([spo("bill", "has-age", 54)], [], ["has-age(bill, twenty)"],
 		null, 0, ageTypes)
 	h.check("a fact that misses the schema is refused",
@@ -338,7 +338,7 @@ run = function(t, rules, repl, h, schema)
 			"  refused: has-age(bill, twenty): the object should be a number"))
 	h.check("and a refused fact is not stored", missed.session.facts.len == 1)
 	fitted = startSession([], [], ["has-gender(walter, boy)"], null, 0,
-		{"has-gender": ["name", "male|female"]})
+		{"has-gender": ["text", "male|female"]})
 	h.check("a value outside the schema's list is refused",
 		printed(fitted.answers.lines, "  refused: has-gender(walter, boy): the object should be one of: male, female"))
 	h.check("a fact that fits the schema is added",

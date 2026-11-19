@@ -127,6 +127,9 @@ run = function(t, knowledge, h)
 	h.check("a fact line parses", not (fact isa error))
 	h.check("the fact reads back", fact[0].text == "has-age(walter, 78)")
 	h.check("a number stays a number", fact[0].object + 1 == 79)
+	fraction = parseOneFact("has-age(tim, 24.5)")
+	h.check("a fraction is a number too",
+		fraction[0].object isa number and fraction[0].object == 24.5)
 
 	factLines = knowledge.parseFacts(t, [
 		"// A person",

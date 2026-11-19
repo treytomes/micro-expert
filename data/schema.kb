@@ -4,9 +4,10 @@
 //
 // A type is
 //
-//   number    a number, as every age is
-//   name      any text, which is what a person or a word is here
-//   a|b|c     one of these names, exactly
+//   number    any number, whole or fractional: 24, 24.5, -3
+//   text      any text, which is what a person or a word is here
+//   boolean   the word true or the word false
+//   a|b|c     one of these words, exactly
 //
 // The prompt holds a typed fact against this before storing it, so has-age(tim, twenty)
 // is refused rather than filed away where no rule could ever reach it. A predicate the
@@ -18,7 +19,7 @@
 //
 // knowledge.ms reads this file; schema.ms loads it for main.ms.
 
-parent-of(name, name)
-married-to(name, name)
-has-gender(name, male|female)
-has-age(name, number)
+parent-of(text, text)
+married-to(text, text)
+has-gender(text, male|female)
+has-age(text, number)

@@ -10,18 +10,19 @@ run = function(t, parser, schemaLoader, h)
 	// ── The format ───────────────────────────────────────────────────────────
 
 	types = parser.parseSchema([
-		"has-age(name, number)",
-		"has-gender(name, male|female)",
+		"has-age(text, number)",
+		"has-gender(text, male|female)",
+		"is-adult(text, boolean)",
 	])
-	h.check("a schema document parses", not (types isa error) and types.len == 2)
+	h.check("a schema document parses", not (types isa error) and types.len == 3)
 	h.check("a field type is kept as written", types["has-age"][1] == "number")
 	h.check("a list of values is one type", types["has-gender"][1] == "male|female")
 	h.check("comments and blank lines are skipped",
-		parser.parseSchema(["// a note", "", "has-age(name, number)"]).len == 1)
+		parser.parseSchema(["// a note", "", "has-age(text, number)"]).len == 1)
 
 	broken = parser.parseSchema([
-		"has-age(name, number)",
-		"has-age(name)",
+		"has-age(text, number)",
+		"has-age(text)",
 	])
 	h.check("a line without two field types is refused", broken isa error)
 	h.check("the refusal names the line",
@@ -31,10 +32,22 @@ run = function(t, parser, schemaLoader, h)
 
 	h.check("a number where a number belongs fits",
 		parser.schemaMisfit(types, spo("tim", "has-age", 24)) == null)
+	h.check("a number is whole or fractional",
+		parser.schemaMisfit(types, spo("tim", "has-age", 24.5)) == null and
+			parser.schemaMisfit(types, spo("tim", "has-age", -3)) == null)
 	h.check("text where a number belongs does not",
 		parser.schemaMisfit(types, spo("tim", "has-age", "twenty")) == "the object should be a number")
 	h.check("the field that misses is the one named",
-		parser.schemaMisfit(types, spo(24, "has-age", 24)) == "the subject should be a name")
+		parser.schemaMisfit(types, spo(24, "has-age", 24)) == "the subject should be text")
+	h.check("a boolean field takes either word",
+		parser.schemaMisfit(types, spo("tim", "is-adult", "true")) == null and
+			parser.schemaMisfit(types, spo("tim", "is-adult", "false")) == null)
+	h.check("a boolean field takes nothing else",
+		parser.schemaMisfit(types, spo("tim", "is-adult", "yes")) ==
+			"the object should be true or false")
+	h.check("a number is not a boolean",
+		parser.schemaMisfit(types, spo("tim", "is-adult", 1)) ==
+			"the object should be true or false")
 	h.check("a listed value fits",
 		parser.schemaMisfit(types, spo("tim", "has-gender", "male")) == null)
 	h.check("a value that is not listed does not",
@@ -55,5 +68,5 @@ run = function(t, parser, schemaLoader, h)
 	h.check("data/schema.kb names four predicates", shipped.len == 4)
 	h.check("an age's object is a number", shipped["has-age"][1] == "number")
 	h.check("a gender is one of two names", shipped["has-gender"][1] == "male|female")
-	h.check("a parent is a name either way", shipped["parent-of"].join("|") == "name|name")
+	h.check("a parent is text either way", shipped["parent-of"].join("|") == "text|text")
 end function
