@@ -87,8 +87,6 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 				end for
 			else if condition isa t.Not then
 				walkPredicates(condition.body, names)
-			else if condition isa list then
-				walkPredicates(condition, names)
 			end if
 		end for
 	end function

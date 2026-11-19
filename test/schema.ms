@@ -65,7 +65,7 @@ run = function(t, parser, schemaLoader, h)
 	shipped = schemaLoader.build()
 	h.check("data/schema.kb loads", not (shipped isa error))
 	if shipped isa error then return
-	h.check("data/schema.kb names every predicate", shipped.len == 15)
+	h.check("data/schema.kb names fifteen predicates", shipped.len == 15)
 	h.check("an age's object is a number", shipped["has-age"][1] == "number")
 	h.check("a gender is one of two names", shipped["has-gender"][1] == "male|female")
 	h.check("a parent is text either way", shipped["parent-of"].join("|") == "text|text")
