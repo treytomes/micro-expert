@@ -4,7 +4,7 @@
 //
 // A type is
 //
-//   number    any number, whole or fractional: 24, 24.5, -3
+//   number    any number, whole or fractional: 24, 24.5, -3, 1e3
 //   text      any text, which is what a person or a word is here
 //   boolean   the word true or the word false
 //   a|b|c     one of these words, exactly

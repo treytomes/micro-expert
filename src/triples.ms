@@ -965,22 +965,37 @@ end function
 
 isNumber = function(text)
 	"Says whether the text is a plain number, which val alone cannot tell: val of a name is 0."
-	digits = 0
-	dots = 0
+	// A number is a mantissa and an exponent: '1e3' is a thousand, and val alone cannot
+	// tell, because it stops reading at the 'e' and keeps the one before it.
+	digits = 0          // digits in the mantissa
+	dots = 0            // dots in the mantissa: one at most
+	exponentAt = null   // where the 'e' sits, once the mantissa has ended
+	exponentDigits = 0  // digits after the 'e', which are required and whole
 	for at in range(0, text.len - 1)
 		c = text[at]
-		if c == "-" then
-			if at != 0 then return false
-		else if c == "." then
-			dots = dots + 1
-			if dots > 1 then return false
-		else if c < "0" or c > "9" then
+		if exponentAt == null then
+			if c == "e" or c == "E" then
+				exponentAt = at
+			else if c >= "0" and c <= "9" then
+				digits = digits + 1
+			else if c == "." then
+				dots = dots + 1
+				if dots > 1 then return false
+			else if c != "-" or at != 0 then
+				return false
+			end if
+		else if c >= "0" and c <= "9" then
+			exponentDigits = exponentDigits + 1
+		else if (c != "+" and c != "-") or at != exponentAt + 1 then
+			// A sign may open the exponent, and nothing else may follow it.
 			return false
-		else
-			digits = digits + 1
 		end if
 	end for
-	return digits > 0
+	// '' and '-' have no digits at all, 'e3' has none before the 'e', and '1e' has none
+	// after it: each stays text rather than becoming the number val would make of it.
+	if digits == 0 then return false
+	if exponentAt != null and exponentDigits == 0 then return false
+	return true
 end function
 
 badLine = function(line)

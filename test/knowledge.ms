@@ -130,6 +130,9 @@ run = function(t, knowledge, h)
 	fraction = parseOneFact("has-age(tim, 24.5)")
 	h.check("a fraction is a number too",
 		fraction[0].object isa number and fraction[0].object == 24.5)
+	scaled = parseOneFact("has-age(tim, 1e3)")
+	h.check("an exponent is a number too",
+		scaled[0].object isa number and scaled[0].object == 1000)
 
 	factLines = knowledge.parseFacts(t, [
 		"// A person",

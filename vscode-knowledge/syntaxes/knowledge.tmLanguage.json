@@ -31,7 +31,7 @@
       "name": "variable.other.micro-expert-kb"
     },
     "numbers": {
-      "match": "(?<![\\w.])-?\\d+(?:\\.\\d+)?",
+      "match": "(?<![\\w.])-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?",
       "name": "constant.numeric.micro-expert-kb"
     },
     "grouping": {

@@ -39,4 +39,27 @@ run = function(t, h)
 		t.unify(t.SpoTriple.parse("has-age(?p, 54)"), spo("bill", "has-age", 54)) != null)
 	h.check("a number field does not meet the same digits as text",
 		t.unify(t.SpoTriple.parse("has-age(?p, 54)"), spo("bill", "has-age", "54")) == null)
+
+	// An exponent is part of the number, so 1e3 is a thousand rather than the text
+	// '1e3'. val alone cannot tell: it stops reading at the 'e' and keeps the one.
+	exponentField = t.SpoTriple.parse("has-age(oliver, 1e3)")
+	h.check("an exponent field reads as a number", exponentField.object isa number and
+		exponentField.object == 1000)
+	h.check("a signed exponent reads too",
+		t.SpoTriple.parse("has-age(oliver, 1.5e-3)").object == 0.0015 and
+			t.SpoTriple.parse("has-age(oliver, 1E+3)").object == 1000)
+	h.check("an exponent displays as the number it is", exponentField.text == "has-age(oliver, 1000)")
+	// The digits on each side are checked, so the readings val gives these leniently
+	// stay text rather than becoming the numbers they look a little like.
+	h.check("an exponent needs digits on both sides",
+		t.SpoTriple.parse("has-age(oliver, 1e)").object == "1e" and
+			t.SpoTriple.parse("has-age(oliver, e3)").object == "e3")
+	h.check("an exponent is not a second decimal",
+		t.SpoTriple.parse("has-age(oliver, 1e3.5)").object == "1e3.5")
+	// A small number prints in scientific notation, so the form it prints has to read
+	// back as the number it printed from.
+	scientific = t.SpoTriple.parse("has-age(oliver, 0.0000001)")
+	h.check("a number that prints in scientific notation reads back",
+		scientific.text == "has-age(oliver, 1E-07)" and
+			t.SpoTriple.parse(scientific.text).object == 0.0000001)
 end function
