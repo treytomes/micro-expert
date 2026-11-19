@@ -17,7 +17,7 @@ Query: uncle-of(bill, ?p)
 
 Abridged: five more answers follow - mark, clara, jack, nina and oliver - each with a tree of that shape. The tree is three levels deep, `uncle-of` via `sibling-of` via the parent facts, and the sibling step shows up twice under one answer because Bill and George share both parents, so both license the same conclusion. Every leaf is a fact, every branch names the rule it used, and there is nothing in there you have to take on trust.
 
-No weights, no API key, no network. About 1,400 lines of MiniScript across seven modules, 402 of them the engine itself, and nothing needs retraining to change.
+No weights, no API key, no network. About 1,950 lines of MiniScript across seven modules, 1,175 of them the engine itself, and nothing needs retraining to change.
 
 ---
 
@@ -151,7 +151,7 @@ The engine is `src/triples.ms`, and it holds five things:
 | --- | --- |
 | Terms | `Var` (a logic variable) and plain values; `SpoTriple` for triples |
 | Unification | `unify`, `unifyParts`, `unifyTerms`, `deref`, `resolveBindings`, `substitute` |
-| Constraints | `NotEqual`, `holdsConstraint`, and renaming for `standardizeApart` |
+| Constraints | `NotEqual`, `Comparison`, `holdsConstraint`, and renaming for `standardizeApart` |
 | Search | `proveGoals`, `proveConditions`, `mergeAnswer` |
 | Explanation | `proofLines`, `derivationLines`, plus cycle keys (`goalKey`, `canonicalText`) and parsing (`parseLine`, `parseCall`) |
 
@@ -159,7 +159,7 @@ If you have met Prolog or Datalog, the mapping is direct: a triple is an atomic 
 
 ### Knowledge lives in its own files
 
-`data/facts.kb` and `data/rules.kb` hold the domain, and nothing else in the repo knows what a family is. A third file, `data/schema.kb`, is a table rather than knowledge: one line per predicate the knowledge base uses, giving the type of each field in the order a fact writes them, and `src/schema.ms` loads it so the prompt can refuse `has-age(tim, twenty)` instead of filing it where no rule could reach it. The stored predicates are typed from the facts that use them and the derived ones from the rules that conclude them, so `sibling-of` is two texts because the siblings come from `parent-of`, and `age-group`'s second field is `child|adult` because those are the two words its rules write. The suite holds the two files to each other: every predicate a rule names must be typed, and every constant it writes must fit the type it is given. The solver never reads it. Both are loaded through a `build` function rather than exported as a top-level array, because of a real constraint in this interpreter: **a module that imports `triples.ms` gets its own copy of its classes**, and `isa` checks only agree inside one copy. A loader that imported `triples.ms` directly would build triples the solver does not recognize, so the caller hands its copy in. The data dodge the problem another way: `src/knowledge.ms` parses the text with whichever copy it is handed, and the loaders wrap what it returns.
+`data/facts.kb` and `data/rules.kb` hold the domain, and nothing else in the repo knows what a family is. A third file, `data/schema.kb`, is a table rather than knowledge: one line per predicate the knowledge base uses, giving the type of each field in the order a fact writes them, and `src/schema.ms` loads it so the prompt can refuse `has-age(tim, twenty)` instead of filing it where no rule could reach it. The stored predicates are typed from the facts that use them and the derived ones from the rules that conclude them, so `sibling-of` is two texts because the siblings come from `parent-of`, and `age-group`'s second field is `child|adult` because those are the two words its rules write. The suite holds the schema and the rules to each other: every predicate a rule names must be typed, and every constant it writes must fit the type it is given. The solver never reads it. Both are loaded through a `build` function rather than exported as a top-level array, because of a real constraint in this interpreter: **a module that imports `triples.ms` gets its own copy of its classes**, and `isa` checks only agree inside one copy. A loader that imported `triples.ms` directly would build triples the solver does not recognize, so the caller hands its copy in. The data dodge the problem another way: `src/knowledge.ms` parses the text with whichever copy it is handed, and the loaders wrap what it returns.
 
 ```miniscript
 import "facts"
@@ -170,7 +170,7 @@ facts = globals["facts"].build(triples)
 rules = globals["rules"].build(triples)
 ```
 
-Nothing else is needed to add a domain. Rewrite those two data files, keep the shape, and the engine answers questions about invoices or network devices instead of aunts.
+Nothing else is needed to add a domain. Rewrite those three data files, keep the shape, and the engine answers questions about invoices or network devices instead of aunts.
 
 ### Adding a rule
 
@@ -223,7 +223,7 @@ Query: uncle-of(bill, ?p)
 | `--help`, `-h` | Usage, generated from the same option declarations the parser uses |
 | `--version`, `-v` | Version line |
 
-`--log-level debug` is the interesting one: it prints all 54 facts as they load and all ten rules as they are registered, which is the fastest way to see what the engine was actually given.
+`--log-level debug` is the interesting one: it prints all 54 facts as they load and all thirteen rules as they are registered, which is the fastest way to see what the engine was actually given.
 
 ```prolog
 [DBG] micro-expert: (fact) parent-of(walter, bill)
