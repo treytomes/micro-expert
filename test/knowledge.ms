@@ -176,4 +176,41 @@ run = function(t, knowledge, h)
 	h.check("a constraint with one field is refused",
 		failure("a(?x, ?y) => less-than-or-equal(?n)") != null and
 			failure("a(?x, ?y) => not-equal(?n)") != null)
+
+	// ── Writing the format back ──────────────────────────────────────────────
+	// /save-* writes what the session holds through these, so the two halves have to
+	// agree: what one writes, the other reads back as the same knowledge.
+
+	factsWritten = knowledge.factsLines(factLines)
+	h.check("facts are written one per line", factsWritten.len == 2 and
+		factsWritten[0] == "has-gender(walter, male)")
+	rereadFacts = knowledge.parseFacts(t, factsWritten)
+	h.check("written facts read back", not (rereadFacts isa error) and
+		rereadFacts[1].text == factLines[1].text)
+
+	writtenRules = [
+		parseOneRule("sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y))")[0],
+		parseOneRule("in-law-of(?x, ?y) => or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling-of(?x, ?p), married-to(?p, ?y)))")[0],
+		parseOneRule("only-child-of(?x, ?y) => and(parent-of(?y, ?x), not(sibling-of(?x, ?q)))")[0],
+	]
+	ruleLines = knowledge.rulesLines(writtenRules)
+	h.check("rules are written with '=>', as the file spells it", ruleLines[0] ==
+		"sibling-of(?x, ?y) => parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)")
+	h.check("a rule's alternatives read back as or(...)", ruleLines[1] ==
+		"in-law-of(?x, ?y) => or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling-of(?x, ?p), married-to(?p, ?y)))")
+	h.check("a rule's negation reads back", ruleLines[2] ==
+		"only-child-of(?x, ?y) => parent-of(?y, ?x), not(sibling-of(?x, ?q))")
+	rereadRules = knowledge.parseRules(t, ruleLines)
+	h.check("written rules read back", not (rereadRules isa error) and
+		rereadRules.len == 3 and bodyText(rereadRules[0]) == bodyText(writtenRules[0]))
+
+	schemaTypes = knowledge.parseSchema(["has-age(text, number)", "has-gender(text, male|female)"])
+	schemaWritten = knowledge.schemaLines(schemaTypes)
+	h.check("the schema is written one predicate per line", schemaWritten.len == 2 and
+		schemaWritten[0] == "has-age(text, number)")
+	h.check("a '|' list is written back", schemaWritten[1] == "has-gender(text, male|female)")
+	rereadSchema = knowledge.parseSchema(schemaWritten)
+	h.check("written schema reads back", not (rereadSchema isa error) and
+		rereadSchema["has-gender"][1] == "male|female")
+	h.check("a session with no schema writes nothing", knowledge.schemaLines(null).len == 0)
 end function

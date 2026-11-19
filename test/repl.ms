@@ -1,7 +1,7 @@
 // Cases for the REPL: a rule line read back as a rule, and a session driven by script.
 
-run = function(t, rules, repl, h, schema)
-	"Checks rule-line parsing and a session's transcript, against the shared copies."
+run = function(t, rules, repl, h, schema, knowledge, domain)
+	"Checks rule-line parsing, a session's transcript, and saving its components."
 	spo = function(s, p, o)
 		return t.SpoTriple.make(s, p, o)
 	end function
@@ -67,7 +67,8 @@ run = function(t, rules, repl, h, schema)
 	// ── A scripted session ───────────────────────────────────────────────────
 
 	// A session over a script of typed lines, recording what it printed and asked.
-	startSession = function(facts, ruleList, script, style=null, verbose=0, types=null)
+	startSession = function(facts, ruleList, script, style=null, verbose=0, types=null, paths=null)
+		if paths == null then paths = {}
 		answers = {"lines": [], "asked": [], "at": 0}
 		reader = function(question)
 			answers.asked.push(question)
@@ -80,6 +81,7 @@ run = function(t, rules, repl, h, schema)
 		end function
 		session = {"triples": t, "Rule": rules.Rule, "facts": facts, "rules": ruleList,
 			"depth": 8, "verbose": verbose, "style": style, "schema": schema, "types": types,
+			"paths": paths, "knowledge": knowledge, "domain": domain,
 			"io": {"read": @reader, "say": @writer}}
 		repl.run(session)
 		return {"session": session, "answers": answers}
@@ -281,6 +283,10 @@ run = function(t, rules, repl, h, schema)
 		printed(commandLines, "  /exit  leave the session") and
 			printed(commandLines, "  /undo  take back the last fact added") and
 			printed(commandLines, "  /rules  list the rules"))
+	h.check("/help lists the save and load commands",
+		printed(commandLines, "  /save-facts  write the facts to their file, or to one named") and
+			printed(commandLines, "  /load-facts  replace the facts with a file's") and
+			printed(commandLines, "  /save-schema  write the schema to its file, or to one named"))
 	h.check("/facts lists the facts it holds",
 		printed(commandLines, "  2 facts") and printed(commandLines, "    parent-of(bill, tim)"))
 	h.check("/rules lists the rules it holds",
@@ -386,4 +392,120 @@ run = function(t, rules, repl, h, schema)
 		printed(question.answers.lines,
 			"  refused: less-than-or-equal(?n, 18): the predicate is a constraint, checked in a rule body rather than stored or asked") and
 			question.answers.asked.len == 2 and not holds(question.answers.lines, "no solution"))
+
+	// ── Saving and loading the domain's components ──────────────────────────
+	// The commands write what the session holds in the format the loaders read, so these
+	// cases write real files under the temp folder and read them back.
+
+	temp = "."
+	if env.hasIndex("TEMP") then temp = env["TEMP"]
+	if env.hasIndex("TMP") then temp = env["TMP"]
+	scratch = function(name)
+		"Where a case's file goes: the temp folder, under a name only this suite uses."
+		return file.child(temp, "micro-expert-test-" + name)
+	end function
+	writeFile = function(path, lines)
+		handle = file.open(path, "w")
+		if handle isa error then return handle
+		for line in lines
+			handle.writeLine(line)
+		end for
+		handle.close
+		return null
+	end function
+	readBack = function(path)
+		lines = file.readLines(path)
+		if lines isa error then return []
+		return lines
+	end function
+
+	// A save with no name writes to the file the component came from.
+	factsPath = scratch("facts.kb")
+	savedFacts = startSession(family + [], [], ["/save-facts"], null, 0, null,
+		{"facts": factsPath})
+	written = readBack(factsPath)
+	file.delete(factsPath)
+	h.check("/save-facts writes the facts to their file", written.len == 2 and
+		written[0] == "parent-of(bill, tim)" and written[1] == "parent-of(tim, anna)")
+	h.check("and says how many it wrote",
+		holds(savedFacts.answers.lines, "  wrote 2 facts to " + factsPath))
+
+	// A name given at the prompt is used, with .kb added when it has no extension, and
+	// becomes the file the next save writes.
+	namedPath = scratch("named")
+	named = startSession(family + [], [], ["/save-facts " + namedPath], null, 0, null, {})
+	namedFile = namedPath + ".kb"
+	namedLines = readBack(namedFile)
+	file.delete(namedFile)
+	h.check("a name with no extension gets .kb", namedLines.len == 2)
+	h.check("and becomes the facts file the session saves to",
+		named.session.paths.facts == namedFile)
+
+	// Loading replaces what the session holds, and what was loaded is the base /undo can
+	// no longer reach past.
+	loadedPath = scratch("loaded-facts.kb")
+	writeFile(loadedPath, ["has-gender(walter, male)", "parent-of(walter, bill)"])
+	loaded = startSession([], [], ["/load-facts " + loadedPath, "/undo"], null, 0, null, {})
+	file.delete(loadedPath)
+	h.check("/load-facts replaces the facts with the file's", loaded.session.facts.len == 2 and
+		loaded.session.facts[1].text == "parent-of(walter, bill)")
+	h.check("the loaded facts are the base /undo cannot reach past",
+		printed(loaded.answers.lines, "  nothing to take back"))
+	h.check("and it says what it read", holds(loaded.answers.lines, "  loaded 2 facts from "))
+
+	// Rules are written as the data file spells them, with => between head and body.
+	uncle = "uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)"
+	unclePieces = t.parseRule(uncle)
+	rulePath = scratch("rules.kb")
+	savedRules = startSession(family + [], [rules.Rule.make(unclePieces.head, unclePieces.body)],
+		["/save-rules"], null, 0, null, {"rules": rulePath})
+	writtenRule = readBack(rulePath)
+	file.delete(rulePath)
+	h.check("/save-rules writes the rule as 'head => conditions'", writtenRule.len == 1 and
+		writtenRule[0] == "uncle-of(?x, ?y) => parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)")
+	h.check("and says how many rules it wrote",
+		holds(savedRules.answers.lines, "  wrote 1 rule to "))
+
+	// A loaded rule joins the search, which is the point of keeping the format writeable.
+	rulePath = scratch("loaded-rules.kb")
+	writeFile(rulePath, ["grandparent(?x, ?y) => parent-of(?x, ?p), parent-of(?p, ?y)"])
+	loadedRules = startSession(family + [], [],
+		["/load-rules " + rulePath, "grandparent(bill, ?who)"], null, 0, null, {})
+	file.delete(rulePath)
+	h.check("/load-rules replaces the rules with the file's", loadedRules.session.rules.len == 1 and
+		loadedRules.session.rules[0].text ==
+			"grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)")
+	h.check("and the loaded rule answers a question",
+		printed(loadedRules.answers.lines, "  grandparent(bill, anna)"))
+
+	// The schema is written and read the same way, and a loaded one is used at once.
+	schemaPath = scratch("schema.kb")
+	savedSchema = startSession([], [], ["/save-schema"], null, 0,
+		{"has-age": ["text", "number"]}, {"schema": schemaPath})
+	writtenSchema = readBack(schemaPath)
+	file.delete(schemaPath)
+	h.check("/save-schema writes one predicate per line", writtenSchema.len == 1 and
+		writtenSchema[0] == "has-age(text, number)")
+
+	schemaPath = scratch("loaded-schema.kb")
+	writeFile(schemaPath, ["has-age(text, number)"])
+	loadedSchema = startSession([], [],
+		["/load-schema " + schemaPath, "has-age(tim, twenty)"], null, 0, null, {})
+	file.delete(schemaPath)
+	h.check("/load-schema replaces the schema", loadedSchema.session.types.hasIndex("has-age") == 1)
+	h.check("and the loaded schema refuses a fact that misses it",
+		printed(loadedSchema.answers.lines,
+			"  refused: has-age(tim, twenty): the object should be a number"))
+
+	// What cannot be saved says why, and the session carries on.
+	noSchema = startSession([], [], ["/save-schema"], null, 0, null,
+		{"schema": scratch("empty.kb")})
+	h.check("a session with no schema has nothing to save",
+		printed(noSchema.answers.lines, "  no schema to save"))
+	unset = startSession([], [], ["/save-facts"], null, 0, null, {})
+	h.check("with no file set and none named, a save says how to name one",
+		printed(unset.answers.lines, "  no facts file to use: name one, as /save-facts FILE"))
+	missing = startSession([], [], ["/load-facts " + scratch("absent")], null, 0, null, {})
+	h.check("a missing file is reported and the session carries on",
+		holds(missing.answers.lines, "  could not read ") and missing.answers.asked.len == 2)
 end function

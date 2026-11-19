@@ -1,5 +1,4 @@
-// rules.ms — the rule loader: the rules are data now, in data/rules.kb at the repo
-// root.
+// rules.ms — the rule loader: the rules are data, in data/rules.kb by default.
 //
 // A rule is written there as 'head => body':
 //
@@ -19,9 +18,10 @@
 import "knowledge"
 import "rule"
 
-build = function(triples)
-	"Reads the rules data and returns its rules, built with the caller's triples, or an error."
-	pieces = knowledge.loadRules(triples, info(@build).sourceLoc, "../data/rules.kb")
+build = function(triples, path=null)
+	"Reads the rules file at path - data/rules.kb when none is named - and returns its rules, or an error."
+	if path == null then path = "../data/rules.kb"
+	pieces = knowledge.loadRules(triples, info(@build).sourceLoc, path)
 	if pieces isa error then return pieces
 	rules = []
 	for piece in pieces

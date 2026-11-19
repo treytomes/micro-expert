@@ -18,9 +18,10 @@
 
 import "knowledge"
 
-build = function()
-	"Reads the schema data and returns {predicate: [field type, field type]}, or an error."
-	return knowledge.loadSchema(info(@build).sourceLoc, "../data/schema.kb")
+build = function(path=null)
+	"Reads the schema file at path - data/schema.kb when none is named - and returns {predicate: [field type, field type]}, or an error."
+	if path == null then path = "../data/schema.kb"
+	return knowledge.loadSchema(info(@build).sourceLoc, path)
 end function
 
 misfit = function(types, triple)

@@ -36,6 +36,9 @@
 // ever reach is refused at the door; the solver never reads it, and a predicate it does
 // not name is accepted as written.
 //
+// The same file format is written back by the prompt's /save-* commands, through
+// factsLines, rulesLines and schemaLines, so a file a session saves is one it can load.
+//
 // Nothing here imports triples.ms. The parsers are handed the caller's copy, so the
 // terms they build are the ones the caller's solver recognizes, and they return the
 // pieces Rule.make takes, so they never need the Rule class either.
@@ -64,19 +67,29 @@ end function
 
 loadFacts = function(triples, source, relative)
 	"Reads the facts file at relative from the module at source and returns its triples, or an error."
-	lines = readData(source, relative)
+	return loadFactsAt(triples, resolvePath(relative, source))
+end function
+
+loadFactsAt = function(triples, path)
+	"Reads the facts file at path and returns its triples, or an error."
+	lines = readLines(path)
 	if lines isa error then return lines
 	facts = parseFacts(triples, lines)
-	if facts isa error then return err(file.name(relative) + " " + facts.message)
+	if facts isa error then return err(file.name(path) + " " + facts.message)
 	return facts
 end function
 
 loadSchema = function(source, relative)
 	"Reads the schema file at relative from the module at source and returns its field types, or an error."
-	lines = readData(source, relative)
+	return loadSchemaAt(resolvePath(relative, source))
+end function
+
+loadSchemaAt = function(path)
+	"Reads the schema file at path and returns its field types, or an error."
+	lines = readLines(path)
 	if lines isa error then return lines
 	types = parseSchema(lines)
-	if types isa error then return err(file.name(relative) + " " + types.message)
+	if types isa error then return err(file.name(path) + " " + types.message)
 	return types
 end function
 
@@ -145,18 +158,60 @@ end function
 
 loadRules = function(triples, source, relative)
 	"Reads the rules file at relative from the module at source and returns its {head, body} pieces, or an error."
-	lines = readData(source, relative)
+	return loadRulesAt(triples, resolvePath(relative, source))
+end function
+
+loadRulesAt = function(triples, path)
+	"Reads the rules file at path and returns its {head, body} pieces, or an error."
+	lines = readLines(path)
 	if lines isa error then return lines
 	pieces = parseRules(triples, lines)
-	if pieces isa error then return err(file.name(relative) + " " + pieces.message)
+	if pieces isa error then return err(file.name(path) + " " + pieces.message)
 	return pieces
 end function
 
-readData = function(source, relative)
-	"The lines of the data file at relative, or an error naming it and the path tried."
-	path = dataPath(source, relative)
+readLines = function(path)
+	"The lines of the data file at path, or an error naming it."
 	lines = file.readLines(path)
-	if lines isa error then return err(file.name(relative) + ": could not read " + path + ": " + lines.message)
+	if lines isa error then return err(file.name(path) + ": could not read " + path + ": " + lines.message)
+	return lines
+end function
+
+// ── Writing a data file ──────────────────────────────────────────────────────
+// The prompt's /save-* commands write what it holds through these, in the format this
+// module reads back: one fact per line, one rule per line as 'head => body', and one
+// predicate per line for the schema. A rule's body is written as the comma list
+// Rule.text prints, which is the implied and(...) the file may have spelled out.
+
+factsLines = function(facts)
+	"One line per fact, in the facts-file form."
+	lines = []
+	for fact in facts
+		lines.push(fact.text)
+	end for
+	return lines
+end function
+
+rulesLines = function(rules)
+	"One line per rule, in the rules-file form 'head => conditions'."
+	lines = []
+	for rule in rules
+		conditions = []
+		for condition in rule.body
+			conditions.push(condition.text)
+		end for
+		lines.push(rule.head.text + " => " + conditions.join(", "))
+	end for
+	return lines
+end function
+
+schemaLines = function(types)
+	"One line per predicate, in the schema-file form 'predicate(field type, field type)'."
+	lines = []
+	if types == null then return lines
+	for predicate in types.indexes
+		lines.push(predicate + "(" + types[predicate].join(", ") + ")")
+	end for
 	return lines
 end function
 
@@ -346,6 +401,25 @@ termOf = function(triples, text)
 end function
 
 // ── Finding a data file ──────────────────────────────────────────────────────
+
+resolvePath = function(relative, source=null)
+	"Where a data path is read or written: as given when it is there, else found from the module or the entry script."
+	if source == null then source = info(@resolvePath).sourceLoc
+	path = expandHome(relative)
+	if file.exists(path) then return path
+	return dataPath(source, path)
+end function
+
+expandHome = function(path)
+	"A path with a leading ~/ replaced by the user's home folder, when one is set."
+	if path.len < 2 then return path
+	if path[:2] != "~/" and path[:2] != "~\\" then return path
+	home = null
+	if env.hasIndex("HOME") then home = env["HOME"]
+	if home == null and env.hasIndex("USERPROFILE") then home = env["USERPROFILE"]
+	if home == null then return path
+	return file.child(home, path[2:])
+end function
 
 dataPath = function(source, relative)
 	"Finds a data file at relative, from the folder the module at source was loaded in."

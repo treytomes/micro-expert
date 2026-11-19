@@ -22,6 +22,7 @@ import "../src/triples"
 import "../src/rule"
 import "../src/repl"
 import "../src/knowledge"
+import "../src/domain"
 import "harness"
 import "display"
 import "proofs"
@@ -32,6 +33,7 @@ import "repl"
 import "knowledge"
 import "schema"
 import "loaders"
+import "domain"
 
 // shellArgs[0] is this script, so the options start at index 1.
 wanted = {"json": 0, "filters": [], "files": []}
@@ -72,6 +74,9 @@ prompt = globals["../src/repl"]
 // knowledge.ms is the parser behind the data files, aliased away for the same reason:
 // `knowledge` is this suite's own case module for it.
 parser = globals["../src/knowledge"]
+// domain.ms places the three data files a run reads; it is aliased away from the case
+// module below, which is named domain.ms too.
+domainModule = globals["../src/domain"]
 
 // rules.ms and facts.ms name their neighbours by bare import, which the interpreter
 // resolves against the entry folder, so src/ goes on the import path for these two
@@ -119,8 +124,9 @@ proofs.run(triples, rules, harness)
 absence.run(triples, rules, harness)
 recursion.run(triples, rules, harness)
 relations.run(triples, rules, harness)
-repl.run(triples, rules, prompt, harness, schemaLoader)
+repl.run(triples, rules, prompt, harness, schemaLoader, parser, domainModule)
 schema.run(triples, parser, schemaLoader, harness)
 loaders.run(triples, rulesLoader, factsLoader, schemaLoader, harness)
+globals["domain"].run(domainModule, harness)
 
 harness.summary()

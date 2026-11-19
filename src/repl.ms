@@ -1,8 +1,8 @@
 // repl.ms — a prompt that takes facts and rules, and asks for what is missing.
 //
 // The session starts from the arrays main.ms already builds and adds to them in
-// memory, so a fact or a rule typed at the prompt is searchable straight away and
-// nothing is written back to source:
+// memory, so a fact or a rule typed at the prompt is searchable straight away, and
+// nothing is written back to source unless a /save-* command asks:
 //
 //   import "repl"
 //   repl.run(session)
@@ -16,6 +16,7 @@
 //
 //   session = {"triples": triples, "Rule": Rule, "facts": facts, "rules": rules,
 //       "depth": 8, "verbose": 0, "style": style, "schema": schema, "types": types,
+//       "paths": paths, "knowledge": knowledge, "domain": domain,
 //       "io": {"read": reader, "say": writer}}
 //
 // schema is schema.ms, the module that knows the field-type format, and types is what it
@@ -24,6 +25,11 @@
 // the module is handed in rather than imported: a bare import resolves against the
 // entry script's folder, so this file would find a same-named module of the suite's
 // (or a host's) instead of the one beside it.
+//
+// paths is where each of the three data files came from, knowledge.ms is the parser and
+// writer for their format, and domain.ms places a file named at the prompt (and adds the
+// .kb a bare name leaves off), so /save-* and /load-* work on the domain the run started
+// with, or on a file named there.
 //
 // io is how a session talks, and the reason its checks need no terminal: read takes
 // the prompt and returns a line (null ends the session), say takes a finished line.
@@ -63,11 +69,18 @@ commandList = [
 	{"name": "/undo", "note": "take back the last fact added"},
 	{"name": "/facts", "note": "list the facts"},
 	{"name": "/rules", "note": "list the rules"},
+	{"name": "/save-facts", "note": "write the facts to their file, or to one named"},
+	{"name": "/load-facts", "note": "replace the facts with a file's"},
+	{"name": "/save-rules", "note": "write the rules to their file, or to one named"},
+	{"name": "/load-rules", "note": "replace the rules with a file's"},
+	{"name": "/save-schema", "note": "write the schema to its file, or to one named"},
+	{"name": "/load-schema", "note": "replace the schema with a file's"},
 ]
 
 runCommand = function(session, line)
 	"Runs one slash command, answering whether the session should end."
 	name = line.split(" ")[0].lower
+	argument = session.triples.trimSpace(line[name.len:])
 	if name == "/exit" then return true
 	if name == "/help" then
 		for command in commandList
@@ -87,6 +100,16 @@ runCommand = function(session, line)
 		listRules(session)
 		return false
 	end if
+	for part in ["facts", "rules", "schema"]
+		if name == "/save-" + part then
+			savePart(session, part, argument)
+			return false
+		end if
+		if name == "/load-" + part then
+			loadPart(session, part, argument)
+			return false
+		end if
+	end for
 	say(session, "warning", "  no such command: " + name + " (/help lists them)")
 	return false
 end function
@@ -122,6 +145,133 @@ listRules = function(session)
 	for candidate in session.rules
 		session.io.say("    " + session.triples.paint(session.style, "rule", candidate.text))
 	end for
+end function
+
+// ── Saving and loading a component ───────────────────────────────────────────
+// The session holds the domain it started with in memory; these commands write one
+// component back to the file it came from, or to a file named, and read one back in its
+// place. A name without an extension gets .kb, so /save-facts family writes family.kb.
+
+hasFiles = function(session)
+	"Says whether the session was handed the modules a save or load needs."
+	if not session.hasIndex("knowledge") or session.knowledge == null then return false
+	if not session.hasIndex("domain") or session.domain == null then return false
+	return true
+end function
+
+countOf = function(session, part)
+	"How many items of this component the session holds."
+	if part == "facts" then return session.facts.len
+	if part == "rules" then return session.rules.len
+	return session.types.len
+end function
+
+countName = function(part, count)
+	"Names what this component holds, in the plural the count needs."
+	if part == "facts" then return countText(count, "fact")
+	if part == "rules" then return countText(count, "rule")
+	return countText(count, "predicate")
+end function
+
+componentLines = function(session, part)
+	"One data-file line per item the session holds of this component."
+	if part == "facts" then return session.knowledge.factsLines(session.facts)
+	if part == "rules" then return session.knowledge.rulesLines(session.rules)
+	return session.knowledge.schemaLines(session.types)
+end function
+
+targetPath = function(session, part, argument, command)
+	"Where a save or load goes: the file named, or the one this component came from."
+	if argument != "" then return session.domain.withExtension(argument)
+	path = null
+	if session.hasIndex("paths") and session.paths.hasIndex(part) then path = session.paths[part]
+	if path == null or path == "" then
+		say(session, "warning", "  no " + part + " file to use: name one, as " + command + " FILE")
+		return null
+	end if
+	return path
+end function
+
+rememberPath = function(session, part, path)
+	"Keeps the file a component now belongs to, so the next save or load defaults to it."
+	if not session.hasIndex("paths") or session.paths == null then session.paths = {}
+	session.paths[part] = path
+end function
+
+writeLines = function(path, lines)
+	"Replaces the file at path with these lines, or returns an error."
+	handle = file.open(path, "w")
+	if handle isa error then return handle
+	for line in lines
+		handle.writeLine(line)
+	end for
+	handle.close
+	return null
+end function
+
+readComponent = function(session, part, path)
+	"Parses one data file into the shape the session holds that component in."
+	if part == "facts" then return session.knowledge.loadFactsAt(session.triples, path)
+	if part == "rules" then
+		pieces = session.knowledge.loadRulesAt(session.triples, path)
+		if pieces isa error then return pieces
+		loaded = []
+		for piece in pieces
+			loaded.push(session.Rule.make(piece.head, piece.body))
+		end for
+		return loaded
+	end if
+	return session.knowledge.loadSchemaAt(path)
+end function
+
+savePart = function(session, part, argument)
+	"Writes one component to its file, or to the file named."
+	if not hasFiles(session) then
+		say(session, "warning", "  this session has no data files")
+		return
+	end if
+	if part == "schema" and session.types == null then
+		say(session, "warning", "  no schema to save")
+		return
+	end if
+	path = targetPath(session, part, argument, "/save-" + part)
+	if path == null then return
+	path = session.knowledge.resolvePath(path)
+	problem = writeLines(path, componentLines(session, part))
+	if problem isa error then
+		say(session, "warning", "  could not write " + path + ": " + problem.message)
+		return
+	end if
+	rememberPath(session, part, path)
+	say(session, "added", "  wrote " + countName(part, countOf(session, part)) + " to " + path)
+end function
+
+loadPart = function(session, part, argument)
+	"Replaces one component with the contents of its file, or of the file named."
+	if not hasFiles(session) then
+		say(session, "warning", "  this session has no data files")
+		return
+	end if
+	path = targetPath(session, part, argument, "/load-" + part)
+	if path == null then return
+	path = session.knowledge.resolvePath(path)
+	loaded = readComponent(session, part, path)
+	if loaded isa error then
+		say(session, "warning", "  could not read " + path + ": " + loaded.message)
+		return
+	end if
+	if part == "facts" then
+		session.facts = loaded
+		// What was loaded is the knowledge base now, so /undo no longer reaches back
+		// past it.
+		session.baseFacts = session.facts.len
+	else if part == "rules" then
+		session.rules = loaded
+	else
+		session.types = loaded
+	end if
+	rememberPath(session, part, path)
+	say(session, "added", "  loaded " + countName(part, countOf(session, part)) + " from " + path)
 end function
 
 // ── The session loop ─────────────────────────────────────────────────────────

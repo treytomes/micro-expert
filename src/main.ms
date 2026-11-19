@@ -12,6 +12,8 @@ import "logging/logging"
 import "vt"
 import "repl"
 import "rule"
+import "domain"
+import "knowledge"
 
 // src/cli and src/logging are submodules, so their modules live at <folder>/<file>:
 // import names the resulting map after the path it was given, so each is aliased back
@@ -48,6 +50,30 @@ cli.add(cmd, {
 	"type": "flag",
 	"default": 0,
 	"description": "Print extra progress detail.",
+})
+cli.add(cmd, {
+	"name": "domain",
+	"aliases": ["--domain"],
+	"type": "string",
+	"description": "Folder holding facts.kb, rules.kb and schema.kb (default: data).",
+})
+cli.add(cmd, {
+	"name": "facts",
+	"aliases": ["--facts"],
+	"type": "string",
+	"description": "Facts file, in place of the domain's facts.kb.",
+})
+cli.add(cmd, {
+	"name": "rules",
+	"aliases": ["--rules"],
+	"type": "string",
+	"description": "Rules file, in place of the domain's rules.kb.",
+})
+cli.add(cmd, {
+	"name": "schema",
+	"aliases": ["--schema"],
+	"type": "string",
+	"description": "Schema file, in place of the domain's schema.kb.",
 })
 cli.add(cmd, {
 	"name": "log-level",
@@ -141,10 +167,19 @@ reportStyle = function
 	}
 end function
 
+// ── The domain ───────────────────────────────────────────────────────────────
+
+// A domain is its schema, its rules and its facts. --domain names the folder holding the
+// three files, and --facts, --rules and --schema each name one file in place of the
+// folder's piece; with nothing given the folder is data/. domain.ms answers with the
+// three paths, and the session keeps them so /save-* can write each component back.
+
+domainPaths = globals["domain"].pathsFor(options.values)
+
 // ── Facts and rules ──────────────────────────────────────────────────────────
 
-// The family tree lives in data/facts.kb and the reasoning in data/rules.kb, loaded by
-// facts.ms and rules.ms. Both build their arrays on request instead of at load time,
+// The family tree lives in the domain's facts file and the reasoning in its rules file,
+// loaded by facts.ms and rules.ms. Both build their arrays on request instead of at load time,
 // because the triples have to come from this file's copy of triples.ms: a module that
 // imports it gets a copy of its own, and the solver does not recognize another copy's
 // classes. So both are handed this file's copy.
@@ -153,12 +188,12 @@ import "facts"
 import "rules"
 
 // The arrays themselves, not the module maps that hold them.
-facts = globals["facts"].build(triples)
+facts = globals["facts"].build(triples, domainPaths.facts)
 if facts isa error then
 	print "error: " + facts.message
 	finish 1
 end if
-rules = globals["rules"].build(triples)
+rules = globals["rules"].build(triples, domainPaths.rules)
 if rules isa error then
 	print "error: " + rules.message
 	finish 1
@@ -169,7 +204,7 @@ end if
 // written down or asked, so a value no rule could ever reach is refused instead of
 // stored, and a question about one is refused instead of searched.
 import "schema"
-types = globals["schema"].build()
+types = globals["schema"].build(domainPaths.schema)
 if types isa error then
 	print "error: " + types.message
 	finish 1
@@ -210,6 +245,9 @@ replSession = function()
 		"style": reportStyle(),
 		"schema": globals["schema"],
 		"types": types,
+		"paths": domainPaths,
+		"knowledge": globals["knowledge"],
+		"domain": globals["domain"],
 		"io": {
 			"read": function(question)
 				return input(question)

@@ -17,7 +17,7 @@ A little expert system for MiniScript 2: 54 facts about one imaginary family, th
 
 Abridged: five more answers follow - mark, clara, jack, nina and oliver - each with a tree of that shape. The tree is three levels deep, `uncle-of` via `sibling-of` via the parent facts, and the sibling step shows up twice under one answer because Bill and George share both parents, so both license the same conclusion. Every leaf is a fact, every branch names the rule it used, and there is nothing in there you have to take on trust.
 
-No weights, no API key, no network. About 1,950 lines of MiniScript across seven modules, 1,175 of them the engine itself, and nothing needs retraining to change.
+No weights, no API key, no network. About 2,100 lines of MiniScript across eight modules, 1,175 of them the engine itself, and nothing needs retraining to change.
 
 ---
 
@@ -54,7 +54,7 @@ The last row is the honest one. This program cannot read *"who are Bill's nephew
 What a rules engine buys you, concretely, in an era of cheap text generation:
 
 - **Auditability.** Every claim has a proof you can print. There is no "the model said so" step to defend to a reviewer, an auditor, or yourself in six months.
-- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 341 assertions and they either pass or they don't.
+- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 388 assertions and they either pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility, scheduling constraints, device diagnostics, family relationships — questions where the rule is the requirement and being consistently right matters more than being fluent.
 - **Knowledge as a reviewed artifact.** Adding a rule is a five-line pull request with a test. There is no training run, and nothing else silently changes.
 - **No data leaving the machine.** The facts are the data, and they are text files.
@@ -170,7 +170,7 @@ facts = globals["facts"].build(triples)
 rules = globals["rules"].build(triples)
 ```
 
-Nothing else is needed to add a domain. Rewrite those three data files, keep the shape, and the engine answers questions about invoices or network devices instead of aunts.
+Nothing else is needed to add a domain. Rewrite those three data files, keep the shape, and point `--domain` at the folder that holds them - or leave them in `data/` - and the engine answers questions about invoices or network devices instead of aunts.
 
 ### Adding a rule
 
@@ -219,6 +219,10 @@ Type a fact, a question, or a rule as 'head <- conditions'. /help lists the comm
 | --- | --- |
 | `--depth <NUM>` | Maximum backward-chaining depth, default `8`; `0` is facts only |
 | `--verbose` | Print the proof tree behind each answer |
+| `--domain <DIR>` | Folder holding `facts.kb`, `rules.kb` and `schema.kb`, default `data` |
+| `--facts <FILE>` | Facts file, in place of the domain's `facts.kb` |
+| `--rules <FILE>` | Rules file, in place of the domain's `rules.kb` |
+| `--schema <FILE>` | Schema file, in place of the domain's `schema.kb` |
 | `--log-level <TEXT>` | `debug`, `information`, `warning`, `error`, `fatal`; default `information` |
 | `--help`, `-h` | Usage, generated from the same option declarations the parser uses |
 | `--version`, `-v` | Version line |
@@ -234,7 +238,7 @@ Type a fact, a question, or a rule as 'head <- conditions'. /help lists the comm
 
 **Change the question** by typing another one at the prompt: `grandma-of(?x, ?y)` asks for every grandmother/grandchild pair (seven of them), and `grandpa-of(?who, tim)` asks for Tim's grandfather, the predicate reading "?who is the grandpa of tim", so the variable goes in the subject.
 
-**Type a fact or a rule** at the same prompt and it joins the search. One line has one meaning: a ground line adds a fact, a line with a variable asks a question, a line with `<-` adds a rule, and a line starting with `/` is a command for the session (`/help`, `/facts`, `/rules`, `/undo`, `/exit`).
+**Type a fact or a rule** at the same prompt and it joins the search. One line has one meaning: a ground line adds a fact, a line with a variable asks a question, a line with `<-` adds a rule, and a line starting with `/` is a command for the session (`/help`, `/facts`, `/rules`, `/undo`, `/exit`, and the six `/save-*` and `/load-*` commands that write a component back where it came from or read one in its place).
 
 ```plaintext
 > micro-expert
@@ -253,7 +257,7 @@ Type a fact, a question, or a rule as 'head <- conditions'. /help lists the comm
   grandparent(doris, tim)
 ```
 
-A question with no answer reads the report above, asks for the fact that would let a rule reach one, adds it, and asks again - the loop the report was written for. It asks for a rule's fact before the query's own shape, since asserting the answer proves nothing; it shows the fact it is filling, with the values given so far in it, and the report above reads the same way; and it asks one variable at a time, so a missing `parent-of(?p, ?q)` takes two answers. A rule's fact is filled in by the variables it brings itself, so `parent-of(?p', ?p)` asks for `?p'` and not again for `?p`, which the question already named; a fact that is still incomplete once its own variables are filled is shown with what is left over and not added, rather than the answer being written in as though it had been found, and the answers given are carried to the rest of that rule's facts, so a value is never asked for twice; a fact the session can already prove needs nothing added, so it drops out of the report too. A whole fact typed where a value is asked for is a fact too, so the answer can still be asserted by fiat when that is what you want: the session adds it and asks again from there, while a line that parses as a fact but still holds a variable is refused rather than stored as a value. A fact with no variable left is offered with `add it? [y/N]` rather than assumed, and a value left empty stops the asking and leaves the report standing. A fact and a question are both held to `data/schema.kb`: a question that names a value no fact could store is refused before the search, and an answer that completes a refused fact stops the question instead of being asked for again. `/undo` takes back the last fact the session added - at the prompt or in the middle of a question, which asks it again - so a wrong value does not stick for the rest of the run. Nothing is written back: the session adds to the arrays `main.ms` built, so what it learns lasts for the run.
+A question with no answer reads the report above, asks for the fact that would let a rule reach one, adds it, and asks again - the loop the report was written for. It asks for a rule's fact before the query's own shape, since asserting the answer proves nothing; it shows the fact it is filling, with the values given so far in it, and the report above reads the same way; and it asks one variable at a time, so a missing `parent-of(?p, ?q)` takes two answers. A rule's fact is filled in by the variables it brings itself, so `parent-of(?p', ?p)` asks for `?p'` and not again for `?p`, which the question already named; a fact that is still incomplete once its own variables are filled is shown with what is left over and not added, rather than the answer being written in as though it had been found, and the answers given are carried to the rest of that rule's facts, so a value is never asked for twice; a fact the session can already prove needs nothing added, so it drops out of the report too. A whole fact typed where a value is asked for is a fact too, so the answer can still be asserted by fiat when that is what you want: the session adds it and asks again from there, while a line that parses as a fact but still holds a variable is refused rather than stored as a value. A fact with no variable left is offered with `add it? [y/N]` rather than assumed, and a value left empty stops the asking and leaves the report standing. A fact and a question are both held to `data/schema.kb`: a question that names a value no fact could store is refused before the search, and an answer that completes a refused fact stops the question instead of being asked for again. `/undo` takes back the last fact the session added - at the prompt or in the middle of a question, which asks it again - so a wrong value does not stick for the rest of the run. Nothing is written back until you ask: the session adds to the arrays `main.ms` built, and `/save-*` is what puts a component back on disk.
 
 Adding `--verbose` prints the proof tree behind each answer here too, exactly as in the example above.
 
@@ -265,12 +269,12 @@ The session paints from the same style table as the report, so `NO_COLOR` turns 
 
 ```plaintext
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-341 passed, 0 failed
+388 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it for the session or paste the path in its place.
 
-The 341 checks are split by area: display and parsing (22), the knowledge data format (58), the predicate schema (25), the loaders (12), proofs and explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (78), and the session at the prompt (78). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
+The 388 checks are split by area: display and parsing (22), the knowledge data format (68), the predicate schema (25), the loaders (16), proofs and explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (78), the session at the prompt (96), and the domain (15). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
 
 ## Where an LLM fits
 

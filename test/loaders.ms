@@ -129,4 +129,51 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 	for problem in mismatched
 		print "      " + problem
 	end for
+
+	// ── A file named instead of the shipped one ─────────────────────────────
+	// --facts, --rules and --schema hand each loader a path, so a loader given one has to
+	// read that file rather than the data folder's. The schema is the exception: it has no
+	// default to fall back to, and its build takes the path as its only argument.
+
+	temp = "."
+	if env.hasIndex("TEMP") then temp = env["TEMP"]
+	if env.hasIndex("TMP") then temp = env["TMP"]
+	scratch = function(name)
+		"Where a case's file goes: the temp folder, under a name only this suite uses."
+		return file.child(temp, "micro-expert-loader-" + name)
+	end function
+	writeFile = function(path, lines)
+		handle = file.open(path, "w")
+		if handle isa error then return handle
+		for line in lines
+			handle.writeLine(line)
+		end for
+		handle.close
+		return null
+	end function
+
+	factsPath = scratch("facts.kb")
+	writeFile(factsPath, ["has-gender(walter, male)", "has-age(walter, 78)"])
+	namedFacts = factsLoader.build(t, factsPath)
+	file.delete(factsPath)
+	h.check("a loader reads the facts file it is named", not (namedFacts isa error) and
+		namedFacts.len == 2 and namedFacts[1].object == 78)
+	missingFacts = factsLoader.build(t, scratch("absent.kb"))
+	h.check("a missing facts file is an error naming it",
+		missingFacts isa error and missingFacts.message.indexOf("could not read") != null)
+
+	rulesPath = scratch("rules.kb")
+	writeFile(rulesPath, ["grandparent(?x, ?y) => parent-of(?x, ?p), parent-of(?p, ?y)"])
+	namedRules = rulesLoader.build(t, rulesPath)
+	file.delete(rulesPath)
+	h.check("a loader reads the rules file it is named", not (namedRules isa error) and
+		namedRules.len == 1 and
+		namedRules[0].text == "grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)")
+
+	schemaPath = scratch("schema.kb")
+	writeFile(schemaPath, ["has-age(text, number)"])
+	namedSchema = schemaLoader.build(schemaPath)
+	file.delete(schemaPath)
+	h.check("a loader reads the schema file it is named", not (namedSchema isa error) and
+		namedSchema.hasIndex("has-age") == 1)
 end function

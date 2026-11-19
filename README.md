@@ -108,6 +108,10 @@ Verbose run: depth 8
 | --- | --- |
 | `--depth <NUM>` | Maximum backward-chaining depth, default `8`; `0` is facts only |
 | `--verbose` | Print the proof tree behind each answer |
+| `--domain <DIR>` | Folder holding `facts.kb`, `rules.kb` and `schema.kb`, default `data` |
+| `--facts <FILE>` | Facts file, in place of the domain's `facts.kb` |
+| `--rules <FILE>` | Rules file, in place of the domain's `rules.kb` |
+| `--schema <FILE>` | Schema file, in place of the domain's `schema.kb` |
 | `--log-level <TEXT>` | `debug`, `information`, `warning`, `error`, `fatal`; default `information` |
 | `--help`, `-h` | Usage, generated from the same option declarations the parser uses |
 | `--version`, `-v` | Version line |
@@ -240,9 +244,9 @@ there rather than being asked for again.
 A fact that needs no variable at all is offered with `add it? [y/N]` rather than assumed, and
 a value left empty stops the asking with the report standing. `/undo` takes back the last
 fact the session added - at the prompt, or in the middle of a question, which puts the
-question again - so a wrong value does not stick for the rest of the run. Nothing is written back: the
-session adds to the arrays `src/main.ms` built, so what it learns lasts for the run and the
-files stay as they were. A rule is read from the line `Rule.text` prints, and a line that
+question again - so a wrong value does not stick for the rest of the run. Nothing is written back by
+itself: the session adds to the arrays `src/main.ms` built, and `/save-*` is what puts a
+component back on disk when you ask it to. A rule is read from the line `Rule.text` prints, and a line that
 will not parse is refused with itself quoted. `--depth` bounds the session's search the way
 it bounds a run, and `--verbose` prints the proof tree behind each answer here too.
 
@@ -253,6 +257,12 @@ it bounds a run, and `--verbose` prints the proof tree behind each answer here t
 | `/undo` | Take back the last fact the session added |
 | `/facts` | List the facts the session holds |
 | `/rules` | List the rules the session holds |
+| `/save-facts [FILE]` | Write the facts to their file, or to the file named |
+| `/load-facts [FILE]` | Replace the facts with a file's |
+| `/save-rules [FILE]` | Write the rules to their file, or to the file named |
+| `/load-rules [FILE]` | Replace the rules with a file's |
+| `/save-schema [FILE]` | Write the schema to its file, or to the file named |
+| `/load-schema [FILE]` | Replace the schema with a file's |
 
 The session paints from the same style table as the report - a bold prompt, olive additions,
 green answers - so `NO_COLOR` turns the whole run plain, prompt included.
@@ -261,8 +271,9 @@ green answers - so `NO_COLOR` turns the whole run plain, prompt included.
 
 The family is only data. `data/facts.kb` holds the facts, `data/rules.kb` the rules, and
 `data/schema.kb` the type of each predicate's fields, and nothing else in the repo knows
-what a family is, so a new domain means rewriting those three data files and changing the
-query.
+what a family is. Those three files are a domain: rewrite them, in `data/` or in a folder
+of their own, and the engine answers questions about invoices or network devices instead
+of aunts.
 
 Both are loaded through a `build` function instead of a top-level array, and `src/main.ms`
 hands its copy of the solver in:
@@ -280,6 +291,20 @@ That is not ceremony. A module that imports `triples.ms` gets its own copy of it
 and `isa` checks only agree inside one copy, so a loader that imported `triples.ms`
 directly would build triples the solver does not recognize. The data sidestep it another
 way: both files are text, and `src/knowledge.ms` parses them with the copy it is handed.
+
+A domain folder holds the three files by those names, and `--domain` reads them from
+there. One component can be replaced with `--facts`, `--rules` or `--schema`, which wins
+over the folder's file of that name while the folder supplies the other two:
+
+```
+> micro-expert --domain domains/invoices
+> micro-expert --domain domains/invoices --facts ~/draft-facts.kb
+```
+
+With no option the folder is `data/`. At the prompt, `/save-facts`, `/save-rules` and
+`/save-schema` write a component back to the file it came from, or to a file named, and
+`/load-facts`, `/load-rules` and `/load-schema` read one back in its place; a bare name
+gets `.kb`.
 
 A fact is one triple per line, `predicate(subject, object)`:
 
@@ -345,7 +370,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-341 passed, 0 failed
+388 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -361,8 +386,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"repl.ms","line":30}
 
-1 passed, 0 failed, 340 skipped
-##END {"passed":1,"failed":0,"skipped":340}
+1 passed, 0 failed, 387 skipped
+##END {"passed":1,"failed":0,"skipped":387}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -372,10 +397,10 @@ the suite reached the end. The VS Code extension's Testing panel passes exactly 
 arguments, so its tree and its runs come from the suite rather than from a list kept
 beside it.
 
-The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 341 here cover the program itself: display and parsing (22), the
-knowledge data format (58), the predicate schema (25), the loaders (12), proofs and
+The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 388 here cover the program itself: display and parsing (22), the
+knowledge data format (68), the predicate schema (25), the loaders (16), proofs and
 explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations
-including the family rules (78), and the session at the prompt (78).
+including the family rules (78), the session at the prompt (96), and the domain (15).
 
 ## Repository layout
 
@@ -387,12 +412,13 @@ src/knowledge.ms     the parser for the facts, rules and schema data
 src/facts.ms         loads the facts
 src/rules.ms         loads the rules
 src/schema.ms        loads the field types
+src/domain.ms        places a domain's facts, rules and schema
 data/facts.kb        the 54 facts, as text
 data/rules.kb        the thirteen rules, as text
 data/schema.kb       the field types, as text
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 341 checks and their runner
+test/                the 388 checks and their runner
 docs/articles/       the long-form write-up
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env
