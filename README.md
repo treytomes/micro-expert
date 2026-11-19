@@ -31,19 +31,20 @@ or run `bootstrap` afterwards:
 ```
 > git clone --recurse-submodules https://github.com/treytomes/micro-expert.git
 > cd micro-expert
-> bootstrap
-> micro-expert
+> bootstrap        (bootstrap.sh on Linux)
+> micro-expert     (micro-expert.sh on Linux)
 ```
 
-`bootstrap.bat` is safe to re-run, and it:
+`bootstrap.bat`, and `bootstrap.sh` for Linux, are safe to re-run, and both:
 
-- checks out the four submodules: the agent skill at `.agents/skills/miniscript-2`, the
+- check out the four submodules: the agent skill at `.agents/skills/miniscript-2`, the
   VS Code extension at `vscode-miniscript`, and the parser and logger at `src/cli` and
   `src/logging`
-- downloads `miniscript-win.zip` from the
-  [MiniScript 2 releases page](https://github.com/JoeStrout/miniscript2/releases) into
-  `3rd-party/`, unpacks it there, and removes the archive
-- writes `.env` beside the runner if there is none, and leaves an existing one alone
+- download the build for the platform - `miniscript-win.zip` or
+  `miniscript-linux.tar.gz`, from the
+  [MiniScript 2 releases page](https://github.com/JoeStrout/miniscript2/releases) - into
+  `3rd-party/`, unpack it there, and remove the archive
+- write `.env` beside the runner if there is none, and leave an existing one alone
 
 By hand, the same two steps: `git submodule update --init`, then put the absolute path to
 your interpreter in a `.env`:
@@ -53,8 +54,16 @@ MINISCRIPT_EXE_PATH=C:\path\to\miniscript.exe
 ENTRY_POINT=./src/main.ms
 ```
 
-`micro-expert.bat` reads that file, forwards every argument to the entry point, and passes
-the script's exit code back.
+The interpreter `bootstrap.sh` unpacks on Linux has no extension, so there the second line
+reads:
+
+```
+MINISCRIPT_EXE_PATH=/path/to/micro-expert/3rd-party/miniscript-linux/miniscript
+ENTRY_POINT=./src/main.ms
+```
+
+`micro-expert.bat` and `micro-expert.sh` read that file, forward every argument to the
+entry point, and pass the script's exit code back.
 
 ## Running a proof
 
@@ -297,8 +306,8 @@ there is no checked-in binary to fall back on.
 174 passed, 0 failed
 ```
 
-`micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it
-for the session or paste the path in its place. One caveat worth knowing: in this
+`micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
+does not, so `set` it for the session or paste the path in its place. One caveat worth knowing: in this
 interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is
 the real signal, not the exit code.
 
@@ -339,7 +348,11 @@ src/logging/         submodule: micro-logging, the logger
 test/                the 174 checks and their runner
 docs/                the long-form write-up
 bootstrap.bat        submodules, interpreter, .env
+bootstrap.sh         the same for Linux
 micro-expert.bat     runs the entry point named in .env
+micro-expert.sh      the same for Linux
+build-ext.bat        builds the VS Code extension into a .vsix
+build-ext.sh         the same for Linux
 ```
 
 The other two submodules are tooling rather than program code: `vscode-miniscript` is the
