@@ -253,12 +253,12 @@ green answers - so `NO_COLOR` turns the whole run plain, prompt included.
 
 ## Setting up your own facts and rules
 
-The family is only data. `src/facts.ms` and `src/rules.ms` are the knowledge base, and
-nothing else in the repo knows what a family is, so a new domain means rewriting those two
-files and changing the query.
+The family is only data. `src/facts.data` holds the facts and `src/rules.data` the rules,
+and nothing else in the repo knows what a family is, so a new domain means rewriting those
+two data files and changing the query.
 
-Both files expose a `build` function instead of a top-level array, and `src/main.ms` hands
-its copy of the solver in:
+Both are loaded through a `build` function instead of a top-level array, and `src/main.ms`
+hands its copy of the solver in:
 
 ```miniscript
 import "facts"
@@ -270,30 +270,41 @@ rules = globals["rules"].build(triples)
 ```
 
 That is not ceremony. A module that imports `triples.ms` gets its own copy of its classes,
-and `isa` checks only agree inside one copy, so a facts file that imported `triples.ms`
-directly would build triples the solver does not recognise.
+and `isa` checks only agree inside one copy, so a loader that imported `triples.ms`
+directly would build triples the solver does not recognise. The data sidestep it another
+way: both files are text, and `src/knowledge.ms` parses them with the copy it is handed.
 
-A fact is one triple, written with the local `fact(subject, predicate, object)` shorthand:
+A fact is one triple per line, `predicate(subject, object)`:
 
-```miniscript
-fact("walter", "parent-of", "bill"),
-fact("bill", "has-gender", "male"),
+```prolog
+parent-of(walter, bill)
+has-gender(bill, male)
+has-age(bill, 54)
 ```
 
-A rule is a head - the one triple it can prove - and a body of conditions that must all
-hold first. Three steps to add one:
+A rule is one line of `src/rules.data`: a head - the one triple it can prove - and a body
+of conditions that must all hold first. The body is a comma-delimited list, which is an
+implied `and`, or `and(...)` around the same list:
 
-1. Write it in `src/rules.ms` with the local `rule(head, body)` helper, and put the Lisp
-   form in the comment above it.
-2. Add it to the array `build` returns.
-3. Add a check to `test/relations.ms` that asserts both a positive and a negative case.
+```prolog
+uncle-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male))
+uncle-of(?x, ?y) => parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
+```
 
-```miniscript
-// (<- (grandchild-of ?x ?y) (parent-of ?p ?x) (parent-of ?y ?p)): ?y is a grandparent
-// of ?x when ?y is a parent of ?x's parent.
-grandchildOf = rule(
-	fact(var("x"), "grandchild-of", var("y")),
-	[fact(var("p"), "parent-of", var("x")), fact(var("y"), "parent-of", var("p"))])
+A condition is a fact or a constraint such as `?x != ?y`. `and(...)` nests, an entry may
+run over several lines inside its parentheses, and `or(...)` and `not(...)` are refused by
+name until the engine can use them - the format is shaped to grow. Facts and rules share
+the parser, so a fact may be added to `facts.data` the same way a rule is added below.
+
+To add a rule:
+
+1. Add its line to `src/rules.data`.
+2. Add a check to `test/relations.ms` that asserts both a positive and a negative case.
+
+For example, grandparenthood from the child's side:
+
+```prolog
+grandchild-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?y, ?p))
 ```
 
 ## Running the tests
@@ -303,7 +314,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-176 passed, 0 failed
+215 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -319,8 +330,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"repl.ms","line":30}
 
-1 passed, 0 failed, 175 skipped
-##END {"passed":1,"failed":0,"skipped":175}
+1 passed, 0 failed, 214 skipped
+##END {"passed":1,"failed":0,"skipped":214}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -331,9 +342,10 @@ arguments, so its tree and its runs come from the suite rather than from a list 
 beside it.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 176 here cover the program itself: display and parsing (12),
-proofs and explanations (21), the missing-fact report (24), recursion and cycle handling
-(13), relations including the family rules (46), and the session at the prompt (60).
+56 respectively), and the 215 here cover the program itself: display and parsing (12), the
+knowledge data format (31), the loaders (8), proofs and explanations (21), the missing-fact
+report (24), recursion and cycle handling (13), relations including the family rules (46),
+and the session at the prompt (60).
 
 ## Repository layout
 
@@ -341,11 +353,14 @@ proofs and explanations (21), the missing-fact report (24), recursion and cycle 
 src/main.ms          options, logging, and the query at the bottom
 src/triples.ms       the solver: terms, unification, search, proofs
 src/rule.ms          the Rule class
-src/facts.ms         the 54 facts
-src/rules.ms         the nine rules
+src/knowledge.ms     the parser for the facts and rules data
+src/facts.data       the 54 facts, as text
+src/facts.ms         loads facts.data
+src/rules.data       the nine rules, as text
+src/rules.ms         loads rules.data
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 176 checks and their runner
+test/                the 215 checks and their runner
 docs/                the long-form write-up
 bootstrap.bat        submodules, interpreter, .env
 bootstrap.sh         the same for Linux

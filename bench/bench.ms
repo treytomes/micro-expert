@@ -21,7 +21,15 @@ import "facts"
 import "rules"
 
 facts = globals["facts"].build(triples)
+if facts isa error then
+	print "error: " + facts.message
+	exit 1
+end if
 rules = globals["rules"].build(triples)
+if rules isa error then
+	print "error: " + rules.message
+	exit 1
+end if
 
 benchDepth = 8
 benchRuns = 6

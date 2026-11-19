@@ -54,7 +54,7 @@ The last row is the honest one. This program cannot read *"who are Bill's nephew
 What a rules engine buys you, concretely, in an era of cheap text generation:
 
 - **Auditability.** Every claim has a proof you can print. There is no "the model said so" step to defend to a reviewer, an auditor, or yourself in six months.
-- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 176 assertions and they either pass or they don't.
+- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 215 assertions and they either pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility, scheduling constraints, device diagnostics, family relationships — questions where the rule is the requirement and being consistently right matters more than being fluent.
 - **Knowledge as a reviewed artifact.** Adding a rule is a five-line pull request with a test. There is no training run, and nothing else silently changes.
 - **No data leaving the machine.** The facts are the data, and they are text files.
@@ -80,29 +80,19 @@ parent-of(walter, bill)
 
 A triple may hold **variables** in any position, written `?x`. `parent-of(?p, ?x)` is the pattern "someone is the parent of ?x". The parser accepts that call form and the old pipe form (`walter | parent-of | bill`), and rejects malformed calls rather than guessing.
 
-- A **fact** is a triple with no variables. Facts are the leaves of every answer: `54` of them live in `src/facts.ms`.
-- A **rule** has a head — one triple it can prove — and a body: the conditions that must all hold first. Rules live in `src/rules.ms`, print as `head <- conditions`, and are written in the same Lisp-ish shape as the comment above them:
+- A **fact** is a triple with no variables. Facts are the leaves of every answer: `54` of them live in `src/facts.data`, one `predicate(subject, object)` line each.
+- A **rule** has a head — one triple it can prove — and a body: the conditions that must all hold first. Rules are data, one per line in `src/rules.data`, and print as `head <- conditions`:
 
-```miniscript
-// (<- (uncle-of ?x ?y) (parent-of ?p ?y) (sibling-of ?x ?p) (has-gender ?x male)):
-// ?x is an uncle of ?y when ?x is a male sibling of one of ?y's parents.
-uncleOf = rule(
-	fact(var("x"), "uncle-of", var("y")),
-	[fact(var("p"), "parent-of", var("y")), fact(var("x"), "sibling-of", var("p")),
-		fact(var("x"), "has-gender", "male")])
+```prolog
+uncle-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male))
 ```
+
+The arrow reads "proves". The body is a comma-delimited list of conditions — an implied `and` — so `and(...)` is optional there; it nests, which is where `or(...)` will go when the engine grows one. `src/knowledge.ms` parses the format and `src/rules.ms` loads it.
 
 A body item does not have to be a triple. It can be a **constraint**, checked against the bindings rather than proved by search — here is the sibling rule, which must exclude a person paired with themselves:
 
-```miniscript
-// (<- (sibling-of ?x ?y) (parent-of ?p ?x) (parent-of ?p ?y) (?x != ?y))
-siblingOf = rule(
-	fact(var("x"), "sibling-of", var("y")),
-	[
-		fact(var("p"), "parent-of", var("x")),
-		fact(var("p"), "parent-of", var("y")),
-		notEqual(var("x"), var("y")),
-	])
+```prolog
+sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y)
 ```
 
 Sharing *at least one* parent is deliberate, because a half-sibling should count. This family happens to have none - Walter and Doris are both parents to all three sons - so every sibling pair here shares both parents and every answer carries both derivations. The rule does not care either way: one `parent-of` fact is enough, and the test suite exercises the half-sibling case with a Henry who has only Walter for a father.
@@ -163,7 +153,7 @@ If you have met Prolog or Datalog, the mapping is direct: a triple is an atomic 
 
 ### Knowledge lives in its own files
 
-`src/facts.ms` and `src/rules.ms` hold the domain, and nothing else in the repo knows what a family is. Each exposes a `build` function rather than a top-level array, because of a real constraint in this interpreter: **a module that imports `triples.ms` gets its own copy of its classes**, and `isa` checks only agree inside one copy. A facts file that imported `triples.ms` directly would build triples the solver does not recognise. So the caller hands its copy in:
+`src/facts.data` and `src/rules.data` hold the domain, and nothing else in the repo knows what a family is. Both are loaded through a `build` function rather than exported as a top-level array, because of a real constraint in this interpreter: **a module that imports `triples.ms` gets its own copy of its classes**, and `isa` checks only agree inside one copy. A loader that imported `triples.ms` directly would build triples the solver does not recognise, so the caller hands its copy in. The data dodge the problem another way: `src/knowledge.ms` parses the text with whichever copy it is handed, and the loaders wrap what it returns.
 
 ```miniscript
 import "facts"
@@ -174,24 +164,19 @@ facts = globals["facts"].build(triples)
 rules = globals["rules"].build(triples)
 ```
 
-Nothing else is needed to add a domain. Rewrite those two files, keep the shape, and the engine answers questions about invoices or network devices instead of aunts.
+Nothing else is needed to add a domain. Rewrite those two data files, keep the shape, and the engine answers questions about invoices or network devices instead of aunts.
 
 ### Adding a rule
 
-Three steps, and the test suite has a spot for each rule you add:
+Two steps, and the test suite has a spot for each rule you add:
 
-1. Write the rule in `src/rules.ms` with the local `rule(head, body)` helper, and put the Lisp form in the comment above it.
-2. Add it to the array `build` returns.
-3. Add a check to `test/relations.ms` that asserts both a positive and a negative case.
+1. Add its line to `src/rules.data`: a head, `=>`, and a body of conditions.
+2. Add a check to `test/relations.ms` that asserts both a positive and a negative case.
 
 For example, grandparenthood from the child's side:
 
-```miniscript
-// (<- (grandchild-of ?x ?y) (parent-of ?p ?x) (parent-of ?y ?p)): ?y is a grandparent
-// of ?x when ?y is a parent of ?x's parent.
-grandchildOf = rule(
-	fact(var("x"), "grandchild-of", var("y")),
-	[fact(var("p"), "parent-of", var("x")), fact(var("y"), "parent-of", var("p"))])
+```prolog
+grandchild-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?y, ?p))
 ```
 
 ## How to use this demo
@@ -272,7 +257,7 @@ A question with no answer reads the report above, asks for the fact that would l
 
 Adding `--verbose` prints the proof tree behind each answer here too, exactly as it does for a run.
 
-A rule is read from the line `Rule.text` prints, which is why the parser lives in `triples.ms` and returns the pieces `Rule.make` takes rather than a rule: the engine stays free of the Rule class, and anything else that reads rules from text - a file, an agent - reuses it.
+A rule typed at the prompt is read from the line `Rule.text` prints, which is why that parser lives in `triples.ms` and returns the pieces `Rule.make` takes rather than a rule: the engine stays free of the Rule class. The data files have their own parser, `src/knowledge.ms`, built the same way, with a fact as a bare `predicate(subject, object)` and a rule's `=>` in place of `<-`.
 
 The session paints from the same style table as the report, so `NO_COLOR` turns the whole run plain, prompt included.
 
@@ -280,12 +265,12 @@ The session paints from the same style table as the report, so `NO_COLOR` turns 
 
 ```plaintext
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-176 passed, 0 failed
+215 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it for the session or paste the path in its place.
 
-The 176 checks are split by area: display and parsing (12), proofs and explanations (21), the missing-fact report (24), recursion and cycle handling (13), relations including the family rules (46), and the session at the prompt (60). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
+The 215 checks are split by area: display and parsing (12), the knowledge data format (31), the loaders (8), proofs and explanations (21), the missing-fact report (24), recursion and cycle handling (13), relations including the family rules (46), and the session at the prompt (60). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
 
 ## Where an LLM fits
 

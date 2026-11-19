@@ -1,0 +1,73 @@
+// facts.data — the family the program reasons about: 54 facts about people.
+//
+// A fact is one SPO triple, predicate(subject, object), so "?x is the relation of
+// ?y" reads with the subject first. Values are names or plain numbers; ?x would be a
+// variable, which a stored fact never needs. Nothing here is derived — rules.data
+// says what follows from these.
+//
+// Blank lines and // comments are skipped, and a fact may run on to the next line
+// inside its parentheses. knowledge.ms parses the format; facts.ms loads this file.
+
+// Walter and Doris.
+has-gender(walter, male)
+has-age(walter, 78)
+has-gender(doris, female)
+has-age(doris, 76)
+married-to(walter, doris)
+
+// Their three sons.
+parent-of(walter, bill)
+parent-of(doris, bill)
+parent-of(walter, george)
+parent-of(doris, george)
+parent-of(walter, henry)
+parent-of(doris, henry)
+has-gender(bill, male)
+has-age(bill, 54)
+has-gender(george, male)
+has-age(george, 51)
+has-gender(henry, male)
+has-age(henry, 47)
+
+// Bill and Susan, with one son.
+married-to(bill, susan)
+has-gender(susan, female)
+has-age(susan, 52)
+parent-of(bill, tim)
+parent-of(susan, tim)
+has-gender(tim, male)
+has-age(tim, 24)
+
+// George and Diane, with a daughter and a son.
+married-to(george, diane)
+has-gender(diane, female)
+has-age(diane, 49)
+parent-of(george, anna)
+parent-of(diane, anna)
+parent-of(george, mark)
+parent-of(diane, mark)
+has-gender(anna, female)
+has-age(anna, 21)
+has-gender(mark, male)
+has-age(mark, 18)
+
+// Henry and Rachel, with two daughters and two sons.
+married-to(henry, rachel)
+has-gender(rachel, female)
+has-age(rachel, 45)
+parent-of(henry, clara)
+parent-of(rachel, clara)
+parent-of(henry, jack)
+parent-of(rachel, jack)
+parent-of(henry, nina)
+parent-of(rachel, nina)
+parent-of(henry, oliver)
+parent-of(rachel, oliver)
+has-gender(clara, female)
+has-age(clara, 15)
+has-gender(jack, male)
+has-age(jack, 13)
+has-gender(nina, female)
+has-age(nina, 10)
+has-gender(oliver, male)
+has-age(oliver, 7)

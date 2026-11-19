@@ -1,5 +1,8 @@
 // micro-expert — a little expert system for MiniScript 2.
 //
+// The program is a session at the prompt; the fixed questions it used to ask are
+// worked examples now, in sample.ms.
+//
 // The options are declared here - a number, a flag and a string - and the cli library
 // parses the arguments and generates --help and --version from those declarations.
 
@@ -121,30 +124,10 @@ if options.values.verbose then
 	print "Verbose run: depth " + options.values.depth
 end if
 
-// ── Shorthands ───────────────────────────────────────────────────────────────
-// Globals, so an importing script can write fact(...) and var(...) directly; the
-// classes live here so the program shares one copy of each and `isa` agrees.
-
-fact = function(subject, predicate, object)
-	"Builds a Subject-Predicate-Object triple."
-	return triples.SpoTriple.make(subject, predicate, object)
-end function
-
-var = function(name)
-	"Builds a logic variable, e.g. var(""x"") for ?x."
-	return triples.Var.make(name)
-end function
-
-notEqual = function(left, right)
-	"Shorthand for NotEqual.make, for use inside a rule body."
-	return triples.NotEqual.make(left, right)
-end function
-
 // ── Report colors ────────────────────────────────────────────────────────────
-// The missing-fact report paints its parts through the bundled vt module: one color
-// for the facts it asks for, one for the rule that would use them, and dimmed
-// variables inside the facts. The session at the prompt paints itself from the same
-// table - its prompts, the facts and rules it adds, and the answers it gives.
+// The session paints its parts through the bundled vt module: one color for the
+// facts it asks for, one for the rule that would use them, and dimmed variables
+// inside the facts.
 // NO_COLOR (https://no-color.org) turns every escape code off, so a redirected run
 // stays plain text; the logger reads it the same way.
 
@@ -165,47 +148,31 @@ reportStyle = function
 	}
 end function
 
-runQuery = function(query)
-	print "Query: " + query.text
-	proofs = triples.proveGoals(query, facts, rules, options.values.depth)
-	// A quiet empty answer set is a dead end: say so, and say which facts would
-	// turn it into an answer, so the missing knowledge is the result.
-	if proofs.len == 0 then
-		style = reportStyle()
-		print triples.paint(style, "warning", "  no solution found at depth " + options.values.depth)
-		for line in triples.neededFactLines(query, facts, rules, options.values.depth, style)
-			print line
-		end for
-		return
-	end if
-	for proof in proofs
-		if options.values.verbose then
-			for line in triples.proofLines(proof, "  ")
-				print line
-			end for
-		else
-			print "  " + triples.substitute(query, proof.binds).text
-		end if
-	end for
-end function
-
 // ── Facts and rules ──────────────────────────────────────────────────────────
 
-// The family tree lives in facts.ms and the reasoning in rules.ms. Both build their
-// arrays on request instead of at load time, because the triples have to come from
-// this file's copy of triples.ms: a module that imports it gets a copy of its own,
-// and the solver does not recognize another copy's classes. So both are handed this
-// file's copy.
+// The family tree lives in facts.data and the reasoning in rules.data, loaded by
+// facts.ms and rules.ms. Both build their arrays on request instead of at load time,
+// because the triples have to come from this file's copy of triples.ms: a module that
+// imports it gets a copy of its own, and the solver does not recognize another copy's
+// classes. So both are handed this file's copy.
 
 import "facts"
 import "rules"
 
 // The arrays themselves, not the module maps that hold them.
 facts = globals["facts"].build(triples)
+if facts isa error then
+	print "error: " + facts.message
+	finish 1
+end if
 rules = globals["rules"].build(triples)
+if rules isa error then
+	print "error: " + rules.message
+	finish 1
+end if
 
 // The Rule class, so a rule typed at the prompt joins the search like the ones
-// rules.ms builds: the same class, the same .text, the same solver.
+// rules.ms loads: the same class, the same .text, the same solver.
 Rule = globals["rule"].Rule
 
 // 'known', not 'fact': a top-level loop variable is a global here, so naming it
@@ -221,22 +188,14 @@ for r in rules
 	log.debug "(rule) {Rule}", {"Rule": r.text}
 end for
 
-// ── Answering a query ────────────────────────────────────────────────────────
-// Backward chaining: a goal is proved by the facts, and by the head of each rule
-// whose body can then be proved in turn. The body is what matches facts - childOf
-// says "?y is the parent of ?x", which is what a parent fact asserts - and the head
-// is the shape of the answer, so substituting a proof's bindings into it gives the
-// fact that was proved.
-//
-// --depth bounds how many rules deep the search may go; 0 means facts only.
-
 // ── A session at the prompt ──────────────────────────────────────────────────
-// --repl trades the fixed questions below for a prompt that takes facts, rules and
-// questions. The session starts from the arrays above and adds to them in memory, so
-// what the prompt learns lasts for the run and no source file is touched.
+// The program is this session: it takes facts, rules and questions. It starts from
+// the arrays above and adds to them in memory, so what the prompt learns lasts for
+// the run and no source file is touched. --depth bounds its search, and --verbose
+// prints the proof tree behind each answer.
 
 replSession = function()
-	"The session --repl starts, drawn from the facts and rules already loaded."
+	"The session, drawn from the facts and rules already loaded."
 	return {
 		"triples": triples,
 		"Rule": Rule,
@@ -256,16 +215,6 @@ replSession = function()
 	}
 end function
 
-if options.values.repl then
-	repl.run(replSession())
-	finish 0
-end if
-
-// runQuery fact(var("x"), "child-of", var("y"))
-// runQuery fact("bill", "uncle-of", var("?p"))
-// runQuery fact(var("?p"), "parent-of", "susan")
-runQuery fact("susan", "parent-of", var("?p"))
-runQuery fact(var("?p"), "grandpa-of", "susan")
-runQuery fact(var("?p"), "uncle-of", "susan")
+repl.run(replSession())
 
 finish 0

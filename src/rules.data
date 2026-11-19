@@ -1,0 +1,45 @@
+// rules.data — the rules this program uses: what follows from the facts in facts.data.
+//
+// One rule per line, as
+//
+//   head => body
+//
+// where head is a fact, predicate(subject, object), and body is one condition or a
+// comma-delimited list of them — all of which must hold. The list is an implied and,
+// and and(...) says the same thing out loud and nests, so or(...) and not(...) have
+// somewhere to slot in when the engine can use them. A condition is a fact, or a
+// constraint, ?x != ?y. A fact reads "?x is the relation of ?y", so ?x comes first.
+//
+// Blank lines and // comments are skipped. A rule may run on to the next line, inside
+// its parentheses or after the arrow, so a long body can be broken where it reads best.
+//
+// knowledge.ms parses the format; rules.ms loads this file into the engine.
+
+// ?x is the child of ?y when ?y is a parent of ?x.
+child-of(?x, ?y) => parent-of(?y, ?x)
+
+// Marriage is a two-way street, so one fact per couple can answer from either side.
+married-to(?y, ?x) => married-to(?x, ?y)
+
+// ?x and ?y are siblings when they share at least one parent, so half-siblings count
+// too, and nobody is their own sibling.
+sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y)
+
+// ?x is a brother of ?y when ?x is a male sibling, so the gender is asked of ?x
+// rather than of ?y.
+brother-of(?x, ?y) => and(sibling-of(?x, ?y), has-gender(?x, male))
+
+// ?x is a sister of ?y when ?x is a female sibling.
+sister-of(?x, ?y) => and(sibling-of(?x, ?y), has-gender(?x, female))
+
+// ?x is an uncle of ?y when ?x is a male sibling of one of ?y's parents.
+uncle-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male))
+
+// ?x is an aunt of ?y when ?x is a female sibling of one of ?y's parents.
+aunt-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, female))
+
+// ?x is a grandpa of ?y when ?x is a male parent of one of ?y's parents.
+grandpa-of(?x, ?y) => and(parent-of(?p, ?y), parent-of(?x, ?p), has-gender(?x, male))
+
+// ?x is a grandma of ?y when ?x is a female parent of one of ?y's parents.
+grandma-of(?x, ?y) => and(parent-of(?p, ?y), parent-of(?x, ?p), has-gender(?x, female))
