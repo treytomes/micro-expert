@@ -111,6 +111,22 @@ run = function(t, rules, h)
 	h.check("a condition the listed facts would bind is marked",
 		viaGrandpa[5] == "      has-gender(?p, male)  (checked once the facts above exist)")
 
+	// ── A body that offers a choice ────────────────────────────────────────
+
+	// Each alternative is a way to answer, so each is reported with the facts its
+	// own body would need.
+	either = rule(spo(v("x"), "close", v("y")),
+		[t.Or.make([[spo(v("x"), "sibling-of", v("y"))], [spo(v("x"), "married-to", v("y"))]])])
+	choices = t.neededFactLines(spo("bill", "close", "nobody"), family, [either], 8)
+	h.check("both alternatives are offered", choices.len == 6)
+	h.check("the query's own shape is offered too", choices[1] == "    a fact like close(bill, nobody)")
+	h.check("the rule is named once per alternative",
+		choices[2] == choices[4] and choices[2].indexOf("or(") != null)
+	h.check("the first alternative names its fact",
+		choices[3] == "      sibling-of(bill, nobody)")
+	h.check("the second alternative names its fact",
+		choices[5] == "      married-to(bill, nobody)")
+
 	// ── Painting is opt-in: no style, no escape codes ──────────────────────
 
 	h.check("an unpainted report stays plain text", lines[1].indexOf(char(27)) == null)

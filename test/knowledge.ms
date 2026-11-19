@@ -67,6 +67,25 @@ run = function(t, knowledge, h)
 	h.check("and again after the arrow", spread[1].head.text == "married-to(?y, ?x)")
 	h.check("the rule after the break is whole", spread[1].body.len == 1)
 
+	// ── or: a body that offers a choice ──────────────────────────────────────
+
+	choice = parseOneRule("in-law-of(?x, ?y) => or(married-to(?x, ?p), sibling-of(?p, ?y))")
+	h.check("or(...) parses", not (choice isa error))
+	h.check("or(...) is one condition", choice[0].body.len == 1)
+	h.check("or(...) is a choice, not a triple", choice[0].body[0] isa t.Or)
+	h.check("or(...) reads back",
+		bodyText(choice[0]) == "or(married-to(?x, ?p), sibling-of(?p, ?y))")
+
+	either = parseOneRule("close(?x, ?y) => and(or(sibling-of(?x, ?y), married-to(?x, ?y)), ?x != ?y)")
+	h.check("or(...) sits among other conditions", either[0].body.len == 2)
+	h.check("the choice keeps its alternatives", either[0].body[0].alternatives.len == 2)
+
+	paired = parseOneRule("in-law-of(?x, ?y) => or(and(married-to(?x, ?p), sibling-of(?p, ?y)), sibling-of(?x, ?y))")
+	h.check("an alternative of several conditions reads as and(...)", not (paired isa error))
+	h.check("or(...) holds an and(...) alternative",
+		bodyText(paired[0]) ==
+			"or(and(married-to(?x, ?p), sibling-of(?p, ?y)), sibling-of(?x, ?y))")
+
 	// ── Refusals ─────────────────────────────────────────────────────────────
 
 	h.check("a line without an arrow is refused", failure("parent-of(?x, ?y)") != null)
@@ -74,10 +93,10 @@ run = function(t, knowledge, h)
 	h.check("a broken part refuses the whole rule",
 		failure("grandparent(?x, ?y) => parent-of(?x, ?p") != null)
 
-	unsupported = failure("a(?x, ?y) => or(b(?x, ?y), c(?x, ?y))")
+	unsupported = failure("a(?x, ?y) => not(b(?x, ?y))")
 	h.check("a grouping the engine cannot use is refused", unsupported != null)
 	if unsupported != null then
-		h.check("a refusal names the grouping", unsupported.message.indexOf("or(...)") != null)
+		h.check("a refusal names the grouping", unsupported.message.indexOf("not(...)") != null)
 	end if
 
 	broken = knowledge.parseRules(t, ["// A rule", "grandparent(?x, ?y) => parent-of(?x, ?p"])

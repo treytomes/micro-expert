@@ -44,6 +44,17 @@ run = function(t, rules, repl, h)
 	h.check("a broken condition refuses the whole line",
 		t.parseRule("grandparent(?x, ?y) <- parent-of(?x, ?p") isa error)
 
+	// The line data/rules.kb prints for in-law-of, so a rule the session shows can be
+	// typed back in: or(...) around two and(...) alternatives.
+	choice = "in-law-of(?x, ?y) <- or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling-of(?x, ?p), married-to(?p, ?y)))"
+	chosen = t.parseRule(choice)
+	h.check("a rule line with or(...) parses", readable(chosen))
+	h.check("or(...) is one condition holding two and(...) alternatives",
+		readable(chosen) and chosen.body.len == 1 and chosen.body[0].alternatives.len == 2 and
+			chosen.body[0].alternatives[0].len == 2)
+	h.check("Rule.text gets an or(...) line back",
+		readable(chosen) and rules.Rule.make(chosen.head, chosen.body).text == choice)
+
 	// ── A scripted session ───────────────────────────────────────────────────
 
 	// A session over a script of typed lines, recording what it printed and asked.

@@ -17,9 +17,10 @@
 // number, or a ?x variable. Blank lines and lines starting with // are skipped, and
 // an entry that will not parse names its line.
 //
-// or(...) and not(...) are reserved: a body holding one is refused now, so adding
-// one later is a deliberate change to the engine rather than a line that quietly
-// means nothing.
+// or(...) holds a body's alternatives: any one of them may hold instead, and each
+// alternative is a body of its own, so or(and(a, b), c) reads as it looks. not(...)
+// is still reserved: a body holding one is refused, so adding it later is a
+// deliberate change to the engine rather than a line that quietly means nothing.
 //
 // Nothing here imports triples.ms. The parsers are handed the caller's copy, so the
 // terms they build are the ones the caller's solver recognizes, and they return the
@@ -106,7 +107,7 @@ parseRule = function(triples, text)
 end function
 
 parseBody = function(triples, text)
-	"Reads a body: one condition, a comma-delimited list of them, or and(...) around either."
+	"Reads a body: one condition, a comma-delimited list of them, or and(...) or or(...) around either."
 	text = trimSpace(text)
 	if text == "" then return err("a rule needs a condition, after '=>'")
 	// A comma that is not inside a call separates conditions, so the list is read
@@ -137,12 +138,22 @@ oneCondition = function(triples, text)
 end function
 
 isGrouping = function(name)
-	"Says whether a name groups conditions rather than naming one; or and not are reserved for later."
+	"Says whether a name groups conditions rather than naming one; not is reserved for later."
 	return ["and", "or", "not"].indexOf(name) != null
 end function
 
 parseGrouping = function(triples, called)
-	"Reads a grouping call: and(...) flattens into the conditions it holds, nested or not."
+	"Reads a grouping call: and(...) flattens into the conditions it holds, and or(...) becomes one condition holding its alternatives."
+	if called.name == "or" then
+		if called.args.len == 0 then return err("or(...) needs at least one condition")
+		alternatives = []
+		for arg in called.args
+			alternative = parseBody(triples, arg)
+			if alternative isa error then return alternative
+			alternatives.push(alternative)
+		end for
+		return [triples.Or.make(alternatives)]
+	end if
 	if called.name != "and" then
 		return err(called.name + "(...) is not supported yet: join conditions with commas or and(...)")
 	end if

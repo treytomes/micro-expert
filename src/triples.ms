@@ -206,6 +206,40 @@ end function
 // A results record gathers answers in order and by rendered goal, so a goal that
 // is proved several ways still appears once.
 
+// ── Alternatives ─────────────────────────────────────────────────────────────
+// A condition is usually one triple, and sometimes a constraint. It can also be a
+// choice: or(...) holds one body per alternative, and any one of them settles what
+// the condition asks. Each alternative is a list of conditions, so or(...) nests in
+// a body the way and(...) does, and may hold and(...) as one of its alternatives.
+
+Or = {}
+
+Or.make = function(alternatives)
+	"Builds an 'any one of these bodies holds' condition."
+	o = new Or
+	o.alternatives = alternatives
+	return o
+end function
+
+Or.text = function
+	"Reads as or(a, b), with and(...) around an alternative that holds several conditions."
+	parts = []
+	for alternative in self.alternatives
+		parts.push(alternativeText(alternative))
+	end for
+	return "or(" + parts.join(", ") + ")"
+end function
+
+alternativeText = function(conditions)
+	"One alternative as it reads: its one condition, or and(...) around several."
+	texts = []
+	for condition in conditions
+		texts.push(condition.text)
+	end for
+	if texts.len == 1 then return texts[0]
+	return "and(" + texts.join(", ") + ")"
+end function
+
 renameCounter = {"uses": 0}
 
 uniqueSuffix = function()
@@ -252,6 +286,13 @@ end function
 
 renameCondition = function(condition, suffix)
 	"One condition renamed: a goal as a triple, a constraint as it is."
+	if condition isa Or then
+		alternatives = []
+		for alternative in condition.alternatives
+			alternatives.push(renameConditions(alternative, suffix))
+		end for
+		return Or.make(alternatives)
+	end if
 	if condition isa SpoTriple then return renameTriple(condition, suffix)
 	return renameConstraint(condition, suffix)
 end function
@@ -418,7 +459,19 @@ matchingRules = function(goal, rules, binds)
 end function
 
 proveConditions = function(conditions, facts, rules, depth, binds, open=null, index=null)
-	"Proves each condition in turn: a goal by search, a constraint by checking it."
+	"Proves each condition in turn: a goal by search, a constraint by checking it, and or(...) by one alternative."
+	// Any one alternative settles the choice, and the rest of the body follows it,
+	// so every way through an alternative is a way through the body.
+	if conditions.len > 0 and (conditions[0] isa Or) then
+		results = []
+		for alternative in conditions[0].alternatives
+			for proved in proveConditions(alternative + conditions[1:], facts, rules, depth,
+				binds, open, index)
+				results.push(proved)
+			end for
+		end for
+		return results
+	end if
 	if conditions.len == 0 then return [{"binds": binds, "proofs": []}]
 	first = conditions[0]
 	if not (first isa SpoTriple) then
@@ -519,6 +572,18 @@ end function
 
 bodyRequirements = function(conditions, facts, rules, depth, binds, open, newVars, reportOpen)
 	"Every way of proving a rule body: the bindings it would leave, and the facts it would still need; newVars are the variables the facts found so far would bind."
+	// Each alternative is a body of its own, so it is one more way this body could be
+	// met, and it is reported with the facts its own conditions would need.
+	if conditions.len > 0 and (conditions[0] isa Or) then
+		options = []
+		for alternative in conditions[0].alternatives
+			for option in bodyRequirements(alternative + conditions[1:], facts, rules, depth,
+				binds, open, newVars, reportOpen)
+				options.push(option)
+			end for
+		end for
+		return options
+	end if
 	if conditions.len == 0 then return [{"binds": binds, "needs": []}]
 	first = conditions[0]
 	if not (first isa SpoTriple) then
@@ -842,9 +907,9 @@ parseRule = function(line)
 	if body == "" then return err(badRule(line))
 	conditions = []
 	for text in splitConditions(body)
-		condition = parseCondition(text, line)
-		if condition isa error then return err(badRule(line))
-		conditions.push(condition)
+		more = parseBodyPart(text, line)
+		if more isa error then return err(badRule(line))
+		conditions = conditions + more
 	end for
 	return {"head": head, "body": conditions}
 end function
@@ -879,6 +944,47 @@ parseCondition = function(text, line)
 		return NotEqual.make(termOf(trimSpace(differ[0])), termOf(trimSpace(differ[1])))
 	end if
 	return SpoTriple.parse(text)
+end function
+
+parseBodyPart = function(text, line)
+	"Reads one piece of a rule body into the conditions it stands for: a fact, a constraint, and(...) flattened, or or(...) as one condition."
+	text = trimSpace(text)
+	if text == "" then return err(badRule(line))
+	called = groupingOf(text)
+	if called == null then
+		condition = parseCondition(text, line)
+		if condition isa error then return condition
+		return [condition]
+	end if
+	inner = trimSpace(called.inner)
+	if inner == "" then return err(badRule(line))
+	parts = splitConditions(inner)
+	if called.name == "and" then
+		conditions = []
+		for part in parts
+			more = parseBodyPart(part, line)
+			if more isa error then return more
+			conditions = conditions + more
+		end for
+		return conditions
+	end if
+	alternatives = []
+	for part in parts
+		alternative = parseBodyPart(part, line)
+		if alternative isa error then return alternative
+		alternatives.push(alternative)
+	end for
+	return [Or.make(alternatives)]
+end function
+
+groupingOf = function(text)
+	"The {name, inner} of an and(...) or or(...) standing alone, or null when the text is not one."
+	openAt = text.indexOf("(")
+	if openAt == null then return null
+	name = trimSpace(text[:openAt])
+	if name != "and" and name != "or" then return null
+	if trimSpace(text[-1:]) != ")" then return null
+	return {"name": name, "inner": text[openAt + 1:-1]}
 end function
 
 badRule = function(line)

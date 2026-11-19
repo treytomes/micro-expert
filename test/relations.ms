@@ -205,4 +205,51 @@ run = function(t, rules, h)
 	h.check("a parent is not a grandparent", ask("grandpa-of", "bill", "tim").len == 0)
 	h.check("the uncle rule prints its conditions",
 		uncleRule.text == "uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)")
+
+	// ── A body that offers a choice ─────────────────────────────────────────
+
+	// An in-law either married into the family or is a sibling of someone who did:
+	// two bodies with nothing in common but the head, which is what or(...) is for.
+	household = lineage + [
+		spo("bill", "married-to", "susan"),
+		spo("george", "married-to", "diane"),
+		spo("henry", "married-to", "rachel"),
+	]
+	houseMarried = rule(spo(v("y"), "married-to", v("x")), [spo(v("x"), "married-to", v("y"))])
+	inLawRule = rule(spo(v("x"), "in-law-of", v("y")),
+		[t.Or.make([
+			[spo(v("x"), "married-to", v("p")), spo(v("p"), "sibling-of", v("y"))],
+			[spo(v("x"), "sibling-of", v("p")), spo(v("p"), "married-to", v("y"))],
+		])])
+	inLaw = function(a, b)
+		return t.proveGoals(spo(a, "in-law-of", b), household,
+			[lineageSibling, houseMarried, inLawRule], 4)
+	end function
+
+	h.check("the first alternative answers", inLaw("diane", "bill").len == 1)
+	h.check("the second alternative answers", inLaw("bill", "diane").len == 1)
+	h.check("a spouse is not an in-law", inLaw("bill", "susan").len == 0)
+	h.check("a blood relative is not an in-law", inLaw("tim", "bill").len == 0)
+	proof = t.proofLines(inLaw("bill", "diane")[0], "").join("\n")
+	h.check("the proof leaves out the alternative that did not hold",
+		proof.indexOf("married-to(bill, susan)") == null)
+	h.check("the proof names what the alternative that held proved",
+		proof.indexOf("married-to(george, diane)") != null)
+	h.check("the rule prints its alternatives",
+		inLawRule.text == "in-law-of(?x, ?y) <- or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling-of(?x, ?p), married-to(?p, ?y)))")
+
+	// An or(...) among other conditions: the parent condition is shared, and either
+	// one of these completes the answer.
+	care = [
+		spo("anna", "parent-of", "tim"),
+		spo("bill", "sibling-of", "anna"),
+		spo("susan", "married-to", "anna"),
+	]
+	guardianRule = rule(spo(v("x"), "guardian-of", v("y")),
+		[spo(v("p"), "parent-of", v("y")),
+			t.Or.make([[spo(v("x"), "sibling-of", v("p"))], [spo(v("x"), "married-to", v("p"))]])])
+	guardians = t.proveGoals(spo(v("x"), "guardian-of", "tim"), care, [guardianRule], 2)
+	h.check("an or(...) among other conditions offers each alternative", guardians.len == 2)
+	h.check("each alternative binds the shared condition",
+		guardians[0].binds["x"] == "bill" and guardians[1].binds["x"] == "susan")
 end function
