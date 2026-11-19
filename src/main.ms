@@ -171,6 +171,16 @@ if rules isa error then
 	finish 1
 end if
 
+// The field types the prompt checks a typed fact against, from data/schema.kb. The
+// solver never reads it: it is there for the moment a fact is written down, so a value
+// no rule could ever reach is refused instead of stored.
+import "schema"
+types = globals["schema"].build()
+if types isa error then
+	print "error: " + types.message
+	finish 1
+end if
+
 // The Rule class, so a rule typed at the prompt joins the search like the ones
 // rules.ms loads: the same class, the same .text, the same solver.
 Rule = globals["rule"].Rule
@@ -204,6 +214,8 @@ replSession = function()
 		"depth": options.values.depth,
 		"verbose": options.values.verbose,
 		"style": reportStyle(),
+		"schema": globals["schema"],
+		"types": types,
 		"io": {
 			"read": function(question)
 				return input(question)

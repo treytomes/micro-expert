@@ -167,7 +167,8 @@ end function
 
 // ── Constraints ──────────────────────────────────────────────────────────────
 // A rule body is a list of goals, and it may also hold constraints: conditions
-// that are checked against the bindings rather than proved by search.
+// that are checked against the bindings rather than proved by search. A comparison is
+// one of them: ?n <= 18 is not a fact to prove, but two numbers standing in an order.
 
 NotEqual = {}
 
@@ -184,8 +185,42 @@ NotEqual.text = function
 	return termText(self.left) + " != " + termText(self.right)
 end function
 
+// A comparison is the one constraint that reads its terms arithmetically. Text would
+// put "9" after "18", and MiniScript will not compare a string with a number at all,
+// so a side that is not a number ends the branch rather than passing for a zero.
+
+comparisonSymbols = ["<=", ">=", "<", ">"]
+
+Comparison = {}
+
+Comparison.make = function(symbol, left, right)
+	"Builds a numeric comparison: two terms, and the order they must stand in."
+	c = new Comparison
+	c.symbol = symbol
+	c.left = left
+	c.right = right
+	return c
+end function
+
+Comparison.text = function
+	"Says how the comparison reads: ?n <= 18."
+	return termText(self.left) + " " + self.symbol + " " + termText(self.right)
+end function
+
+comparisonHolds = function(constraint, binds)
+	"Says whether a comparison holds: both sides must be numbers, so another type cannot slip through as zero."
+	left = substitute(constraint.left, binds)
+	right = substitute(constraint.right, binds)
+	if not (left isa number) or not (right isa number) then return false
+	if constraint.symbol == "<=" then return left <= right
+	if constraint.symbol == ">=" then return left >= right
+	if constraint.symbol == "<" then return left < right
+	return left > right
+end function
+
 holdsConstraint = function(constraint, binds)
 	"Says whether a constraint holds under the current bindings."
+	if constraint isa Comparison then return comparisonHolds(constraint, binds)
 	if constraint isa NotEqual then
 		return substitute(constraint.left, binds) != substitute(constraint.right, binds)
 	end if
@@ -284,6 +319,10 @@ end function
 
 renameConstraint = function(constraint, suffix)
 	"Copies a constraint, renaming the variables it mentions."
+	if constraint isa Comparison then
+		return Comparison.make(constraint.symbol, renameTerm(constraint.left, suffix),
+			renameTerm(constraint.right, suffix))
+	end if
 	if constraint isa NotEqual then
 		return NotEqual.make(renameTerm(constraint.left, suffix),
 			renameTerm(constraint.right, suffix))
@@ -917,9 +956,30 @@ parseCall = function(text)
 end function
 
 termOf = function(text)
-	"Turns a '?x' field into a Var, leaving every other field a plain string."
+	"Turns a '?x' field into a Var, a plain number into a number, and leaves every other field its text."
 	if text[:1] == "?" then return Var.make(text)
+	if isNumber(text) then return val(text)
 	return text
+end function
+
+isNumber = function(text)
+	"Says whether the text is a plain number, which val alone cannot tell: val of a name is 0."
+	digits = 0
+	dots = 0
+	for at in range(0, text.len - 1)
+		c = text[at]
+		if c == "-" then
+			if at != 0 then return false
+		else if c == "." then
+			dots = dots + 1
+			if dots > 1 then return false
+		else if c < "0" or c > "9" then
+			return false
+		else
+			digits = digits + 1
+		end if
+	end for
+	return digits > 0
 end function
 
 badLine = function(line)
@@ -972,14 +1032,28 @@ splitConditions = function(text)
 end function
 
 parseCondition = function(text, line)
-	"Reads one condition of a rule body: a triple, or a '?x != ?y' constraint."
+	"Reads one condition of a rule body: a triple, or a constraint such as ?x != ?y or ?n <= 18."
 	text = trimSpace(text)
 	differ = text.split("!=")
 	if text == "" then return err(badRule(line))
 	if differ.len == 2 then
 		return NotEqual.make(termOf(trimSpace(differ[0])), termOf(trimSpace(differ[1])))
 	end if
+	compared = comparisonOf(text)
+	if compared != null then return compared
 	return SpoTriple.parse(text)
+end function
+
+comparisonOf = function(text)
+	"Reads a numeric comparison into a Comparison, or null when the text is not one."
+	for symbol in comparisonSymbols
+		pieces = text.split(symbol)
+		if pieces.len == 2 then
+			return Comparison.make(symbol, termOf(trimSpace(pieces[0])),
+				termOf(trimSpace(pieces[1])))
+		end if
+	end for
+	return null
 end function
 
 parseBodyPart = function(text, line)

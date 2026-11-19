@@ -15,7 +15,15 @@
 // without a seven-argument list:
 //
 //   session = {"triples": triples, "Rule": Rule, "facts": facts, "rules": rules,
-//       "depth": 8, "verbose": 0, "style": style, "io": {"read": reader, "say": writer}}
+//       "depth": 8, "verbose": 0, "style": style, "schema": schema, "types": types,
+//       "io": {"read": reader, "say": writer}}
+//
+// schema is schema.ms, the module that knows the field-type format, and types is what it
+// loaded from data/schema.kb - or null for a session that checks nothing. A fact typed
+// at the prompt is held against the types before it is stored. Like triples and Rule,
+// the module is handed in rather than imported: a bare import resolves against the
+// entry script's folder, so this file would find a same-named module of the suite's
+// (or a host's) instead of the one beside it.
 //
 // io is how a session talks, and the reason its checks need no terminal: read takes
 // the prompt and returns a line (null ends the session), say takes a finished line.
@@ -159,6 +167,7 @@ end function
 
 addFact = function(session, triple)
 	"Adds a fact to the session's knowledge base, and says which one; nothing is added twice."
+	if not fitsSchema(session, triple) then return false
 	if alreadyKnown(session, triple) then
 		say(session, "note", "  already known: " + triple.text)
 		return false
@@ -166,6 +175,16 @@ addFact = function(session, triple)
 	session.facts.push(triple)
 	say(session, "added", "  added " + triple.text)
 	return true
+end function
+
+fitsSchema = function(session, triple)
+	"Says whether a typed fact matches the schema, saying what it misses when it does not."
+	if not session.hasIndex("types") then return true
+	if session.types == null then return true
+	problem = session.schema.misfit(session.types, triple)
+	if problem == null then return true
+	say(session, "warning", "  refused: " + triple.text + ": " + problem)
+	return false
 end function
 
 alreadyKnown = function(session, triple)

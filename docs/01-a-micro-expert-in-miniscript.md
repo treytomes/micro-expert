@@ -2,7 +2,7 @@
 
 [micro-expert on GitHub](https://github.com/treytomes/micro-expert)
 
-A little expert system for MiniScript 2: 54 facts about one imaginary family, eleven rules about what those facts imply, and a backward-chaining solver that answers a question only by showing you the facts and rules that make the answer true.
+A little expert system for MiniScript 2: 54 facts about one imaginary family, thirteen rules about what those facts imply, and a backward-chaining solver that answers a question only by showing you the facts and rules that make the answer true.
 
 ```prolog
 Query: uncle-of(bill, ?p)
@@ -54,7 +54,7 @@ The last row is the honest one. This program cannot read *"who are Bill's nephew
 What a rules engine buys you, concretely, in an era of cheap text generation:
 
 - **Auditability.** Every claim has a proof you can print. There is no "the model said so" step to defend to a reviewer, an auditor, or yourself in six months.
-- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 266 assertions and they either pass or they don't.
+- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 316 assertions and they either pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility, scheduling constraints, device diagnostics, family relationships — questions where the rule is the requirement and being consistently right matters more than being fluent.
 - **Knowledge as a reviewed artifact.** Adding a rule is a five-line pull request with a test. There is no training run, and nothing else silently changes.
 - **No data leaving the machine.** The facts are the data, and they are text files.
@@ -93,6 +93,12 @@ A body item does not have to be a triple. It can be a **constraint**, checked ag
 
 ```prolog
 sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y)
+```
+
+A comparison is the other constraint: `?n <= 18` reads two numbers and holds when they stand in that order, so `age-group(?x, child) => and(has-age(?x, ?n), ?n <= 18)` puts the age where childhood ends into the rule instead of into a column of `is-child` facts. The parser reads a number as a number, which is what makes that arithmetic rather than text — as text, `"9"` would sort after `"18"` — and a side that is not a number ends the branch rather than passing for a zero. `not(...)` then gives the other group without writing the line twice:
+
+```prolog
+age-group(?x, adult) => and(has-age(?x, ?n), not(age-group(?x, child)))
 ```
 
 Sharing *at least one* parent is deliberate, because a half-sibling should count. This family happens to have none - Walter and Doris are both parents to all three sons - so every sibling pair here shares both parents and every answer carries both derivations. The rule does not care either way: one `parent-of` fact is enough, and the test suite exercises the half-sibling case with a Henry who has only Walter for a father.
@@ -153,7 +159,7 @@ If you have met Prolog or Datalog, the mapping is direct: a triple is an atomic 
 
 ### Knowledge lives in its own files
 
-`data/facts.kb` and `data/rules.kb` hold the domain, and nothing else in the repo knows what a family is. Both are loaded through a `build` function rather than exported as a top-level array, because of a real constraint in this interpreter: **a module that imports `triples.ms` gets its own copy of its classes**, and `isa` checks only agree inside one copy. A loader that imported `triples.ms` directly would build triples the solver does not recognise, so the caller hands its copy in. The data dodge the problem another way: `src/knowledge.ms` parses the text with whichever copy it is handed, and the loaders wrap what it returns.
+`data/facts.kb` and `data/rules.kb` hold the domain, and nothing else in the repo knows what a family is. A third file, `data/schema.kb`, is a table rather than knowledge: one line per predicate that stores facts, giving the type of each field in the order a fact writes them, and `src/schema.ms` loads it so the prompt can refuse `has-age(tim, twenty)` instead of filing it where no rule could reach it. The solver never reads it. Both are loaded through a `build` function rather than exported as a top-level array, because of a real constraint in this interpreter: **a module that imports `triples.ms` gets its own copy of its classes**, and `isa` checks only agree inside one copy. A loader that imported `triples.ms` directly would build triples the solver does not recognise, so the caller hands its copy in. The data dodge the problem another way: `src/knowledge.ms` parses the text with whichever copy it is handed, and the loaders wrap what it returns.
 
 ```miniscript
 import "facts"
@@ -265,12 +271,12 @@ The session paints from the same style table as the report, so `NO_COLOR` turns 
 
 ```plaintext
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-266 passed, 0 failed
+316 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it for the session or paste the path in its place.
 
-The 266 checks are split by area: display and parsing (12), the knowledge data format (47), the loaders (8), proofs and explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (65), and the session at the prompt (66). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
+The 316 checks are split by area: display and parsing (16), the knowledge data format (55), the predicate schema (19), the loaders (8), proofs and explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (79), and the session at the prompt (71). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
 
 ## Where an LLM fits
 

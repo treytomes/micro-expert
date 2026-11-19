@@ -19,12 +19,14 @@ run = function(t, rulesLoader, factsLoader, h)
 		"grandma-of(?x, ?y) <- parent-of(?p, ?y), parent-of(?x, ?p), has-gender(?x, female)",
 		"in-law-of(?x, ?y) <- or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling-of(?x, ?p), married-to(?p, ?y)))",
 		"only-child-of(?x, ?y) <- parent-of(?y, ?x), not(sibling-of(?x, ?q))",
+		"age-group(?x, child) <- has-age(?x, ?n), ?n <= 18",
+		"age-group(?x, adult) <- has-age(?x, ?n), not(age-group(?x, child))",
 	]
 	texts = []
 	for rule in loadedRules
 		texts.push(rule.text)
 	end for
-	h.check("data/rules.kb holds eleven rules", loadedRules.len == 11)
+	h.check("data/rules.kb holds thirteen rules", loadedRules.len == 13)
 	h.check("the rules load in order", texts.join("|") == expected.join("|"))
 
 	loadedFacts = factsLoader.build(t)

@@ -13,15 +13,27 @@
 // them must hold — the same thing and(...) says out loud. and(...) nests, and an
 // entry may run on to the next line inside its parentheses, or after a rule's arrow.
 //
-// A condition is a fact, or a constraint such as ?x != ?y. A value is a name, a
-// number, or a ?x variable. Blank lines and lines starting with // are skipped, and
-// an entry that will not parse names its line.
+// A condition is a fact, or a constraint such as ?x != ?y. A comparison is a
+// constraint too: ?n <= 18 is checked against two numbers rather than proved, and it
+// holds only when both sides are numbers, so a name never passes for a zero. A value
+// is a name, a number, or a ?x variable. Blank lines and lines starting with // are
+// skipped, and an entry that will not parse names its line.
 //
 // or(...) holds a body's alternatives: any one of them may hold instead, and each
 // alternative is a body of its own, so or(and(a, b), c) reads as it looks. not(...)
 // holds a body that must have no proof, which is how a rule says what the facts do
 // not: not(sibling-of(?x, ?q)) holds when nothing in the graph is ?x's sibling. It
 // takes one condition, so not(a, b) is refused rather than read as not(and(a, b)).
+//
+// data/schema.kb is the third file, and it is a table rather than knowledge:
+//
+//   has-age(name, number)
+//
+// one line per predicate that stores facts, giving the type of each field in the order
+// a fact writes them. A type is number, name, or a '|' list of the values allowed. The
+// prompt checks what is typed against it, so a fact no rule could ever reach is refused
+// at the door; the solver never reads it, and a predicate it does not name is accepted
+// as written.
 //
 // Nothing here imports triples.ms. The parsers are handed the caller's copy, so the
 // terms they build are the ones the caller's solver recognizes, and they return the
@@ -56,6 +68,73 @@ loadFacts = function(triples, source, relative)
 	facts = parseFacts(triples, lines)
 	if facts isa error then return err(file.name(relative) + " " + facts.message)
 	return facts
+end function
+
+loadSchema = function(source, relative)
+	"Reads the schema file at relative from the module at source and returns its field types, or an error."
+	lines = readData(source, relative)
+	if lines isa error then return lines
+	types = parseSchema(lines)
+	if types isa error then return err(file.name(relative) + " " + types.message)
+	return types
+end function
+
+parseSchema = function(lines)
+	"Reads the lines of a schema document into {predicate: [field type, field type]}, or an error naming the line."
+	types = {}
+	for entry in entries(lines)
+		parsed = parseSchemaEntry(entry.text)
+		if parsed isa error then return err("line " + entry.line + ": " + parsed.message)
+		types[parsed.predicate] = parsed.types
+	end for
+	return types
+end function
+
+parseSchemaEntry = function(text)
+	"Reads 'predicate(field type, field type)' into {predicate, types}, or an error."
+	called = parseCall(text)
+	if called isa error then return called
+	if called.args.len != 2 then
+		return err("expected 'predicate(field type, field type)': " + trimSpace(text))
+	end if
+	types = []
+	for arg in called.args
+		type = trimSpace(arg)
+		if type == "" then return err("a field type cannot be empty: " + trimSpace(text))
+		types.push(type)
+	end for
+	return {"predicate": called.name, "types": types}
+end function
+
+schemaMisfit = function(types, triple)
+	"How the triple misses the schema, as 'the object should be a number', or null when it fits."
+	if types == null then return null
+	if types.hasIndex(triple.predicate) == 0 then return null
+	fields = types[triple.predicate]
+	problem = fieldProblem("subject", triple.subject, fields[0])
+	if problem != null then return problem
+	return fieldProblem("object", triple.object, fields[1])
+end function
+
+fieldProblem = function(slot, term, type)
+	"Says how one field misses its type, or null when it fits."
+	if fieldFits(term, type) then return null
+	return "the " + slot + " should be " + typeText(type)
+end function
+
+fieldFits = function(term, type)
+	"Says whether one field fits one type; a variable fits any, since it is not a value yet."
+	if not (term isa number) and not (term isa string) then return true
+	if type == "number" then return term isa number
+	if type == "name" then return term isa string
+	return type.split("|").indexOf(term) != null
+end function
+
+typeText = function(type)
+	"How one type reads in a message: 'a number', 'a name' or 'one of: male, female'."
+	if type == "number" then return "a number"
+	if type == "name" then return "a name"
+	return "one of: " + type.split("|").join(", ")
 end function
 
 loadRules = function(triples, source, relative)
@@ -176,7 +255,7 @@ parseGrouping = function(triples, called)
 end function
 
 parseCondition = function(triples, text)
-	"Reads one condition: a fact, or a '?x != ?y' constraint."
+	"Reads one condition: a fact, a '?x != ?y' constraint, or a comparison such as ?n <= 18."
 	text = trimSpace(text)
 	differ = text.split("!=")
 	if differ.len == 2 then
@@ -185,7 +264,23 @@ parseCondition = function(triples, text)
 		if left == null or right == null then return err("expected '?x != ?y': " + text)
 		return triples.NotEqual.make(left, right)
 	end if
+	compared = comparisonOf(triples, text)
+	if compared != null then return compared
 	return parseFact(triples, text)
+end function
+
+comparisonOf = function(triples, text)
+	"Reads a numeric comparison into the caller's Comparison, or null when the text is not one."
+	for symbol in triples.comparisonSymbols
+		pieces = text.split(symbol)
+		if pieces.len == 2 then
+			left = termOf(triples, pieces[0])
+			right = termOf(triples, pieces[1])
+			if left == null or right == null then return null
+			return triples.Comparison.make(symbol, left, right)
+		end if
+	end for
+	return null
 end function
 
 parseFact = function(triples, text)
@@ -260,32 +355,10 @@ end function
 // ── Terms ────────────────────────────────────────────────────────────────────
 
 termOf = function(triples, text)
-	"One term: a ?x becomes a Var, a number reads as a number, anything else as its text."
+	"One term: the caller's reading of it, so a number is a number here as it is at the prompt."
 	text = trimSpace(text)
 	if text == "" then return null
-	if text[:1] == "?" then return triples.Var.make(text)
-	if isNumber(text) then return val(text)
-	return text
-end function
-
-isNumber = function(text)
-	"Says whether the text is a plain number, which val alone cannot tell: val of a name is 0."
-	digits = 0
-	dots = 0
-	for at in range(0, text.len - 1)
-		c = text[at]
-		if c == "-" then
-			if at != 0 then return false
-		else if c == "." then
-			dots = dots + 1
-			if dots > 1 then return false
-		else if c < "0" or c > "9" then
-			return false
-		else
-			digits = digits + 1
-		end if
-	end for
-	return digits > 0
+	return triples.termOf(text)
 end function
 
 // ── Finding a data file ──────────────────────────────────────────────────────

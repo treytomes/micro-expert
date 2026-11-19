@@ -1,6 +1,6 @@
 // Cases for the REPL: a rule line read back as a rule, and a session driven by script.
 
-run = function(t, rules, repl, h)
+run = function(t, rules, repl, h, schema)
 	"Checks rule-line parsing and a session's transcript, against the shared copies."
 	spo = function(s, p, o)
 		return t.SpoTriple.make(s, p, o)
@@ -67,7 +67,7 @@ run = function(t, rules, repl, h)
 	// ── A scripted session ───────────────────────────────────────────────────
 
 	// A session over a script of typed lines, recording what it printed and asked.
-	startSession = function(facts, ruleList, script, style=null, verbose=0)
+	startSession = function(facts, ruleList, script, style=null, verbose=0, types=null)
 		answers = {"lines": [], "asked": [], "at": 0}
 		reader = function(question)
 			answers.asked.push(question)
@@ -79,7 +79,7 @@ run = function(t, rules, repl, h)
 			answers.lines.push(line)
 		end function
 		session = {"triples": t, "Rule": rules.Rule, "facts": facts, "rules": ruleList,
-			"depth": 8, "verbose": verbose, "style": style,
+			"depth": 8, "verbose": verbose, "style": style, "schema": schema, "types": types,
 			"io": {"read": @reader, "say": @writer}}
 		repl.run(session)
 		return {"session": session, "answers": answers}
@@ -321,4 +321,26 @@ run = function(t, rules, repl, h)
 		printed(painted.answers.lines, "<a>  added parent-of(walter, susan)</>"))
 	h.check("a painted answer wraps the whole line",
 		printed(painted.answers.lines, "<n>  parent-of(walter, susan)</>"))
+
+	// ── Numbers, and the schema a typed fact is held against ─────────────────
+
+	// An age is stored as a number, so a number typed in a question has to meet one:
+	// the prompt reads a field with the same term parser the loaders use.
+	aged = startSession([spo("bill", "has-age", 54)], [], ["has-age(?p, 54)"])
+	h.check("a number typed in a question meets the fact it was stored as",
+		printed(aged.answers.lines, "  has-age(bill, 54)"))
+
+	ageTypes = {"has-age": ["name", "number"]}
+	missed = startSession([spo("bill", "has-age", 54)], [], ["has-age(bill, twenty)"],
+		null, 0, ageTypes)
+	h.check("a fact that misses the schema is refused",
+		printed(missed.answers.lines,
+			"  refused: has-age(bill, twenty): the object should be a number"))
+	h.check("and a refused fact is not stored", missed.session.facts.len == 1)
+	fitted = startSession([], [], ["has-gender(walter, boy)"], null, 0,
+		{"has-gender": ["name", "male|female"]})
+	h.check("a value outside the schema's list is refused",
+		printed(fitted.answers.lines, "  refused: has-gender(walter, boy): the object should be one of: male, female"))
+	h.check("a fact that fits the schema is added",
+		startSession([], [], ["has-age(tim, 24)"], null, 0, ageTypes).session.facts.len == 1)
 end function

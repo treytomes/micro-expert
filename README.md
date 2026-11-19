@@ -1,6 +1,6 @@
 # micro-expert
 
-A little expert system for MiniScript 2: 54 facts about one imaginary family, eleven rules
+A little expert system for MiniScript 2: 54 facts about one imaginary family, thirteen rules
 about what those facts imply, and a backward-chaining solver that answers a question
 only by showing you the facts and rules that make the answer true.
 
@@ -114,7 +114,7 @@ Query: uncle-of(bill, ?p)
 
 `--depth 1` is a good sanity check: `uncle-of` is two rule levels above the facts
 (`uncle-of` -> `sibling-of` -> facts), so it answers nothing and says what it would need.
-`--log-level debug` prints all 54 facts as they load and all eleven rules as they are
+`--log-level debug` prints all 54 facts as they load and all thirteen rules as they are
 registered, which is the fastest way to see what the engine was actually given.
 
 ### When there is no answer
@@ -253,9 +253,10 @@ green answers - so `NO_COLOR` turns the whole run plain, prompt included.
 
 ## Setting up your own facts and rules
 
-The family is only data. `data/facts.kb` holds the facts and `data/rules.kb` the rules,
-and nothing else in the repo knows what a family is, so a new domain means rewriting those
-two data files and changing the query.
+The family is only data. `data/facts.kb` holds the facts, `data/rules.kb` the rules, and
+`data/schema.kb` the type of each predicate's fields, and nothing else in the repo knows
+what a family is, so a new domain means rewriting those three data files and changing the
+query.
 
 Both are loaded through a `build` function instead of a top-level array, and `src/main.ms`
 hands its copy of the solver in:
@@ -299,7 +300,17 @@ of them may hold instead, so a rule that could be written two ways is still one 
 in-law-of(?x, ?y) => or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling-of(?x, ?p), married-to(?p, ?y)))
 ```
 
-`not(...)` is refused by name until the engine can use it - the format is shaped to grow.
+`not(...)` holds a body that must have no proof, so a rule can ask for an absence; it takes
+one condition, and `not(and(a, b))` negates several. A comparison such as `?n <= 18` is a
+constraint like `?x != ?y`: it is checked against two numbers rather than proved, and it
+holds only when both sides are numbers, so a name never passes for a zero.
+
+```prolog
+only-child-of(?x, ?y) => and(parent-of(?y, ?x), not(sibling-of(?x, ?q)))
+age-group(?x, child) => and(has-age(?x, ?n), ?n <= 18)
+age-group(?x, adult) => and(has-age(?x, ?n), not(age-group(?x, child)))
+```
+
 Facts and rules share the parser, so a fact may be added to `data/facts.kb` the same way a
 rule is added below.
 
@@ -307,6 +318,8 @@ To add a rule:
 
 1. Add its line to `data/rules.kb`.
 2. Add a check to `test/relations.ms` that asserts both a positive and a negative case.
+3. If it asks for a predicate that stores facts, give that predicate a line in
+   `data/schema.kb`, so the prompt checks what is typed against it.
 
 For example, grandparenthood from the child's side:
 
@@ -321,7 +334,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-266 passed, 0 failed
+316 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -337,8 +350,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"repl.ms","line":30}
 
-1 passed, 0 failed, 265 skipped
-##END {"passed":1,"failed":0,"skipped":265}
+1 passed, 0 failed, 315 skipped
+##END {"passed":1,"failed":0,"skipped":315}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -349,10 +362,10 @@ arguments, so its tree and its runs come from the suite rather than from a list 
 beside it.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 266 here cover the program itself: display and parsing (12), the
-knowledge data format (47), the loaders (8), proofs and explanations (21), the missing-fact
-report (34), recursion and cycle handling (13), relations including the family rules (65),
-and the session at the prompt (66).
+56 respectively), and the 316 here cover the program itself: display and parsing (16), the
+knowledge data format (55), the predicate schema (19), the loaders (8), proofs and
+explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations
+including the family rules (79), and the session at the prompt (71).
 
 ## Repository layout
 
@@ -360,14 +373,16 @@ and the session at the prompt (66).
 src/main.ms          options, logging, and the session at the prompt
 src/triples.ms       the solver: terms, unification, search, proofs
 src/rule.ms          the Rule class
-src/knowledge.ms     the parser for the facts and rules data
+src/knowledge.ms     the parser for the facts, rules and schema data
 src/facts.ms         loads the facts
 src/rules.ms         loads the rules
+src/schema.ms        loads the field types
 data/facts.kb        the 54 facts, as text
-data/rules.kb        the eleven rules, as text
+data/rules.kb        the thirteen rules, as text
+data/schema.kb       the field types, as text
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 266 checks and their runner
+test/                the 316 checks and their runner
 docs/                the long-form write-up
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env

@@ -1,0 +1,25 @@
+// schema.kb — the type of each predicate's fields, in the order a fact writes them.
+//
+//   predicate(field type, field type)
+//
+// A type is
+//
+//   number    a number, as every age is
+//   name      any text, which is what a person or a word is here
+//   a|b|c     one of these names, exactly
+//
+// The prompt holds a typed fact against this before storing it, so has-age(tim, twenty)
+// is refused rather than filed away where no rule could ever reach it. A predicate the
+// file does not name is accepted as it is written: the schema is what the program knows
+// about its own facts, not a gate it has to keep widening.
+//
+// Only the predicates that store facts are listed. A rule's head is defined by the
+// conditions in its body, and a comparison such as ?n <= 18 keeps its own field a
+// number without being told.
+//
+// knowledge.ms reads this file; schema.ms loads it for main.ms.
+
+parent-of(name, name)
+married-to(name, name)
+has-gender(name, male|female)
+has-age(name, number)

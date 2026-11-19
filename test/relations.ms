@@ -303,4 +303,48 @@ run = function(t, rules, h)
 	h.check("a single parent is still a parent", singleParent("nobody", "zed").len == 0)
 	h.check("the rule prints its negation",
 		onlyChildRule.text == "only-child-of(?x, ?y) <- parent-of(?y, ?x), not(sibling-of(?x, ?q))")
+
+	// ── A body that compares numbers ────────────────────────────────────────
+
+	// An age is stored as a number, so a rule can ask where the line is: a child is 18
+	// or younger, and an adult is simply not a child. A comparison is a constraint, not
+	// a goal: it proves nothing, so it adds no step to the tree.
+	ages = [
+		spo("tim", "has-age", 24),
+		spo("mark", "has-age", 18),
+		spo("oliver", "has-age", 7),
+	]
+	childRule = rule(spo(v("x"), "age-group", "child"),
+		[spo(v("x"), "has-age", v("n")), t.Comparison.make("<=", v("n"), 18)])
+	adultRule = rule(spo(v("x"), "age-group", "adult"),
+		[spo(v("x"), "has-age", v("n")), t.Not.make([spo(v("x"), "age-group", "child")])])
+	ageRules = [childRule, adultRule]
+	group = function(a, b, facts=null)
+		if facts == null then facts = ages
+		return t.proveGoals(spo(a, "age-group", b), facts, ageRules, 4)
+	end function
+
+	h.check("a comparison holds below the line", group("oliver", "child").len == 1)
+	h.check("a comparison holds at the line", group("mark", "child").len == 1)
+	h.check("a comparison drops the branch above it", group("tim", "child").len == 0)
+	h.check("an adult is not a child", group("tim", "adult").len == 1)
+	h.check("a child is not an adult", group("mark", "adult").len == 0)
+	h.check("a name where an age belongs never compares",
+		group("gil", "child", [spo("gil", "has-age", "old")]).len == 0)
+	h.check("no age at all is neither", group("susan", "adult").len == 0)
+	childProof = t.proofLines(group("mark", "child")[0], "").join("\n")
+	h.check("a comparison adds no step to the proof", childProof.split("\n").len == 2)
+	h.check("the proof names the age it read", childProof.indexOf("has-age(mark, 18)") != null)
+	h.check("the child rule prints its comparison",
+		childRule.text == "age-group(?x, child) <- has-age(?x, ?n), ?n <= 18")
+	h.check("the adult rule prints its negation",
+		adultRule.text == "age-group(?x, adult) <- has-age(?x, ?n), not(age-group(?x, child))")
+	renamed = t.standardizeApart(childRule).body[1].text
+	h.check("standardizeApart renames the comparison's variables",
+		renamed.indexOf("?n_") == 0 and renamed.indexOf("<= 18") != null)
+	h.check("a comparison against an unbound variable cannot hold",
+		t.proveGoals(spo("x", "young", "yes"), [],
+			[rule(spo("x", "young", "yes"), [t.Comparison.make("<", v("n"), 18)])], 2).len == 0)
+	h.check("everyone with an age falls into one group",
+		t.proveGoals(spo(v("x"), "age-group", v("g")), ages, ageRules, 4).len == 3)
 end function

@@ -9,7 +9,8 @@
 // and and(...) says the same thing out loud and nests. or(...) holds alternatives,
 // any one of which may hold instead, so a rule with two readings is one line, and
 // not(...) holds a body that must have no proof, so a rule can ask for an absence.
-// A condition is a fact, a constraint ?x != ?y, or a grouping. A fact reads
+// A condition is a fact, a constraint ?x != ?y, a comparison ?n <= 18, or a grouping.
+// A fact reads
 // "?x is the relation of ?y", so ?x comes first.
 //
 // Blank lines and // comments are skipped. A rule may run on to the next line, inside
@@ -55,3 +56,14 @@ in-law-of(?x, ?y) => or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling
 // Only not(...) can say that: sibling-of(?x, ?q) holds for any ?q, so no condition of
 // the graph asks whether one exists - the rule holds when the search finds none.
 only-child-of(?x, ?y) => and(parent-of(?y, ?x), not(sibling-of(?x, ?q)))
+
+// ?x is a child while ?x is 18 or younger. An age is stored as a number, so the
+// comparison is arithmetic: read as text, "9" would sort after "18".
+age-group(?x, child) => and(has-age(?x, ?n), ?n <= 18)
+
+// ?x is an adult when ?x has an age and is not a child - the same line the other way
+// round, so the age where childhood ends is written once. has-age comes first because
+// a negation cannot go looking: it can only report that a body with ?x already bound
+// has no proof.
+age-group(?x, adult) => and(has-age(?x, ?n), not(age-group(?x, child)))
+

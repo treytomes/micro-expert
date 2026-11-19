@@ -30,6 +30,7 @@ import "recursion"
 import "relations"
 import "repl"
 import "knowledge"
+import "schema"
 import "loaders"
 
 // shellArgs[0] is this script, so the options start at index 1.
@@ -79,24 +80,27 @@ savedImportPath = env["MS_IMPORT_PATH"]
 env["MS_IMPORT_PATH"] = "src"
 import "../src/rules"
 import "../src/facts"
+import "../src/schema"
 env["MS_IMPORT_PATH"] = savedImportPath
 
 // The loaders themselves, so the cases can read the data files the program ships.
 rulesLoader = globals["../src/rules"]
 factsLoader = globals["../src/facts"]
+// The schema loader, for the checks that read data/schema.kb itself.
+schemaLoader = globals["../src/schema"]
 
 if triples == null or rules == null or parser == null then
 	print "error: could not import ../src/triples, ../src/rule and ../src/knowledge"
 	exit 1
 end if
-if rulesLoader == null or factsLoader == null then
-	print "error: could not import ../src/rules and ../src/facts"
+if rulesLoader == null or factsLoader == null or schemaLoader == null then
+	print "error: could not import ../src/rules, ../src/facts and ../src/schema"
 	exit 1
 end if
 
 // A partly loaded module would otherwise surface as a puzzling error inside one
 // case, so check the surface the suite relies on up front.
-for name in ["SpoTriple", "proveGoals", "substitute", "NotEqual", "proofLines", "Or", "Not",
+for name in ["SpoTriple", "proveGoals", "substitute", "NotEqual", "Comparison", "proofLines", "Or", "Not",
 	"standardizeApart", "parseRule", "needsFor", "reportLines", "reportLabels", "unboundVars",
 	"paint"]
 	if triples.hasIndex(name) == 0 then
@@ -115,7 +119,8 @@ proofs.run(triples, rules, harness)
 absence.run(triples, rules, harness)
 recursion.run(triples, rules, harness)
 relations.run(triples, rules, harness)
-repl.run(triples, rules, prompt, harness)
+repl.run(triples, rules, prompt, harness, schemaLoader)
+schema.run(triples, parser, schemaLoader, harness)
 loaders.run(triples, rulesLoader, factsLoader, harness)
 
 harness.summary()

@@ -28,4 +28,15 @@ run = function(t, h)
 	h.check("rejects a pipe form inside a call", t.SpoTriple.parse("oav(bill | gender | male)") isa error)
 	h.check("rejects two fields", t.SpoTriple.parse("bill | parent-of") isa error)
 	h.check("rejects an empty field", t.SpoTriple.parse("bill |  | susan") isa error)
+
+	// A number is read as a number here as it is in the data files, so a question typed
+	// with one in it meets the fact that was loaded with one in it.
+	numberField = t.SpoTriple.parse("has-age(oliver, 7)")
+	h.check("a number field reads as a number", numberField.object isa number and
+		numberField.object == 7)
+	h.check("a number field displays as it was written", numberField.text == "has-age(oliver, 7)")
+	h.check("a number field meets a stored number",
+		t.unify(t.SpoTriple.parse("has-age(?p, 54)"), spo("bill", "has-age", 54)) != null)
+	h.check("a number field does not meet the same digits as text",
+		t.unify(t.SpoTriple.parse("has-age(?p, 54)"), spo("bill", "has-age", "54")) == null)
 end function

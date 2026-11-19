@@ -142,4 +142,22 @@ run = function(t, knowledge, h)
 	if brokenFact isa error then
 		h.check("the fact's refusal names its line", brokenFact.message.indexOf("line 2") != null)
 	end if
+
+	// ── A condition that compares numbers ────────────────────────────────────
+
+	aged = parseOneRule("age-group(?x, child) => and(has-age(?x, ?n), ?n <= 18)")
+	h.check("a comparison parses", not (aged isa error))
+	h.check("a comparison is a constraint, not a fact", aged[0].body[1] isa t.Comparison)
+	h.check("a comparison reads back", bodyText(aged[0]) == "has-age(?x, ?n), ?n <= 18")
+	h.check("the symbol is kept", aged[0].body[1].symbol == "<=")
+	h.check("a number on the right is a number", aged[0].body[1].right isa number and
+		aged[0].body[1].right == 18)
+
+	greater = parseOneRule("a(?x, ?y) => and(b(?x, ?n), ?n >= 19)")
+	h.check(">= parses", greater[0].body[1].text == "?n >= 19")
+	h.check("< and > parse",
+		parseOneRule("a(?x, ?y) => and(b(?x, ?n), ?n < 2)")[0].body[1].text == "?n < 2" and
+			parseOneRule("a(?x, ?y) => and(b(?x, ?n), ?n > 2)")[0].body[1].text == "?n > 2")
+	h.check("a comparison does not disturb the != constraint",
+		parseOneRule("a(?x, ?y) => and(b(?x, ?y), ?x != ?y)")[0].body[1] isa t.NotEqual)
 end function
