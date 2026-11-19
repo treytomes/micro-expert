@@ -138,6 +138,10 @@ end function
 deref = function(term, binds)
 	"Follows bindings until a non-variable or an unbound variable."
 	if not (term isa Var) then return term
+	// No bindings yet means nothing is bound, so the variable derefs to itself. The top
+	// level of a query derefs a goal's predicate with null binds (candidateFacts,
+	// predicatesMeet), and only a variable predicate ever reaches this line.
+	if binds == null then return term
 	if not binds.hasIndex(term.name) then return term
 	return deref(binds[term.name], binds)
 end function

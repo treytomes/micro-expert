@@ -71,4 +71,17 @@ run = function(t, rules, h)
 	h.check("nested step uses the base rule",
 		nested[2] == "  ancestor(susan, tim)  <- rule ancestor(?x, ?y) <- parent(?x, ?y)")
 	h.check("nested leaf is a fact", nested[3] == "    parent(susan, tim)  <- fact")
+
+	// ── A goal with a variable predicate ────────────────────────────────────
+	// Regression: the top level of a query derefs the goal's predicate with no bindings yet
+	// (candidateFacts, predicatesMeet). A variable predicate is the one term that reaches
+	// that deref, so it must not crash; it matches every fact carrying the goal's subject.
+	props = [spo("oliver", "has-gender", "male"), spo("oliver", "lives-in", "dublin"),
+		spo("henry", "parent", "oliver")]
+	anyPred = spo("oliver", v("p"), v("c"))
+	predAnswers = t.proveGoals(anyPred, props, [], 0)
+	h.check("a variable predicate matches each fact with that subject", predAnswers.len == 2)
+	h.check("a variable predicate binds the predicate and object it found",
+		answerText(anyPred, predAnswers[0]) == "has-gender(oliver, male)" and
+			answerText(anyPred, predAnswers[1]) == "lives-in(oliver, dublin)")
 end function
