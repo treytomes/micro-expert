@@ -60,7 +60,11 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 		not (types isa error) and misfits.len == 0)
 	// Printed only when something drifted, and after the failure it explains, so a
 	// failing run says which facts did.
-	if misfits.len > 0 then print "      " + misfits.join("\n      ")
+	// One line each: a string literal's \n is not a newline in this interpreter, so a
+	// joined list would print as one long line with the escapes in it.
+	for problem in misfits
+		print "      " + problem
+	end for
 
 	undeclared = []
 	if not (types isa error) then
@@ -72,28 +76,34 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 		not (types isa error) and undeclared.len == 0)
 	if undeclared.len > 0 then print "      " + undeclared.join(", ")
 
-	// A rule names predicates too, in its head and in every condition under it, and each
-	// of them has to be typed: otherwise a new rule could quietly use a field no fact could
-	// hold. The walk follows or(...) alternatives and not(...) bodies, since a predicate can
-	// be needed under either.
-	walkPredicates = function(conditions, names)
-		"Adds each predicate the conditions name to the set."
+	// A rule names predicates too, in its head and in every condition under it, and what it
+	// writes has to fit what the schema says. A predicate it never types would leave the
+	// prompt accepting anything for it; a type that contradicts the rule would refuse the
+	// very fact the rule asks for. The walk follows or(...) alternatives and not(...)
+	// bodies, since a condition can sit under either.
+	triplesOf = function(conditions, found)
+		"Adds every triple the conditions name to the list."
 		for condition in conditions
 			if condition isa t.SpoTriple then
-				if condition.predicate isa string then names[condition.predicate] = 1
+				found.push(condition)
 			else if condition isa t.Or then
 				for alternative in condition.alternatives
-					walkPredicates(alternative, names)
+					triplesOf(alternative, found)
 				end for
 			else if condition isa t.Not then
-				walkPredicates(condition.body, names)
+				triplesOf(condition.body, found)
 			end if
 		end for
+		return found
 	end function
-	named = {}
+	written = []
 	for rule in loadedRules
-		if rule.head.predicate isa string then named[rule.head.predicate] = 1
-		walkPredicates(rule.body, named)
+		written.push(rule.head)
+		triplesOf(rule.body, written)
+	end for
+	named = {}
+	for triple in written
+		if triple.predicate isa string then named[triple.predicate] = 1
 	end for
 	untyped = []
 	if not (types isa error) then
@@ -104,4 +114,21 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 	h.check("every predicate the rules name is declared in data/schema.kb",
 		not (types isa error) and untyped.len == 0)
 	if untyped.len > 0 then print "      " + untyped.join(", ")
+
+	// The constants a rule writes are checked the way a typed fact is, so a schema line
+	// that contradicts its rules cannot pass silently: a variable is not a value yet and
+	// fits anything, so this reads the constants alone - has-gender's male and female, and
+	// the two words age-group concludes.
+	mismatched = []
+	if not (types isa error) then
+		for triple in written
+			problem = schemaLoader.misfit(types, triple)
+			if problem != null then mismatched.push(triple.text + " - " + problem)
+		end for
+	end if
+	h.check("every value the rules write fits data/schema.kb",
+		not (types isa error) and mismatched.len == 0)
+	for problem in mismatched
+		print "      " + problem
+	end for
 end function
