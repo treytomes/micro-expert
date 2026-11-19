@@ -1,0 +1,50 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Micro-Expert Knowledge",
+  "scopeName": "source.micro-expert-kb",
+  "fileTypes": ["kb"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#arrow" },
+    { "include": "#constraint" },
+    { "include": "#variables" },
+    { "include": "#numbers" },
+    { "include": "#grouping" },
+    { "include": "#predicate" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comments": {
+      "match": "//.*$",
+      "name": "comment.line.double-slash.micro-expert-kb"
+    },
+    "arrow": {
+      "match": "=>",
+      "name": "keyword.operator.proves.micro-expert-kb"
+    },
+    "constraint": {
+      "match": "!=",
+      "name": "keyword.operator.comparison.micro-expert-kb"
+    },
+    "variables": {
+      "match": "\\?[A-Za-z_][A-Za-z0-9_]*",
+      "name": "variable.other.micro-expert-kb"
+    },
+    "numbers": {
+      "match": "(?<![\\w.])-?\\d+(?:\\.\\d+)?",
+      "name": "constant.numeric.micro-expert-kb"
+    },
+    "grouping": {
+      "match": "\\b(and|or|not)\\b(?=\\s*\\()",
+      "name": "keyword.operator.logical.micro-expert-kb"
+    },
+    "predicate": {
+      "match": "\\b[A-Za-z_][A-Za-z0-9_-]*(?=\\s*\\()",
+      "name": "entity.name.function.predicate.micro-expert-kb"
+    },
+    "punctuation": {
+      "match": "[(),]",
+      "name": "punctuation.separator.micro-expert-kb"
+    }
+  }
+}

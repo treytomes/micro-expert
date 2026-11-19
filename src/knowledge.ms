@@ -1,5 +1,5 @@
-// knowledge.ms — the parser for the knowledge base's data files: facts.data and
-// rules.data.
+// knowledge.ms — the parser for the knowledge base's data files: data/facts.kb and
+// data/rules.kb at the repo root.
 //
 // A fact is one triple on a line, predicate(subject, object):
 //
@@ -47,29 +47,29 @@ parseFacts = function(triples, lines)
 	return facts
 end function
 
-loadFacts = function(triples, source, fileName)
-	"Reads a facts file beside the module at source and returns its triples, or an error."
-	lines = readData(source, fileName)
+loadFacts = function(triples, source, relative)
+	"Reads the facts file at relative from the module at source and returns its triples, or an error."
+	lines = readData(source, relative)
 	if lines isa error then return lines
 	facts = parseFacts(triples, lines)
-	if facts isa error then return err(fileName + " " + facts.message)
+	if facts isa error then return err(file.name(relative) + " " + facts.message)
 	return facts
 end function
 
-loadRules = function(triples, source, fileName)
-	"Reads a rules file beside the module at source and returns its {head, body} pieces, or an error."
-	lines = readData(source, fileName)
+loadRules = function(triples, source, relative)
+	"Reads the rules file at relative from the module at source and returns its {head, body} pieces, or an error."
+	lines = readData(source, relative)
 	if lines isa error then return lines
 	pieces = parseRules(triples, lines)
-	if pieces isa error then return err(fileName + " " + pieces.message)
+	if pieces isa error then return err(file.name(relative) + " " + pieces.message)
 	return pieces
 end function
 
-readData = function(source, fileName)
-	"The lines of a data file, or an error naming the file and the path tried."
-	path = dataPath(source, fileName)
+readData = function(source, relative)
+	"The lines of the data file at relative, or an error naming it and the path tried."
+	path = dataPath(source, relative)
 	lines = file.readLines(path)
-	if lines isa error then return err(fileName + ": could not read " + path + ": " + lines.message)
+	if lines isa error then return err(file.name(relative) + ": could not read " + path + ": " + lines.message)
 	return lines
 end function
 
@@ -271,45 +271,25 @@ end function
 
 // ── Finding a data file ──────────────────────────────────────────────────────
 
-dataPath = function(source, fileName)
-	"Finds fileName beside the module whose source location is source."
+dataPath = function(source, relative)
+	"Finds a data file at relative, from the folder the module at source was loaded in."
 	at = source.indexOf(" line ")
 	if at != null then source = source[:at]
 	folder = file.parent(source)
 	entry = file.parent(shellArgs[0])
 	// source is written relative to the entry script's own folder while the working
-	// directory may be further up, and a bare import may have been found on
-	// MS_IMPORT_PATH instead, so each reading is tried before the bare name:
-	// main.ms and sample.ms live in src/, bench/ runs from the root, and a script of
-	// your own may sit anywhere.
-	candidates = []
-	if folder != "" then candidates.push(file.child(folder, fileName))
-	if entry != "" then
-		candidates.push(file.child(file.parent(file.child(entry, source)), fileName))
-	end if
-	for importFolder in importFolders()
-		candidates.push(file.child(importFolder, fileName))
+	// directory may be further up, so the module's folder is read both ways before the
+	// working directory itself: main.ms and sample.ms live in src/, bench/ runs from
+	// the root, and a script of your own may sit anywhere.
+	folders = [folder]
+	if entry != "" then folders.push(file.parent(file.child(entry, source)))
+	folders.push("")
+	for base in folders
+		path = relative
+		if base != "" then path = file.child(base, relative)
+		if file.exists(path) then return path
 	end for
-	candidates.push(fileName)
-	for candidate in candidates
-		if file.exists(candidate) then return candidate
-	end for
-	return candidates[0]
-end function
-
-importFolders = function
-	"Every folder MS_IMPORT_PATH names, since the interpreter may have found the module there."
-	folders = []
-	for piece in env["MS_IMPORT_PATH"].split(";")
-		if piece == "" then continue
-		// The list is ';' or ':' separated; a Windows drive letter holds a ':' too, so
-		// the whole piece is kept and its colon-separated parts are tried after it.
-		folders.push(piece)
-		for part in piece.split(":")
-			if part.len > 1 then folders.push(part)
-		end for
-	end for
-	return folders
+	return relative
 end function
 
 // ── Lines ────────────────────────────────────────────────────────────────────

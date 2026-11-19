@@ -80,8 +80,8 @@ parent-of(walter, bill)
 
 A triple may hold **variables** in any position, written `?x`. `parent-of(?p, ?x)` is the pattern "someone is the parent of ?x". The parser accepts that call form and the old pipe form (`walter | parent-of | bill`), and rejects malformed calls rather than guessing.
 
-- A **fact** is a triple with no variables. Facts are the leaves of every answer: `54` of them live in `src/facts.data`, one `predicate(subject, object)` line each.
-- A **rule** has a head — one triple it can prove — and a body: the conditions that must all hold first. Rules are data, one per line in `src/rules.data`, and print as `head <- conditions`:
+- A **fact** is a triple with no variables. Facts are the leaves of every answer: `54` of them live in `data/facts.kb`, one `predicate(subject, object)` line each.
+- A **rule** has a head — one triple it can prove — and a body: the conditions that must all hold first. Rules are data, one per line in `data/rules.kb`, and print as `head <- conditions`:
 
 ```prolog
 uncle-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male))
@@ -153,7 +153,7 @@ If you have met Prolog or Datalog, the mapping is direct: a triple is an atomic 
 
 ### Knowledge lives in its own files
 
-`src/facts.data` and `src/rules.data` hold the domain, and nothing else in the repo knows what a family is. Both are loaded through a `build` function rather than exported as a top-level array, because of a real constraint in this interpreter: **a module that imports `triples.ms` gets its own copy of its classes**, and `isa` checks only agree inside one copy. A loader that imported `triples.ms` directly would build triples the solver does not recognise, so the caller hands its copy in. The data dodge the problem another way: `src/knowledge.ms` parses the text with whichever copy it is handed, and the loaders wrap what it returns.
+`data/facts.kb` and `data/rules.kb` hold the domain, and nothing else in the repo knows what a family is. Both are loaded through a `build` function rather than exported as a top-level array, because of a real constraint in this interpreter: **a module that imports `triples.ms` gets its own copy of its classes**, and `isa` checks only agree inside one copy. A loader that imported `triples.ms` directly would build triples the solver does not recognise, so the caller hands its copy in. The data dodge the problem another way: `src/knowledge.ms` parses the text with whichever copy it is handed, and the loaders wrap what it returns.
 
 ```miniscript
 import "facts"
@@ -170,7 +170,7 @@ Nothing else is needed to add a domain. Rewrite those two data files, keep the s
 
 Two steps, and the test suite has a spot for each rule you add:
 
-1. Add its line to `src/rules.data`: a head, `=>`, and a body of conditions.
+1. Add its line to `data/rules.kb`: a head, `=>`, and a body of conditions.
 2. Add a check to `test/relations.ms` that asserts both a positive and a negative case.
 
 For example, grandparenthood from the child's side:

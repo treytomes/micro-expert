@@ -150,7 +150,7 @@ end function
 
 // ── Facts and rules ──────────────────────────────────────────────────────────
 
-// The family tree lives in facts.data and the reasoning in rules.data, loaded by
+// The family tree lives in data/facts.kb and the reasoning in data/rules.kb, loaded by
 // facts.ms and rules.ms. Both build their arrays on request instead of at load time,
 // because the triples have to come from this file's copy of triples.ms: a module that
 // imports it gets a copy of its own, and the solver does not recognize another copy's

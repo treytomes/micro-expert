@@ -1,4 +1,4 @@
-// Cases for the knowledge data format: the parser behind facts.data and rules.data.
+// Cases for the knowledge data format: the parser behind data/facts.kb and data/rules.kb.
 
 run = function(t, knowledge, h)
 	"Checks the data parser, against the shared copy of triples."

@@ -2,9 +2,9 @@
 // that load them, so the loader's path logic cannot regress silently.
 
 run = function(t, rulesLoader, factsLoader, h)
-	"Checks that rules.data and facts.data load, in the order their lines hold."
+	"Checks that data/rules.kb and data/facts.kb load, in the order their lines hold."
 	loadedRules = rulesLoader.build(t)
-	h.check("rules.data loads through rules.ms", not (loadedRules isa error))
+	h.check("data/rules.kb loads through rules.ms", not (loadedRules isa error))
 	if loadedRules isa error then return
 	// The order search tries them, which is the order the file holds.
 	expected = [
@@ -22,13 +22,13 @@ run = function(t, rulesLoader, factsLoader, h)
 	for rule in loadedRules
 		texts.push(rule.text)
 	end for
-	h.check("rules.data holds nine rules", loadedRules.len == 9)
+	h.check("data/rules.kb holds nine rules", loadedRules.len == 9)
 	h.check("the rules load in order", texts.join("|") == expected.join("|"))
 
 	loadedFacts = factsLoader.build(t)
-	h.check("facts.data loads through facts.ms", not (loadedFacts isa error))
+	h.check("data/facts.kb loads through facts.ms", not (loadedFacts isa error))
 	if loadedFacts isa error then return
-	h.check("facts.data holds 54 facts", loadedFacts.len == 54)
+	h.check("data/facts.kb holds 54 facts", loadedFacts.len == 54)
 	if loadedFacts.len == 54 then
 		h.check("the first fact is the first line", loadedFacts[0].text == "has-gender(walter, male)")
 		h.check("the last fact is the last line", loadedFacts[53].text == "has-age(oliver, 7)")

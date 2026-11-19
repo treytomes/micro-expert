@@ -1,9 +1,9 @@
-// facts.data — the family the program reasons about: 54 facts about people.
+// facts.kb — the family the program reasons about: 54 facts about people.
 //
 // A fact is one SPO triple, predicate(subject, object), so "?x is the relation of
 // ?y" reads with the subject first. Values are names or plain numbers; ?x would be a
-// variable, which a stored fact never needs. Nothing here is derived — rules.data
-// says what follows from these.
+// variable, which a stored fact never needs. Nothing here is derived — rules.kb says
+// what follows from these.
 //
 // Blank lines and // comments are skipped, and a fact may run on to the next line
 // inside its parentheses. knowledge.ms parses the format; facts.ms loads this file.

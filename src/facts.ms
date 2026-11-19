@@ -1,5 +1,5 @@
-// facts.ms — the fact loader: the family's facts are data now, in facts.data beside
-// this file.
+// facts.ms — the fact loader: the family's facts are data now, in data/facts.kb at
+// the repo root.
 //
 // A fact is written there as one triple per line:
 //
@@ -14,12 +14,12 @@
 //   import "facts"
 //   facts = globals["facts"].build(triples)
 //
-// rules.data says what follows from these, and main.ms assembles both and asks the
+// data/rules.kb says what follows from these, and main.ms assembles both and asks the
 // query at the bottom of it.
 
 import "knowledge"
 
 build = function(triples)
 	"Reads the facts data and returns its triples, built with the caller's triples, or an error."
-	return knowledge.loadFacts(triples, info(@build).sourceLoc, "facts.data")
+	return knowledge.loadFacts(triples, info(@build).sourceLoc, "../data/facts.kb")
 end function

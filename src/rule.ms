@@ -19,7 +19,7 @@
 //
 // This module imports nothing, on purpose: a rule only stores and prints the triples
 // it is given, so it needs no copy of triples.ms and works with whichever copy built
-// them. rules.ms loads the rules themselves, from rules.data.
+// them. rules.ms loads the rules themselves, from data/rules.kb.
 
 Rule = {}
 

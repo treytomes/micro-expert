@@ -253,7 +253,7 @@ green answers - so `NO_COLOR` turns the whole run plain, prompt included.
 
 ## Setting up your own facts and rules
 
-The family is only data. `src/facts.data` holds the facts and `src/rules.data` the rules,
+The family is only data. `data/facts.kb` holds the facts and `data/rules.kb` the rules,
 and nothing else in the repo knows what a family is, so a new domain means rewriting those
 two data files and changing the query.
 
@@ -282,7 +282,7 @@ has-gender(bill, male)
 has-age(bill, 54)
 ```
 
-A rule is one line of `src/rules.data`: a head - the one triple it can prove - and a body
+A rule is one line of `data/rules.kb`: a head - the one triple it can prove - and a body
 of conditions that must all hold first. The body is a comma-delimited list, which is an
 implied `and`, or `and(...)` around the same list:
 
@@ -294,11 +294,11 @@ uncle-of(?x, ?y) => parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
 A condition is a fact or a constraint such as `?x != ?y`. `and(...)` nests, an entry may
 run over several lines inside its parentheses, and `or(...)` and `not(...)` are refused by
 name until the engine can use them - the format is shaped to grow. Facts and rules share
-the parser, so a fact may be added to `facts.data` the same way a rule is added below.
+the parser, so a fact may be added to `data/facts.kb` the same way a rule is added below.
 
 To add a rule:
 
-1. Add its line to `src/rules.data`.
+1. Add its line to `data/rules.kb`.
 2. Add a check to `test/relations.ms` that asserts both a positive and a negative case.
 
 For example, grandparenthood from the child's side:
@@ -350,30 +350,34 @@ and the session at the prompt (60).
 ## Repository layout
 
 ```
-src/main.ms          options, logging, and the query at the bottom
+src/main.ms          options, logging, and the session at the prompt
 src/triples.ms       the solver: terms, unification, search, proofs
 src/rule.ms          the Rule class
 src/knowledge.ms     the parser for the facts and rules data
-src/facts.data       the 54 facts, as text
-src/facts.ms         loads facts.data
-src/rules.data       the nine rules, as text
-src/rules.ms         loads rules.data
+src/facts.ms         loads the facts
+src/rules.ms         loads the rules
+data/facts.kb        the 54 facts, as text
+data/rules.kb        the nine rules, as text
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
 test/                the 215 checks and their runner
 docs/                the long-form write-up
+vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env
 bootstrap.sh         the same for Linux
 micro-expert.bat     runs the entry point named in .env
 micro-expert.sh      the same for Linux
-build-ext.bat        builds the VS Code extension into a .vsix
+build-ext.bat        builds the MiniScript 2 extension into a .vsix
 build-ext.sh         the same for Linux
+build-kb-ext.bat     builds the knowledge extension into a .vsix
+build-kb-ext.sh      the same for Linux
 ```
 
 The other two submodules are tooling rather than program code: `vscode-miniscript` is the
 MiniScript 2 language extension, which also opens in VS Code on its own with `F5`, and
 `.agents/skills/miniscript-2` is an agent skill describing the language for coding
-assistants.
+assistants. `vscode-knowledge` is a small extension of our own that highlights the `.kb`
+data files; open it in VS Code and press `F5` the same way.
 
 ## License
 

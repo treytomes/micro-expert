@@ -1,4 +1,4 @@
-// rules.data — the rules this program uses: what follows from the facts in facts.data.
+// rules.kb — the rules this program uses: what follows from the facts in facts.kb.
 //
 // One rule per line, as
 //
