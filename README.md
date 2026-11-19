@@ -5,7 +5,7 @@ about what those facts imply, and a backward-chaining solver that answers a ques
 only by showing you the facts and rules that make the answer true.
 
 ```
-Query: uncle-of(bill, ?p)
+? uncle-of(bill, ?p)
   uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
     parent-of(george, anna)  <- fact
     sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)
@@ -74,7 +74,8 @@ entry point, and pass the script's exit code back.
 [INF] micro-expert: depth:      8
 [INF] micro-expert: verbose:    0
 [INF] micro-expert: log-level:  information
-Query: uncle-of(bill, ?p)
+Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
+? uncle-of(bill, ?p)
   uncle-of(bill, anna)
   uncle-of(bill, mark)
   uncle-of(bill, clara)
@@ -91,7 +92,7 @@ That is the answer set. `--verbose` adds the proof tree behind each one:
 ```
 > micro-expert --verbose
 Verbose run: depth 8
-Query: uncle-of(bill, ?p)
+? uncle-of(bill, ?p)
   uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
     parent-of(george, anna)  <- fact
     sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)
@@ -124,7 +125,7 @@ shape of the fact that is missing:
 
 ```
 > micro-expert
-Query: parent-of(?p, susan)
+? parent-of(?p, susan)
   no solution found at depth 8
   A solution would need one of these:
     a fact like parent-of(?p, susan)
@@ -152,18 +153,19 @@ body whose conditions can each be met on their own but never all at once still h
 listed - with the facts its conditions would need as one set - rather than being dropped as
 if no rule could conclude the query.
 
-The question lives at the bottom of `src/main.ms`:
+Ask it at the prompt:
 
-```miniscript
-runQuery fact("bill", "uncle-of", var("?p"))
+```
+? grandpa-of(?who, tim)
+  grandpa-of(walter, tim)
 ```
 
 Every predicate has the same shape - `relation(?x, ?y)` reads "?x is the relation of ?y" -
 so `uncle-of(bill, ?p)` puts Bill where the uncle goes and asks who he is an uncle of: his
 six nieces and nephews above, through his brothers George and Henry. Put the variable where
-the unknown is: `fact(var("who"), "grandpa-of", "tim")` reads "?who is the grandpa of tim"
-and answers `walter`, and `fact(var("x"), "grandma-of", var("y"))` lists every
-grandmother/grandchild pair - seven of them, all Doris.
+the unknown is: `grandpa-of(?who, tim)` reads "?who is the grandpa of tim" and answers
+`walter`, and `grandma-of(?x, ?y)` lists every grandmother/grandchild pair - seven of them,
+all Doris.
 
 ## A session at the prompt
 
