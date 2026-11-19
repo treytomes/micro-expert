@@ -55,6 +55,15 @@ run = function(t, rules, repl, h)
 	h.check("Rule.text gets an or(...) line back",
 		readable(chosen) and rules.Rule.make(chosen.head, chosen.body).text == choice)
 
+	// The line data/rules.kb prints for only-child-of, so a negation can be typed back in.
+	single = "only-child-of(?x, ?y) <- parent-of(?y, ?x), not(sibling-of(?x, ?q))"
+	negated = t.parseRule(single)
+	h.check("a rule line with not(...) parses", readable(negated) and negated.body.len == 2)
+	h.check("not(...) is one condition holding the body it negates",
+		readable(negated) and negated.body[1] isa t.Not and negated.body[1].body.len == 1)
+	h.check("Rule.text gets a not(...) line back",
+		readable(negated) and rules.Rule.make(negated.head, negated.body).text == single)
+
 	// ── A scripted session ───────────────────────────────────────────────────
 
 	// A session over a script of typed lines, recording what it printed and asked.

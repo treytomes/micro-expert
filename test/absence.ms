@@ -127,6 +127,33 @@ run = function(t, rules, h)
 	h.check("the second alternative names its fact",
 		choices[5] == "      married-to(bill, nobody)")
 
+	// ── A negation is checked, never asked for ─────────────────────────────
+
+	// Nothing added to the graph can make an absence true, so not(...) is judged
+	// against what is known: met, it adds nothing to the report; failed, it rules
+	// that way through the rule out entirely.
+	only = rule(spo(v("x"), "only-child-of", v("y")),
+		[spo(v("y"), "parent-of", v("x")), t.Not.make([spo(v("x"), "sibling-of", v("q"))])])
+	unmet = t.neededFactLines(spo("tim", "only-child-of", "nobody"), family, [only], 8)
+	h.check("a negation that holds asks for no fact", unmet.len == 4)
+	h.check("the fact the body still needs is the one before it",
+		unmet[3] == "      parent-of(nobody, tim)")
+	h.check("the rule line prints the negation it checks",
+		unmet[2] == "    through rule only-child-of(?x, ?y) <- parent-of(?y, ?x), not(sibling-of(?x, ?q))")
+
+	// Bill has a brother, so no fact would make him an only child: the rule is not
+	// offered at all, and the query's own shape is all that is left.
+	sibs = [spo("walter", "parent-of", "bill"), spo("walter", "parent-of", "george"),
+		spo("doris", "parent-of", "bill"), spo("doris", "parent-of", "george")]
+	siblingOf = rule(spo(v("x"), "sibling-of", v("y")),
+		[spo(v("p"), "parent-of", v("x")), spo(v("p"), "parent-of", v("y")),
+			t.NotEqual.make(v("x"), v("y"))])
+	ruledOut = t.neededFactLines(spo("bill", "only-child-of", "walter"), sibs,
+		[siblingOf, only], 8)
+	h.check("a body its negation rules out is not offered", ruledOut.len == 2)
+	h.check("only the query's own shape is left",
+		ruledOut[1] == "    a fact like only-child-of(bill, walter)")
+
 	// ── Painting is opt-in: no style, no escape codes ──────────────────────
 
 	h.check("an unpainted report stays plain text", lines[1].indexOf(char(27)) == null)

@@ -86,18 +86,34 @@ run = function(t, knowledge, h)
 		bodyText(paired[0]) ==
 			"or(and(married-to(?x, ?p), sibling-of(?p, ?y)), sibling-of(?x, ?y))")
 
+	// ── not: a body that must not hold ───────────────────────────────────────
+
+	negated = parseOneRule("only-child-of(?x, ?y) => and(parent-of(?y, ?x), not(sibling-of(?x, ?q)))")
+	h.check("not(...) parses", not (negated isa error))
+	h.check("not(...) sits among other conditions", negated[0].body.len == 2)
+	h.check("not(...) is a negation, not a triple", negated[0].body[1] isa t.Not)
+	h.check("not(...) holds the body it negates",
+		negated[0].body[1].body.len == 1 and negated[0].body[1].body[0].text == "sibling-of(?x, ?q)")
+	h.check("not(...) reads back",
+		bodyText(negated[0]) == "parent-of(?y, ?x), not(sibling-of(?x, ?q))")
+
+	whole = parseOneRule("a(?x, ?y) => not(and(b(?x, ?p), c(?p, ?y)))")
+	h.check("not(...) around several conditions reads as and(...)",
+		whole[0].body[0].text == "not(and(b(?x, ?p), c(?p, ?y)))")
+	h.check("not(...) keeps both conditions of its body", whole[0].body[0].body.len == 2)
+
 	// ── Refusals ─────────────────────────────────────────────────────────────
 
 	h.check("a line without an arrow is refused", failure("parent-of(?x, ?y)") != null)
 	h.check("a rule with no body is refused", failure("parent-of(?x, ?y) => ") != null)
+	h.check("not(...) with no condition is refused", failure("a(?x, ?y) => not()") != null)
+	several = failure("a(?x, ?y) => not(b(?x, ?y), c(?x, ?y))")
+	h.check("not(...) of several conditions is refused", several != null)
+	if several != null then
+		h.check("the refusal says how to write it", several.message.indexOf("not(and(") != null)
+	end if
 	h.check("a broken part refuses the whole rule",
 		failure("grandparent(?x, ?y) => parent-of(?x, ?p") != null)
-
-	unsupported = failure("a(?x, ?y) => not(b(?x, ?y))")
-	h.check("a grouping the engine cannot use is refused", unsupported != null)
-	if unsupported != null then
-		h.check("a refusal names the grouping", unsupported.message.indexOf("not(...)") != null)
-	end if
 
 	broken = knowledge.parseRules(t, ["// A rule", "grandparent(?x, ?y) => parent-of(?x, ?p"])
 	h.check("a refusal names the line", broken isa error)

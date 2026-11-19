@@ -211,6 +211,11 @@ end function
 // choice: or(...) holds one body per alternative, and any one of them settles what
 // the condition asks. Each alternative is a list of conditions, so or(...) nests in
 // a body the way and(...) does, and may hold and(...) as one of its alternatives.
+//
+// A not(...) is the other grouping. It holds one body, and the condition holds when that
+// body has no proof at all - it says what the facts do not, as in "nobody is ?x's
+// sibling". It binds nothing and adds no step to a proof, because an absence has no
+// derivation to show, only a search that came back empty.
 
 Or = {}
 
@@ -231,13 +236,27 @@ Or.text = function
 end function
 
 alternativeText = function(conditions)
-	"One alternative as it reads: its one condition, or and(...) around several."
+	"One body as it reads: its one condition, or and(...) around several."
 	texts = []
 	for condition in conditions
 		texts.push(condition.text)
 	end for
 	if texts.len == 1 then return texts[0]
 	return "and(" + texts.join(", ") + ")"
+end function
+
+Not = {}
+
+Not.make = function(body)
+	"Builds a 'this body has no proof' condition."
+	n = new Not
+	n.body = body
+	return n
+end function
+
+Not.text = function
+	"Reads as not(a), with and(...) around a body that holds several conditions."
+	return "not(" + alternativeText(self.body) + ")"
 end function
 
 renameCounter = {"uses": 0}
@@ -285,7 +304,8 @@ renameConditions = function(conditions, suffix)
 end function
 
 renameCondition = function(condition, suffix)
-	"One condition renamed: a goal as a triple, a constraint as it is."
+	"One condition renamed: a goal as a triple, a grouping by its body, a constraint as it is."
+	if condition isa Not then return Not.make(renameConditions(condition.body, suffix))
 	if condition isa Or then
 		alternatives = []
 		for alternative in condition.alternatives
@@ -459,7 +479,7 @@ matchingRules = function(goal, rules, binds)
 end function
 
 proveConditions = function(conditions, facts, rules, depth, binds, open=null, index=null)
-	"Proves each condition in turn: a goal by search, a constraint by checking it, and or(...) by one alternative."
+	"Proves each condition in turn: a goal by search, a constraint by checking it, or(...) by one alternative, and not(...) by finding no proof."
 	// Any one alternative settles the choice, and the rest of the body follows it,
 	// so every way through an alternative is a way through the body.
 	if conditions.len > 0 and (conditions[0] isa Or) then
@@ -471,6 +491,14 @@ proveConditions = function(conditions, facts, rules, depth, binds, open=null, in
 			end for
 		end for
 		return results
+	end if
+	// A negation is met exactly when the body it holds has no proof, so one proof ends
+	// the branch. It binds nothing and proves nothing, so it adds no step to the tree.
+	if conditions.len > 0 and (conditions[0] isa Not) then
+		if proveConditions(conditions[0].body, facts, rules, depth, binds, open, index).len > 0 then
+			return []
+		end if
+		return proveConditions(conditions[1:], facts, rules, depth, binds, open, index)
 	end if
 	if conditions.len == 0 then return [{"binds": binds, "proofs": []}]
 	first = conditions[0]
@@ -571,7 +599,7 @@ bodyResults = function(candidate, facts, rules, depth, path)
 end function
 
 bodyRequirements = function(conditions, facts, rules, depth, binds, open, newVars, reportOpen)
-	"Every way of proving a rule body: the bindings it would leave, and the facts it would still need; newVars are the variables the facts found so far would bind."
+	"Every way of proving a rule body: the bindings it would leave, and the facts it would still need; newVars are the variables the facts found so far would bind, and a not(...) is checked rather than asked for."
 	// Each alternative is a body of its own, so it is one more way this body could be
 	// met, and it is reported with the facts its own conditions would need.
 	if conditions.len > 0 and (conditions[0] isa Or) then
@@ -583,6 +611,14 @@ bodyRequirements = function(conditions, facts, rules, depth, binds, open, newVar
 			end for
 		end for
 		return options
+	end if
+	// A negation asks for no fact: nothing added can make an absence true, so it is
+	// checked against what is known, and a body it already proves rules this way out.
+	if conditions.len > 0 and (conditions[0] isa Not) then
+		if proveConditions(conditions[0].body, facts, rules, depth, binds, open).len > 0 then
+			return []
+		end if
+		return bodyRequirements(conditions[1:], facts, rules, depth, binds, open, newVars, reportOpen)
 	end if
 	if conditions.len == 0 then return [{"binds": binds, "needs": []}]
 	first = conditions[0]
@@ -947,7 +983,7 @@ parseCondition = function(text, line)
 end function
 
 parseBodyPart = function(text, line)
-	"Reads one piece of a rule body into the conditions it stands for: a fact, a constraint, and(...) flattened, or or(...) as one condition."
+	"Reads one piece of a rule body into the conditions it stands for: a fact, a constraint, and(...) flattened, or or(...) and not(...) as one condition."
 	text = trimSpace(text)
 	if text == "" then return err(badRule(line))
 	called = groupingOf(text)
@@ -959,6 +995,12 @@ parseBodyPart = function(text, line)
 	inner = trimSpace(called.inner)
 	if inner == "" then return err(badRule(line))
 	parts = splitConditions(inner)
+	if called.name == "not" then
+		if parts.len != 1 then return err(badRule(line))
+		body = parseBodyPart(parts[0], line)
+		if body isa error then return body
+		return [Not.make(body)]
+	end if
 	if called.name == "and" then
 		conditions = []
 		for part in parts
@@ -978,11 +1020,11 @@ parseBodyPart = function(text, line)
 end function
 
 groupingOf = function(text)
-	"The {name, inner} of an and(...) or or(...) standing alone, or null when the text is not one."
+	"The {name, inner} of an and(...), or(...) or not(...) standing alone, or null when the text is not one."
 	openAt = text.indexOf("(")
 	if openAt == null then return null
 	name = trimSpace(text[:openAt])
-	if name != "and" and name != "or" then return null
+	if ["and", "or", "not"].indexOf(name) == null then return null
 	if trimSpace(text[-1:]) != ")" then return null
 	return {"name": name, "inner": text[openAt + 1:-1]}
 end function

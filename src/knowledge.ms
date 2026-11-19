@@ -19,8 +19,9 @@
 //
 // or(...) holds a body's alternatives: any one of them may hold instead, and each
 // alternative is a body of its own, so or(and(a, b), c) reads as it looks. not(...)
-// is still reserved: a body holding one is refused, so adding it later is a
-// deliberate change to the engine rather than a line that quietly means nothing.
+// holds a body that must have no proof, which is how a rule says what the facts do
+// not: not(sibling-of(?x, ?q)) holds when nothing in the graph is ?x's sibling. It
+// takes one condition, so not(a, b) is refused rather than read as not(and(a, b)).
 //
 // Nothing here imports triples.ms. The parsers are handed the caller's copy, so the
 // terms they build are the ones the caller's solver recognizes, and they return the
@@ -107,7 +108,7 @@ parseRule = function(triples, text)
 end function
 
 parseBody = function(triples, text)
-	"Reads a body: one condition, a comma-delimited list of them, or and(...) or or(...) around either."
+	"Reads a body: one condition, a comma-delimited list of them, or and(...), or(...) or not(...) around either."
 	text = trimSpace(text)
 	if text == "" then return err("a rule needs a condition, after '=>'")
 	// A comma that is not inside a call separates conditions, so the list is read
@@ -138,12 +139,22 @@ oneCondition = function(triples, text)
 end function
 
 isGrouping = function(name)
-	"Says whether a name groups conditions rather than naming one; not is reserved for later."
+	"Says whether a name groups conditions rather than naming one."
 	return ["and", "or", "not"].indexOf(name) != null
 end function
 
 parseGrouping = function(triples, called)
-	"Reads a grouping call: and(...) flattens into the conditions it holds, and or(...) becomes one condition holding its alternatives."
+	"Reads a grouping call: and(...) flattens into its conditions, or(...) becomes one condition holding alternatives, and not(...) one condition holding a body that must not hold."
+	if called.name == "not" then
+		// One body, so several conditions have to be joined out loud: not(a, b) would
+		// leave the reader guessing whether it negates either or both.
+		if called.args.len != 1 then
+			return err("not(...) takes one condition; write not(and(a, b)) for several")
+		end if
+		body = parseBody(triples, called.args[0])
+		if body isa error then return body
+		return [triples.Not.make(body)]
+	end if
 	if called.name == "or" then
 		if called.args.len == 0 then return err("or(...) needs at least one condition")
 		alternatives = []
@@ -153,9 +164,6 @@ parseGrouping = function(triples, called)
 			alternatives.push(alternative)
 		end for
 		return [triples.Or.make(alternatives)]
-	end if
-	if called.name != "and" then
-		return err(called.name + "(...) is not supported yet: join conditions with commas or and(...)")
 	end if
 	if called.args.len == 0 then return err("and(...) needs at least one condition")
 	conditions = []

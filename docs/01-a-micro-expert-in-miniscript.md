@@ -2,7 +2,7 @@
 
 [micro-expert on GitHub](https://github.com/treytomes/micro-expert)
 
-A little expert system for MiniScript 2: 54 facts about one imaginary family, ten rules about what those facts imply, and a backward-chaining solver that answers a question only by showing you the facts and rules that make the answer true.
+A little expert system for MiniScript 2: 54 facts about one imaginary family, eleven rules about what those facts imply, and a backward-chaining solver that answers a question only by showing you the facts and rules that make the answer true.
 
 ```prolog
 Query: uncle-of(bill, ?p)
@@ -54,7 +54,7 @@ The last row is the honest one. This program cannot read *"who are Bill's nephew
 What a rules engine buys you, concretely, in an era of cheap text generation:
 
 - **Auditability.** Every claim has a proof you can print. There is no "the model said so" step to defend to a reviewer, an auditor, or yourself in six months.
-- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 240 assertions and they either pass or they don't.
+- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 266 assertions and they either pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility, scheduling constraints, device diagnostics, family relationships — questions where the rule is the requirement and being consistently right matters more than being fluent.
 - **Knowledge as a reviewed artifact.** Adding a rule is a five-line pull request with a test. There is no training run, and nothing else silently changes.
 - **No data leaving the machine.** The facts are the data, and they are text files.
@@ -87,7 +87,7 @@ A triple may hold **variables** in any position, written `?x`. `parent-of(?p, ?x
 uncle-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male))
 ```
 
-The arrow reads "proves". The body is a comma-delimited list of conditions — an implied `and` — so `and(...)` is optional there; it nests. `or(...)` holds alternatives: any one of them may hold instead, and each alternative is a body of its own, so a rule that could be written two ways is still one line. `src/knowledge.ms` parses the format and `src/rules.ms` loads it.
+The arrow reads "proves". The body is a comma-delimited list of conditions — an implied `and` — so `and(...)` is optional there; it nests. `or(...)` holds alternatives: any one of them may hold instead, and each alternative is a body of its own, so a rule that could be written two ways is still one line. `not(...)` holds a body that must have no proof, so a rule can ask for something the graph does not have: the shipped `only-child-of` holds when no sibling of the child can be found. `src/knowledge.ms` parses the format and `src/rules.ms` loads it.
 
 A body item does not have to be a triple. It can be a **constraint**, checked against the bindings rather than proved by search — here is the sibling rule, which must exclude a person paired with themselves:
 
@@ -265,12 +265,12 @@ The session paints from the same style table as the report, so `NO_COLOR` turns 
 
 ```plaintext
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-240 passed, 0 failed
+266 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it for the session or paste the path in its place.
 
-The 240 checks are split by area: display and parsing (12), the knowledge data format (39), the loaders (8), proofs and explanations (21), the missing-fact report (29), recursion and cycle handling (13), relations including the family rules (55), and the session at the prompt (63). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
+The 266 checks are split by area: display and parsing (12), the knowledge data format (47), the loaders (8), proofs and explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (65), and the session at the prompt (66). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
 
 ## Where an LLM fits
 

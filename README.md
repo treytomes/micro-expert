@@ -1,6 +1,6 @@
 # micro-expert
 
-A little expert system for MiniScript 2: 54 facts about one imaginary family, ten rules
+A little expert system for MiniScript 2: 54 facts about one imaginary family, eleven rules
 about what those facts imply, and a backward-chaining solver that answers a question
 only by showing you the facts and rules that make the answer true.
 
@@ -114,7 +114,7 @@ Query: uncle-of(bill, ?p)
 
 `--depth 1` is a good sanity check: `uncle-of` is two rule levels above the facts
 (`uncle-of` -> `sibling-of` -> facts), so it answers nothing and says what it would need.
-`--log-level debug` prints all 54 facts as they load and all ten rules as they are
+`--log-level debug` prints all 54 facts as they load and all eleven rules as they are
 registered, which is the fastest way to see what the engine was actually given.
 
 ### When there is no answer
@@ -321,7 +321,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-240 passed, 0 failed
+266 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -337,8 +337,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"repl.ms","line":30}
 
-1 passed, 0 failed, 239 skipped
-##END {"passed":1,"failed":0,"skipped":214}
+1 passed, 0 failed, 265 skipped
+##END {"passed":1,"failed":0,"skipped":265}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -349,10 +349,10 @@ arguments, so its tree and its runs come from the suite rather than from a list 
 beside it.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 240 here cover the program itself: display and parsing (12), the
-knowledge data format (39), the loaders (8), proofs and explanations (21), the missing-fact
-report (29), recursion and cycle handling (13), relations including the family rules (55),
-and the session at the prompt (63).
+56 respectively), and the 266 here cover the program itself: display and parsing (12), the
+knowledge data format (47), the loaders (8), proofs and explanations (21), the missing-fact
+report (34), recursion and cycle handling (13), relations including the family rules (65),
+and the session at the prompt (66).
 
 ## Repository layout
 
@@ -364,10 +364,10 @@ src/knowledge.ms     the parser for the facts and rules data
 src/facts.ms         loads the facts
 src/rules.ms         loads the rules
 data/facts.kb        the 54 facts, as text
-data/rules.kb        the ten rules, as text
+data/rules.kb        the eleven rules, as text
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 240 checks and their runner
+test/                the 266 checks and their runner
 docs/                the long-form write-up
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env

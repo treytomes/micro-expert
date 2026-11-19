@@ -252,4 +252,55 @@ run = function(t, rules, h)
 	h.check("an or(...) among other conditions offers each alternative", guardians.len == 2)
 	h.check("each alternative binds the shared condition",
 		guardians[0].binds["x"] == "bill" and guardians[1].binds["x"] == "susan")
+
+	// ── A body that must not hold ───────────────────────────────────────────
+
+	// Tim has no siblings, while Bill has two, so "?x is the only child of ?y" is the
+	// rule that needs not(...): sibling-of(?x, ?q) holds for any ?q, so nothing in the
+	// graph says that no such ?q exists - the rule holds when the search finds none.
+	onlyHouse = [
+		spo("walter", "parent-of", "bill"),
+		spo("doris", "parent-of", "bill"),
+		spo("walter", "parent-of", "george"),
+		spo("doris", "parent-of", "george"),
+		spo("bill", "parent-of", "tim"),
+		spo("susan", "parent-of", "tim"),
+	]
+	onlySibling = rule(spo(v("x"), "sibling-of", v("y")),
+		[spo(v("p"), "parent-of", v("x")), spo(v("p"), "parent-of", v("y")),
+			t.NotEqual.make(v("x"), v("y"))])
+	onlyChildRule = rule(spo(v("x"), "only-child-of", v("y")),
+		[spo(v("y"), "parent-of", v("x")), t.Not.make([spo(v("x"), "sibling-of", v("q"))])])
+	onlyChild = function(a, b)
+		return t.proveGoals(spo(a, "only-child-of", b), onlyHouse,
+			[onlySibling, onlyChildRule], 4)
+	end function
+
+	h.check("a negation holds when its body has no proof", onlyChild("tim", "bill").len == 1)
+	h.check("and it holds for either parent", onlyChild("tim", "susan").len == 1)
+	h.check("a negation fails when its body is proved", onlyChild("bill", "walter").len == 0)
+	alreadyAnswered = t.proveGoals(spo(v("x"), "only-child-of", v("y")), onlyHouse,
+		[onlySibling, onlyChildRule], 4)
+	h.check("a negation binds nothing of its own",
+		alreadyAnswered.len == 2 and alreadyAnswered[0].binds["x"] == "tim")
+	// A negation has no derivation to show, so the tree holds only what did hold.
+	onlyProof = t.proofLines(onlyChild("tim", "bill")[0], "").join("\n")
+	h.check("a negation adds no step to the proof", onlyProof.split("\n").len == 2)
+	h.check("the proof names the fact that did hold",
+		onlyProof.indexOf("parent-of(bill, tim)") != null)
+
+	// not(and(a, b)) negates the body as a whole: it holds unless both hold together.
+	singleParentRule = rule(spo(v("x"), "single-parent-of", v("y")),
+		[spo(v("x"), "parent-of", v("y")),
+			t.Not.make([spo(v("z"), "parent-of", v("y")), t.NotEqual.make(v("z"), v("x"))])])
+	singleParent = function(a, b)
+		return t.proveGoals(spo(a, "single-parent-of", b),
+			onlyHouse + [spo("george", "parent-of", "zed")], [singleParentRule], 2)
+	end function
+	h.check("a negation of several conditions passes when they do not all hold",
+		singleParent("george", "zed").len == 1)
+	h.check("and fails when they do", singleParent("bill", "tim").len == 0)
+	h.check("a single parent is still a parent", singleParent("nobody", "zed").len == 0)
+	h.check("the rule prints its negation",
+		onlyChildRule.text == "only-child-of(?x, ?y) <- parent-of(?y, ?x), not(sibling-of(?x, ?q))")
 end function
