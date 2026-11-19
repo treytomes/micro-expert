@@ -39,11 +39,12 @@
 // a line with <- is a rule, a line with a variable in it is a question, and a ground
 // line is a fact.
 //
-// prompt is prompt.ms, the prompt itself: the loop, the talk with the reader, and the slash
-// commands, none of which knows what a fact is. It is handed in like triples and Rule, and
-// what this module gives it back is the reading of a line of knowledge - session.handle - and
-// the commands the session answers itself, so the library dispatches a table it was handed
-// rather than names it knows.
+// prompt is prompt.ms, the prompt itself: the loop, the talk with the reader, the slash
+// commands, and the saving and loading of the components described below, none of which knows
+// what a fact is. It is handed in like triples and Rule, and what this module gives it back is
+// the reading of a line of knowledge - session.handle - the commands the session answers
+// itself, and the three components, so the library dispatches a table it was handed rather
+// than names it knows.
 //
 // Nothing here knows what a color is either: paint comes from triples.ms, and the one
 // style map main.ms builds carries the report's roles and the session's alike, so a
@@ -84,46 +85,12 @@ changedMark = {"changed": 1}
 // followed the name, and answers whether the session should end - which none of these do.
 
 commandTable = function()
-	"Every command this session answers, in the order /help lists them."
-	table = [
+	"Every command this session answers itself, in the order /help lists them; its saves and loads come from its components."
+	return [
 		{"name": "/undo", "note": "take back the last fact added", "run": @undoCommand},
 		{"name": "/facts", "note": "list the facts", "run": @listFacts},
 		{"name": "/rules", "note": "list the rules", "run": @listRules},
 	]
-	// One save and one load per component. Each command is built for the part it works on,
-	// since a command is called with only what was typed after its name.
-	for part in ["facts", "rules", "schema"]
-		table.push({"name": "/save-" + part, "note": componentNote(part, true),
-			"part": part, "run": @saveCommand})
-		table.push({"name": "/load-" + part, "note": componentNote(part, false),
-			"part": part, "run": @loadCommand})
-	end for
-	return table
-end function
-
-componentNote = function(part, saving)
-	"How /help words one component's command: the schema in the singular, the others in the plural."
-	if saving then
-		if part == "schema" then return "write the schema to its file, or to one named"
-		return "write the " + part + " to their file, or to one named"
-	end if
-	if part == "schema" then return "replace the schema with a file's"
-	return "replace the " + part + " with a file's"
-end function
-
-// One function serves the three saves, and another the three loads: which component to write
-// is the part its own entry carries.
-
-saveCommand = function(session, command, argument)
-	"Writes the component this command names to its file, or to the file named."
-	savePart(session, command.part, argument)
-	return false
-end function
-
-loadCommand = function(session, command, argument)
-	"Replaces the component this command names with the contents of its file, or of the file named."
-	loadPart(session, command.part, argument)
-	return false
 end function
 
 undoCommand = function(session, command, argument)
@@ -161,99 +128,78 @@ listRules = function(session, command, argument)
 	return false
 end function
 
-// ── Saving and loading a component ───────────────────────────────────────────
-// The session holds the domain it started with in memory; these commands write one
-// component back to the file it came from, or to a file named, and read one back in its
-// place. A name without an extension gets .kb, so /save-facts family writes family.kb.
+// ── The components ───────────────────────────────────────────────────────────
+// The three data files the session is made of, described the way prompt.ms builds its save and
+// load commands from: what each is called, one of them for the messages, and the two calls that
+// put it in a file and take it back out. Where each file is stays in session.paths, which the
+// library moves after a save, so /save-facts with no name writes where it last went.
 
-countOf = function(session, part)
-	"How many items of this component the session holds."
-	if part == "facts" then return session.facts.len
-	if part == "rules" then return session.rules.len
-	return session.types.len
+components = function()
+	"The session's three data files, as the prompt library describes a component."
+	return [
+		{"name": "facts", "singular": "fact",
+			"write": @factsLines, "read": @factsRead},
+		{"name": "rules", "singular": "rule",
+			"write": @rulesLines, "read": @rulesRead},
+		// A schema is one, not many: the help reads "the schema to its file".
+		{"name": "schema", "singular": "predicate", "possessive": "its",
+			"write": @schemaLines, "read": @schemaRead},
+	]
 end function
 
-countName = function(session, part, count)
-	"Names what this component holds, in the plural the count needs."
-	if part == "facts" then return session.prompt.countText(count, "fact")
-	if part == "rules" then return session.prompt.countText(count, "rule")
-	return session.prompt.countText(count, "predicate")
+componentPath = function(session, name)
+	"A component's file as this session reads paths: .kb added to a bare name, found from the domain's folder."
+	return session.knowledge.resolvePath(session.knowledge.withExtension(name))
 end function
 
-componentLines = function(session, part)
-	"One data-file line per item the session holds of this component."
-	if part == "facts" then return session.knowledge.factsLines(session.facts)
-	if part == "rules" then return session.knowledge.rulesLines(session.rules)
+// A component's write answers the lines a save writes, or null when the session holds nothing
+// to write; its read puts the file in place and answers what is held now, or an error. Between
+// them they are the component's whole knowledge of its own format.
+
+factsLines = function(session)
+	"One facts-file line per fact the session holds."
+	return session.knowledge.factsLines(session.facts)
+end function
+
+factsRead = function(session, path)
+	"Replaces the session's facts with the file at path, answering them, or an error."
+	loaded = session.knowledge.loadFactsAt(session.triples, path)
+	if loaded isa error then return loaded
+	session.facts = loaded
+	// What was loaded is the knowledge base now, so /undo no longer reaches back past it.
+	session.baseFacts = session.facts.len
+	return loaded
+end function
+
+rulesLines = function(session)
+	"One rules-file line per rule the session holds."
+	return session.knowledge.rulesLines(session.rules)
+end function
+
+rulesRead = function(session, path)
+	"Replaces the session's rules with the file at path, answering them, or an error."
+	pieces = session.knowledge.loadRulesAt(session.triples, path)
+	if pieces isa error then return pieces
+	loaded = []
+	for piece in pieces
+		loaded.push(session.Rule.make(piece.head, piece.body))
+	end for
+	session.rules = loaded
+	return loaded
+end function
+
+schemaLines = function(session)
+	"One schema line per predicate the session types, or null when it types nothing."
+	if session.types == null then return null
 	return session.knowledge.schemaLines(session.types)
 end function
 
-targetPath = function(session, part, argument, command)
-	"Where a save or load goes: the file named, or the one this component came from."
-	if argument != "" then return session.knowledge.withExtension(argument)
-	path = null
-	if session.paths.hasIndex(part) then path = session.paths[part]
-	if path == null or path == "" then
-		say(session, "warning", "  no " + part + " file to use: name one, as " + command + " FILE")
-		return null
-	end if
-	return path
-end function
-
-readComponent = function(session, part, path)
-	"Parses one data file into the shape the session holds that component in."
-	if part == "facts" then return session.knowledge.loadFactsAt(session.triples, path)
-	if part == "rules" then
-		pieces = session.knowledge.loadRulesAt(session.triples, path)
-		if pieces isa error then return pieces
-		loaded = []
-		for piece in pieces
-			loaded.push(session.Rule.make(piece.head, piece.body))
-		end for
-		return loaded
-	end if
-	return session.knowledge.loadSchemaAt(path)
-end function
-
-savePart = function(session, part, argument)
-	"Writes one component to its file, or to the file named."
-	if part == "schema" and session.types == null then
-		say(session, "warning", "  no schema to save")
-		return
-	end if
-	path = targetPath(session, part, argument, "/save-" + part)
-	if path == null then return
-	path = session.knowledge.resolvePath(path)
-	problem = session.prompt.writeLines(path, componentLines(session, part))
-	if problem isa error then
-		say(session, "warning", "  could not write " + path + ": " + problem.message)
-		return
-	end if
-	session.paths[part] = path
-	say(session, "added", "  wrote " + countName(session, part, countOf(session, part)) + " to " + path)
-end function
-
-loadPart = function(session, part, argument)
-	"Replaces one component with the contents of its file, or of the file named."
-	path = targetPath(session, part, argument, "/load-" + part)
-	if path == null then return
-	path = session.knowledge.resolvePath(path)
-	loaded = readComponent(session, part, path)
-	if loaded isa error then
-		say(session, "warning", "  could not read " + path + ": " + loaded.message)
-		return
-	end if
-	if part == "facts" then
-		session.facts = loaded
-		// What was loaded is the knowledge base now, so /undo no longer reaches back
-		// past it.
-		session.baseFacts = session.facts.len
-	else if part == "rules" then
-		session.rules = loaded
-	else
-		session.types = loaded
-	end if
-	session.paths[part] = path
-	say(session, "added", "  loaded " + countName(session, part, countOf(session, part)) + " from " + path)
+schemaRead = function(session, path)
+	"Replaces the session's field types with the file at path, answering them, or an error."
+	loaded = session.knowledge.loadSchemaAt(path)
+	if loaded isa error then return loaded
+	session.types = loaded
+	return loaded
 end function
 
 // ── The session loop ─────────────────────────────────────────────────────────
@@ -267,6 +213,8 @@ run = function(session)
 	// and the commands the session answers itself. The loop is prompt.ms's.
 	session.handle = @handleLine
 	session.commands = commandTable()
+	session.components = components()
+	session.pathFor = @componentPath
 	session.paint = @paint
 	say(session, "note",
 		"Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.")

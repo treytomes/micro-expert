@@ -125,7 +125,8 @@ if rules.hasIndex("Rule") == 0 then
 	print "error: ../src/rule loaded without Rule"
 	exit 1
 end if
-for name in ["run", "runCommand", "say", "ask", "trimSpace", "writeLines"]
+for name in ["run", "runCommand", "say", "ask", "trimSpace", "writeLines", "saveCommand",
+	"loadCommand", "componentCommands"]
 	if files.hasIndex(name) == 0 then
 		print "error: ../src/prompt loaded without " + name
 		exit 1

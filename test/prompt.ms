@@ -3,7 +3,11 @@
 // things in these sessions are lines and the functions they are given to.
 
 run = function(prompt, h)
-	"Checks the loop, the command dispatch and the handoff, against scripted sessions."
+	"Checks the loop, the command dispatch, the handoff and the components, against scripted sessions."
+	said = function(lines, text)
+		"Whether a transcript holds this line exactly."
+		return lines.indexOf(text) != null
+	end function
 
 	// A session over a script of typed lines, recording what it printed, asked, and what the
 	// host's handle was given. options say whether this session has commands of its own and
@@ -41,6 +45,33 @@ run = function(prompt, h)
 			session.paint = function(given, role, text)
 				return role + ":" + text
 			end function
+		end if
+		if options.hasIndex("components") then
+			// Two described files: one written from what the session holds, and one that
+			// holds nothing and so has nothing to save. Their lines are plain words, since
+			// the library is meant not to know a format.
+			session.things = ["alpha", "beta"]
+			session.paths = {}
+			session.pathFor = function(given, name)
+				// The host's own rule, kept tiny: a name without a dot gets .kb.
+				if file.name(name).indexOf(".") == null then return name + ".kb"
+				return name
+			end function
+			lines = function(given)
+				return given.things
+			end function
+			missing = function(given)
+				return null
+			end function
+			read = function(given, path)
+				given.things = ["one", "two", "three"]
+				return given.things
+			end function
+			session.components = [
+				{"name": "things", "singular": "thing", "write": @lines, "read": @read},
+				{"name": "empties", "singular": "empty", "possessive": "its",
+					"write": @missing, "read": @read},
+			]
 		end if
 		// The one thing the host must supply: what to do with a line that is not a command.
 		session.handle = function(given, line)
@@ -99,4 +130,67 @@ run = function(prompt, h)
 	h.check("the prompt is painted when the session paints", painted.asked[0] == "prompt:? ")
 	h.check("and so is every line the library says", painted.lines[0] == "note:  /exit  leave the session" and
 		painted.lines[4] == "  /echo x")
+
+	// ── Components ───────────────────────────────────────────────────────────
+	// A component is a description, and the library builds the commands from it: no name is
+	// written anywhere else, and one save serves every component.
+
+	temp = "."
+	if env.hasIndex("TEMP") then temp = env["TEMP"]
+	if env.hasIndex("TMP") then temp = env["TMP"]
+	scratch = function(name)
+		return file.child(temp, "micro-expert-prompt-" + name)
+	end function
+
+	thingsPath = scratch("things.kb")
+	leftover = file.delete(thingsPath)
+	saved = scripted(prompt, ["/save-things " + thingsPath, "q"], {"components": 1})
+	back = file.readLines(thingsPath)
+	leftover = file.delete(thingsPath)
+	h.check("a save writes the lines the component gives", back == ["alpha", "beta"])
+	h.check("a save says how many it wrote", said(saved.lines, "  wrote 2 things to " + thingsPath))
+
+	// The name typed at the prompt is the host's to read, so .kb is added by its rule, not
+	// the library's, and the path reported back is the one that was written.
+	bare = scratch("bare")
+	bareFile = bare + ".kb"
+	leftover = file.delete(bareFile)
+	namedSave = scripted(prompt, ["/save-things " + bare, "q"], {"components": 1})
+	named = file.exists(bareFile)
+	leftover = file.delete(bareFile)
+	h.check("a bare name is left to the session's own path rule", named == 1)
+	h.check("and the path it was written to is the one reported",
+		said(namedSave.lines, "  wrote 2 things to " + bareFile))
+
+	thingsPath = scratch("again.kb")
+	leftover = file.delete(thingsPath)
+	remembered = scripted(prompt, ["/save-things " + thingsPath, "/save-things", "q"],
+		{"components": 1})
+	leftover = file.delete(thingsPath)
+	h.check("a save remembers its file, so a bare save goes there again",
+		remembered.lines.len == 2 and remembered.lines[1] == "  wrote 2 things to " + thingsPath)
+
+	unnamed = scripted(prompt, ["/save-things", "q"], {"components": 1})
+	h.check("a component with no file to fall back on says how to name one",
+		said(unnamed.lines, "  no things file to use: name one, as /save-things FILE"))
+	emptySave = scripted(prompt, ["/save-empties " + scratch("empties.kb"), "q"], {"components": 1})
+	h.check("a component with nothing to write says so, rather than writing an empty file",
+		said(emptySave.lines, "  no empties to save"))
+
+	thingsPath = scratch("load.kb")
+	leftover = file.delete(thingsPath)
+	loadedThing = scripted(prompt, ["/load-things " + thingsPath, "/save-things", "q"],
+		{"components": 1})
+	leftover = file.delete(thingsPath)
+	h.check("a load hands the file to the component's read and says how many",
+		said(loadedThing.lines, "  loaded 3 things from " + thingsPath))
+	h.check("and what it loaded is what the next save writes",
+		loadedThing.lines.len == 2 and
+			loadedThing.lines[1] == "  wrote 3 things to " + thingsPath)
+
+	helpedComponents = scripted(prompt, ["/help", "q"], {"components": 1})
+	h.check("/help lists a save and a load per component, after the host's own",
+		said(helpedComponents.lines, "  /save-things  write the things to their file, or to one named") and
+			said(helpedComponents.lines, "  /save-empties  write the empties to its file, or to one named") and
+			said(helpedComponents.lines, "  /load-empties  replace the empties with a file's"))
 end function

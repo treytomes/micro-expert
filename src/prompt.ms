@@ -1,38 +1,37 @@
 // prompt.ms — the session at the prompt, and none of what a session is about.
 //
 // A prompt is a loop over one record: read a line, dispatch it when it names a command, and
-// hand anything else back to whoever owns the text. That is all this module knows, so any
-// program with a session can use it:
+// hand anything else back to whoever owns the text. A session made of data files can describe
+// them too, and the prompt answers /save-<name> and /load-<name> for each, writing the file
+// through a swap that keeps the old copy whole. Nothing here knows what a fact is.
 //
 //   import "prompt"
 //   session = {"prompt": globals["prompt"],
 //       "io": {"read": @readLine, "say": @printLine},
-//       "paint": @paintOneLine,        // may be left out
 //       "handle": @readOneLine,
-//       "commands": [{"name": "/facts", "note": "list the facts", "run": @listFacts}]}
+//       "paint": @paintOneLine,                    // may be left out
+//       "commands": [{"name": "/facts", "note": "list the facts", "run": @listFacts}],
+//       "components": [{"name": "facts", "singular": "fact",
+//           "write": @factsLines, "read": @factsRead}],    // may be left out
+//       "paths": {"facts": "data/facts.kb"},       // where each component's file is
+//       "pathFor": @pathOf}                        // a name typed at the prompt, as a path
 //   session.prompt.run(session)
 //
-// Three things are handed in on the session, and each is a function pointer rather than a
-// name this module would have to know: handle takes the session and every line that is not
-// a command, so the prompt hands parsing back to the host instead of reaching into it; paint
-// takes the session, a role and a piece of text, and a session without one prints what it is
-// given; and commands is the host's own table, which joins the two the library answers
-// itself. A session that holds no commands still runs, with /exit and /help.
+// Everything the prompt calls is a pointer, never a name it would have to know: handle takes
+// the session and every line that is not a command, so parsing stays with the host; paint takes
+// the session, a role and a piece of text; commands is the host's own table; and a component's
+// write and read are what put its data in a file and take it back out.
 //
 // A command is a record of the name typed at the prompt, the note /help prints beside it, and
-// run, the function the prompt calls with the session, the record itself, and whatever
-// followed the name. The record comes along so that one function can serve several commands:
-// the part a save writes is a field of the entry, not something a closure would have to bind.
-// run answers whether the session should end, so /exit is a function that returns true and
-// every other command returns false.
+// run, the function the prompt calls with the session, the record itself, and whatever followed
+// the name. The record comes along so one function can serve several commands - every save is
+// the same function, reading the component off its own command. run answers whether the session
+// should end, so /exit returns true and every other command returns false.
 //
 // Like triples.ms and rule.ms, this module is handed to the session rather than imported by
 // repl.ms, for the reason the rest of the engine is: a bare import resolves against the entry
-// script's folder, so repl.ms would find the suite's own module of the same name instead of
-// the one beside it. Nothing here holds a class, so a copy is only a copy of its functions.
-//
-// What is here is the loop, the two commands it answers itself, the words it says them in,
-// and the file-safe save a host's own commands use. repl.ms is the knowledge base on top.
+// script's folder, so repl.ms would find the suite's own module of the same name instead of the
+// one beside it. Nothing here holds a class, so a copy is only a copy of its functions.
 
 // ── Talking to the reader ────────────────────────────────────────────────────
 // The session holds how to read and how to write; this module decides only what to say, and
@@ -58,8 +57,8 @@ end function
 // ── Commands ─────────────────────────────────────────────────────────────────
 // A line that starts with / is aimed at the prompt rather than at the program. The table is
 // what knows the commands: a name, the note /help prints, and the function to call. The
-// library's own two come first, the host's after them, so /help lists a session's commands
-// without the loop knowing one of them.
+// library's own two come first and the host's after them, with one save and load per component
+// last, so /help lists a session's commands without the loop knowing one of them.
 
 leaveCommand = function(session, command, argument)
 	"Says the session should end; the loop reads the answer."
@@ -80,9 +79,10 @@ ownCommands = [
 ]
 
 allCommands = function(session)
-	"Every command a session answers: the library's two, then whatever the host added."
-	if not session.hasIndex("commands") then return ownCommands
-	return ownCommands + session.commands
+	"Every command a session answers: the library's two, the host's, then one save and load per component."
+	commands = ownCommands
+	if session.hasIndex("commands") then commands = commands + session.commands
+	return commands + componentCommands(session)
 end function
 
 runCommand = function(session, line)
@@ -99,6 +99,94 @@ runCommand = function(session, line)
 	end for
 	say(session, "warning", "  no such command: " + name + " (/help lists them)")
 	return false
+end function
+
+// ── Components ───────────────────────────────────────────────────────────────
+// A session is often a few data files, and each is described the same way: what the commands
+// call it, one of them for the messages, and the two functions that write it out and read it
+// back. /save-facts, /load-facts, /save-rules and the rest come from that list, so a host
+// describes its files and answers no command for them.
+//
+//   name        what the commands are called: /save-facts, /load-facts
+//   singular    one of them, for the message: 54 facts, 1 fact
+//   possessive  whose file it is, for the help: their, unless the entry says its
+//   write       function(session) -> [line], or null when there is nothing to save
+//   read        function(session, path) -> what the session now holds, or an error
+//
+// Where each file is stays in the session's paths map, keyed by the component's name: a save or
+// a load moves it, so a bare /save-facts writes where the last one went. pathFor turns the name
+// typed at the prompt into a path, which is the host's rule and not the prompt's - that a bare
+// name should end in .kb is knowledge-base business.
+
+componentsOf = function(session)
+	"The components a session describes, or none when it has no files of its own."
+	if not session.hasIndex("components") then return []
+	return session.components
+end function
+
+componentCommands = function(session)
+	"One save and one load per component, in the order the session lists them."
+	commands = []
+	for component in componentsOf(session)
+		whose = "their"
+		if component.hasIndex("possessive") then whose = component.possessive
+		commands.push({"name": "/save-" + component.name,
+			"note": "write the " + component.name + " to " + whose + " file, or to one named",
+			"component": component, "run": @saveCommand})
+		commands.push({"name": "/load-" + component.name,
+			"note": "replace the " + component.name + " with a file's",
+			"component": component, "run": @loadCommand})
+	end for
+	return commands
+end function
+
+saveCommand = function(session, command, argument)
+	"Writes the component this command names, keeping the file it replaces whole."
+	component = command.component
+	lines = component.write(session)
+	if lines == null then
+		say(session, "warning", "  no " + component.name + " to save")
+		return false
+	end if
+	path = componentTarget(session, component, argument, command.name)
+	if path == null then return false
+	problem = writeLines(path, lines)
+	if problem isa error then
+		say(session, "warning", "  could not write " + path + ": " + problem.message)
+		return false
+	end if
+	session.paths[component.name] = path
+	say(session, "added", "  wrote " + countText(lines.len, component.singular) + " to " + path)
+	return false
+end function
+
+loadCommand = function(session, command, argument)
+	"Replaces the component this command names with the file it names, or with its own."
+	component = command.component
+	path = componentTarget(session, component, argument, command.name)
+	if path == null then return false
+	loaded = component.read(session, path)
+	if loaded isa error then
+		say(session, "warning", "  could not read " + path + ": " + loaded.message)
+		return false
+	end if
+	// The file that answered becomes the one a bare command uses next.
+	session.paths[component.name] = path
+	say(session, "added", "  loaded " + countText(loaded.len, component.singular) + " from " + path)
+	return false
+end function
+
+componentTarget = function(session, component, argument, command)
+	"Where a save or load goes: the file the line named, or the one this component came from."
+	if argument != "" then return session.pathFor(session, argument)
+	path = null
+	if session.paths.hasIndex(component.name) then path = session.paths[component.name]
+	if path == null or path == "" then
+		say(session, "warning", "  no " + component.name + " file to use: name one, as " +
+			command + " FILE")
+		return null
+	end if
+	return session.pathFor(session, path)
 end function
 
 // ── The loop ─────────────────────────────────────────────────────────────────
@@ -133,7 +221,7 @@ end function
 // ── Writing a data file ──────────────────────────────────────────────────────
 // A save writes a temp file and swaps it in, so the file that is already there is only
 // replaced once the new one is whole: a save that fails part way through leaves the
-// domain's facts.kb as it was rather than truncated to nothing. Only a file the save
+// session's facts.kb as it was rather than truncated to nothing. Only a file the save
 // wrote itself is ever removed, and a swap that cannot put the old copy back says where
 // it was left.
 
