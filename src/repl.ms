@@ -39,23 +39,37 @@
 // a line with <- is a rule, a line with a variable in it is a question, and a ground
 // line is a fact.
 //
-// prompt is prompt.ms, the part of the prompt that knows nothing about the domain: it keeps
-// a data file whole across a save, and says how many of something a session holds. It is
-// handed in like triples and Rule, and the rest of the prompt - the loop, the talk with the
-// reader, the slash commands - is still here until it moves.
+// prompt is prompt.ms, the prompt itself: the loop, the talk with the reader, and the slash
+// commands, none of which knows what a fact is. It is handed in like triples and Rule, and
+// what this module gives it back is the reading of a line of knowledge - session.handle - and
+// the commands the session answers itself, so the library dispatches a table it was handed
+// rather than names it knows.
 //
 // Nothing here knows what a color is either: paint comes from triples.ms, and the one
 // style map main.ms builds carries the report's roles and the session's alike, so a
 // single NO_COLOR leaves the whole run plain.
 
+// ── What the prompt library is handed ────────────────────────────────────────
+// The library knows the loop and nothing about a fact, so the session gives it the three
+// pointers it asks for: paint, handle, and the command table. They are module-level
+// functions, never closures - a function defined inside another cannot see this module's
+// own functions in this interpreter, only the one it sits in.
+
+paint = function(session, role, text)
+	"One piece of text in a role's color: the style map and the painter both come from the session."
+	return session.triples.paint(session.style, role, text)
+end function
+
+// The library says and asks; these two keep the session's own calls short.
+
 say = function(session, role, text)
-	"Prints one line in a role's color through the session's output."
-	session.io.say(session.triples.paint(session.style, role, text))
+	"Prints one line in a role's color, through the prompt library."
+	return session.prompt.say(session, role, text)
 end function
 
 ask = function(session, question)
-	"Shows a prompt and reads what is typed after it."
-	return session.io.read(session.triples.paint(session.style, "prompt", question))
+	"Shows a prompt and reads what is typed after it, through the prompt library."
+	return session.prompt.ask(session, question)
 end function
 
 // What askValue answers when the user changes the knowledge base rather than giving a
@@ -64,58 +78,57 @@ end function
 changedMark = {"changed": 1}
 
 // ── Slash commands ───────────────────────────────────────────────────────────
-// One line that starts with / is aimed at the session rather than the knowledge
-// base. runCommand dispatches by name and commandList is what /help shows, in the
-// same order.
+// One line that starts with / is aimed at the session rather than the knowledge base, and
+// prompt.ms dispatches it: the table below is what this session answers, and /help prints it
+// beside the library's own /exit and /help. A command takes the session and whatever
+// followed the name, and answers whether the session should end - which none of these do.
 
-commandList = [
-	{"name": "/exit", "note": "leave the session"},
-	{"name": "/help", "note": "list these commands"},
-	{"name": "/undo", "note": "take back the last fact added"},
-	{"name": "/facts", "note": "list the facts"},
-	{"name": "/rules", "note": "list the rules"},
-	{"name": "/save-facts", "note": "write the facts to their file, or to one named"},
-	{"name": "/load-facts", "note": "replace the facts with a file's"},
-	{"name": "/save-rules", "note": "write the rules to their file, or to one named"},
-	{"name": "/load-rules", "note": "replace the rules with a file's"},
-	{"name": "/save-schema", "note": "write the schema to its file, or to one named"},
-	{"name": "/load-schema", "note": "replace the schema with a file's"},
-]
-
-runCommand = function(session, line)
-	"Runs one slash command, answering whether the session should end."
-	name = line.split(" ")[0].lower
-	argument = session.triples.trimSpace(line[name.len:])
-	if name == "/exit" then return true
-	if name == "/help" then
-		for command in commandList
-			say(session, "note", "  " + command.name + "  " + command.note)
-		end for
-		return false
-	end if
-	if name == "/undo" then
-		undo(session)
-		return false
-	end if
-	if name == "/facts" then
-		listFacts(session)
-		return false
-	end if
-	if name == "/rules" then
-		listRules(session)
-		return false
-	end if
+commandTable = function()
+	"Every command this session answers, in the order /help lists them."
+	table = [
+		{"name": "/undo", "note": "take back the last fact added", "run": @undoCommand},
+		{"name": "/facts", "note": "list the facts", "run": @listFacts},
+		{"name": "/rules", "note": "list the rules", "run": @listRules},
+	]
+	// One save and one load per component. Each command is built for the part it works on,
+	// since a command is called with only what was typed after its name.
 	for part in ["facts", "rules", "schema"]
-		if name == "/save-" + part then
-			savePart(session, part, argument)
-			return false
-		end if
-		if name == "/load-" + part then
-			loadPart(session, part, argument)
-			return false
-		end if
+		table.push({"name": "/save-" + part, "note": componentNote(part, true),
+			"part": part, "run": @saveCommand})
+		table.push({"name": "/load-" + part, "note": componentNote(part, false),
+			"part": part, "run": @loadCommand})
 	end for
-	say(session, "warning", "  no such command: " + name + " (/help lists them)")
+	return table
+end function
+
+componentNote = function(part, saving)
+	"How /help words one component's command: the schema in the singular, the others in the plural."
+	if saving then
+		if part == "schema" then return "write the schema to its file, or to one named"
+		return "write the " + part + " to their file, or to one named"
+	end if
+	if part == "schema" then return "replace the schema with a file's"
+	return "replace the " + part + " with a file's"
+end function
+
+// One function serves the three saves, and another the three loads: which component to write
+// is the part its own entry carries.
+
+saveCommand = function(session, command, argument)
+	"Writes the component this command names to its file, or to the file named."
+	savePart(session, command.part, argument)
+	return false
+end function
+
+loadCommand = function(session, command, argument)
+	"Replaces the component this command names with the contents of its file, or of the file named."
+	loadPart(session, command.part, argument)
+	return false
+end function
+
+undoCommand = function(session, command, argument)
+	"Takes back the last fact, as /undo; the session carries on either way."
+	undo(session)
 	return false
 end function
 
@@ -130,20 +143,22 @@ undo = function(session)
 	return true
 end function
 
-listFacts = function(session)
+listFacts = function(session, command, argument)
 	"Prints every fact the session holds, in the order search tries them."
 	say(session, "note", "  " + session.prompt.countText(session.facts.len, "fact"))
 	for known in session.facts
 		session.io.say("    " + session.triples.paint(session.style, "fact", known.text))
 	end for
+	return false
 end function
 
-listRules = function(session)
+listRules = function(session, command, argument)
 	"Prints every rule the session holds, in the order search tries them."
 	say(session, "note", "  " + session.prompt.countText(session.rules.len, "rule"))
 	for candidate in session.rules
 		session.io.say("    " + session.triples.paint(session.style, "rule", candidate.text))
 	end for
+	return false
 end function
 
 // ── Saving and loading a component ───────────────────────────────────────────
@@ -248,20 +263,14 @@ run = function(session)
 	// Only what the session adds can be taken back, never the knowledge base it
 	// started from.
 	session.baseFacts = session.facts.len
+	// What the library needs from this module: how to read a line that is not a command,
+	// and the commands the session answers itself. The loop is prompt.ms's.
+	session.handle = @handleLine
+	session.commands = commandTable()
+	session.paint = @paint
 	say(session, "note",
 		"Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.")
-	while true
-		line = ask(session, "? ")
-		if line == null then break
-		line = session.triples.trimSpace(line)
-		if line == "" then continue
-		if line == "q" or line == "quit" then break
-		if line[0] == "/" then
-			if runCommand(session, line) then break
-			continue
-		end if
-		handleLine(session, line)
-	end while
+	session.prompt.run(session)
 end function
 
 handleLine = function(session, line)

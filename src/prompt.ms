@@ -1,23 +1,126 @@
-// prompt.ms — the part of the session at the prompt that knows nothing about the domain.
+// prompt.ms — the session at the prompt, and none of what a session is about.
 //
-// The prompt is one loop over one record, and most of what it does would serve any
-// knowledge base: reading a line, painting it, counting what is held, and keeping a data
-// file whole across a save. This module is where that part is being gathered. repl.ms keeps
-// the verbs the domain adds - what a fact is, what a question means, which file each
-// component lives in - and reaches these by way of the session:
+// A prompt is a loop over one record: read a line, dispatch it when it names a command, and
+// hand anything else back to whoever owns the text. That is all this module knows, so any
+// program with a session can use it:
 //
 //   import "prompt"
-//   session = {"prompt": globals["prompt"], ...}
-//   problem = session.prompt.writeLines(path, lines)
+//   session = {"prompt": globals["prompt"],
+//       "io": {"read": @readLine, "say": @printLine},
+//       "paint": @paintOneLine,        // may be left out
+//       "handle": @readOneLine,
+//       "commands": [{"name": "/facts", "note": "list the facts", "run": @listFacts}]}
+//   session.prompt.run(session)
 //
-// Like triples.ms and rule.ms, it is handed to the session rather than imported by
-// repl.ms, for the same reason: a bare import resolves against the entry script's folder,
-// so repl.ms would find the suite's own module of the same name instead of the one beside
-// it. Nothing here holds a class, so a copy of this module is only a copy of its functions.
+// Three things are handed in on the session, and each is a function pointer rather than a
+// name this module would have to know: handle takes the session and every line that is not
+// a command, so the prompt hands parsing back to the host instead of reaching into it; paint
+// takes the session, a role and a piece of text, and a session without one prints what it is
+// given; and commands is the host's own table, which joins the two the library answers
+// itself. A session that holds no commands still runs, with /exit and /help.
 //
-// What is here so far is the file-safe save and the word for a count. The loop, the talk
-// with the reader, and the slash commands are still in repl.ms, and move here next, so that
-// a session becomes this module plus whatever a host adds to it.
+// A command is a record of the name typed at the prompt, the note /help prints beside it, and
+// run, the function the prompt calls with the session, the record itself, and whatever
+// followed the name. The record comes along so that one function can serve several commands:
+// the part a save writes is a field of the entry, not something a closure would have to bind.
+// run answers whether the session should end, so /exit is a function that returns true and
+// every other command returns false.
+//
+// Like triples.ms and rule.ms, this module is handed to the session rather than imported by
+// repl.ms, for the reason the rest of the engine is: a bare import resolves against the entry
+// script's folder, so repl.ms would find the suite's own module of the same name instead of
+// the one beside it. Nothing here holds a class, so a copy is only a copy of its functions.
+//
+// What is here is the loop, the two commands it answers itself, the words it says them in,
+// and the file-safe save a host's own commands use. repl.ms is the knowledge base on top.
+
+// ── Talking to the reader ────────────────────────────────────────────────────
+// The session holds how to read and how to write; this module decides only what to say, and
+// asks paint to color it, so a prompt can be colored without the library knowing what a
+// color is.
+
+say = function(session, role, text)
+	"Prints one line in a role's color through the session's output."
+	session.io.say(paint(session, role, text))
+end function
+
+ask = function(session, question)
+	"Shows a prompt and reads what is typed after it."
+	return session.io.read(paint(session, "prompt", question))
+end function
+
+paint = function(session, role, text)
+	"One piece of text in its role's color, or as it is when the session paints nothing."
+	if not session.hasIndex("paint") then return text
+	return session.paint(session, role, text)
+end function
+
+// ── Commands ─────────────────────────────────────────────────────────────────
+// A line that starts with / is aimed at the prompt rather than at the program. The table is
+// what knows the commands: a name, the note /help prints, and the function to call. The
+// library's own two come first, the host's after them, so /help lists a session's commands
+// without the loop knowing one of them.
+
+leaveCommand = function(session, command, argument)
+	"Says the session should end; the loop reads the answer."
+	return true
+end function
+
+helpCommand = function(session, command, argument)
+	"Prints every command the session answers, in the order the table holds them."
+	for command in allCommands(session)
+		say(session, "note", "  " + command.name + "  " + command.note)
+	end for
+	return false
+end function
+
+ownCommands = [
+	{"name": "/exit", "note": "leave the session", "run": @leaveCommand},
+	{"name": "/help", "note": "list these commands", "run": @helpCommand},
+]
+
+allCommands = function(session)
+	"Every command a session answers: the library's two, then whatever the host added."
+	if not session.hasIndex("commands") then return ownCommands
+	return ownCommands + session.commands
+end function
+
+runCommand = function(session, line)
+	"Runs the command this line names, answering whether the session should end."
+	name = line.split(" ")[0].lower
+	// The name is one word, so what follows it is the argument, trimmed, and may be empty.
+	argument = trimSpace(line[name.len:])
+	for command in allCommands(session)
+		if command.name == name then
+			// A command answers whether the session should end, and only /exit says so.
+			if command.run(session, command, argument) then return true
+			return false
+		end if
+	end for
+	say(session, "warning", "  no such command: " + name + " (/help lists them)")
+	return false
+end function
+
+// ── The loop ─────────────────────────────────────────────────────────────────
+// One line has one meaning: a command if it starts with /, otherwise whatever the host's
+// handle makes of it. q and quit leave as /exit does, since a session is closed by the same
+// keystrokes whatever program it belongs to.
+
+run = function(session)
+	"Reads lines until the session ends: commands here, every other line to the session's handle."
+	while true
+		line = ask(session, "? ")
+		if line == null then break
+		line = trimSpace(line)
+		if line == "" then continue
+		if line == "q" or line == "quit" then break
+		if line[0] == "/" then
+			if runCommand(session, line) then break
+			continue
+		end if
+		session.handle(session, line)
+	end while
+end function
 
 // ── Counting ─────────────────────────────────────────────────────────────────
 
@@ -98,4 +201,28 @@ moveFile = function(from, to)
 	problem = file.move(from, to)
 	if problem isa error then return problem
 	return null
+end function
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+// The loop trims what it reads, so it needs the same few lines triples.ms and knowledge.ms
+// keep. It is written out here rather than handed in, so that this module stands alone - it
+// is the piece meant to travel.
+
+trimSpace = function(text)
+	"Trims leading and trailing spaces and tabs."
+	start = 0
+	while start < text.len
+		if not isSpace(text[start]) then break
+		start = start + 1
+	end while
+	last = text.len - 1
+	while last >= start
+		if not isSpace(text[last]) then break
+		last = last - 1
+	end while
+	return text[start:last + 1]
+end function
+
+isSpace = function(c)
+	return c == " " or c == char(9)
 end function

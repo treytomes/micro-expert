@@ -32,6 +32,7 @@ import "recursion"
 import "relations"
 import "repl"
 import "knowledge"
+import "prompt"
 import "schema"
 import "loaders"
 import "domain"
@@ -71,6 +72,9 @@ rules = globals["../src/rule"]
 // repl.ms holds no classes, but it is handed over all the same, so every case works
 // with the one copy of everything. It is aliased away from `repl`, because that name
 // belongs to this suite's own repl.ms case module.
+// This suite's own prompt.ms case module is claimed first: the alias below reuses the name
+// `prompt` for the session module itself, and an alias is only a variable.
+promptCases = globals["prompt"]
 prompt = globals["../src/repl"]
 // prompt.ms is the generic part of the prompt, and is aliased to `files` because the name
 // `prompt` above belongs to the session module itself.
@@ -121,6 +125,12 @@ if rules.hasIndex("Rule") == 0 then
 	print "error: ../src/rule loaded without Rule"
 	exit 1
 end if
+for name in ["run", "runCommand", "say", "ask", "trimSpace", "writeLines"]
+	if files.hasIndex(name) == 0 then
+		print "error: ../src/prompt loaded without " + name
+		exit 1
+	end if
+end for
 
 display.run(triples, harness)
 knowledge.run(triples, parser, harness)
@@ -129,6 +139,7 @@ absence.run(triples, rules, harness)
 recursion.run(triples, rules, harness)
 relations.run(triples, rules, harness)
 repl.run(triples, rules, prompt, harness, schemaLoader, parser, files)
+promptCases.run(files, harness)
 schema.run(triples, parser, schemaLoader, harness)
 loaders.run(triples, rulesLoader, factsLoader, schemaLoader, harness)
 globals["domain"].run(domainModule, harness)
