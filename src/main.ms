@@ -247,7 +247,6 @@ replSession = function()
 		"types": types,
 		"paths": domainPaths,
 		"knowledge": globals["knowledge"],
-		"domain": globals["domain"],
 		"io": {
 			"read": function(question)
 				return input(question)

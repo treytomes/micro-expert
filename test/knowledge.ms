@@ -1,4 +1,5 @@
-// Cases for the knowledge data format: the parser behind data/facts.kb and data/rules.kb.
+// Cases for the knowledge data format: the parser and writer behind data/facts.kb and
+// data/rules.kb, and where a data file is found or named.
 
 run = function(t, knowledge, h)
 	"Checks the data parser, against the shared copy of triples."
@@ -213,4 +214,31 @@ run = function(t, knowledge, h)
 	h.check("written schema reads back", not (rereadSchema isa error) and
 		rereadSchema["has-gender"][1] == "male|female")
 	h.check("a session with no schema writes nothing", knowledge.schemaLines(null).len == 0)
+
+	// ── Naming a data file ───────────────────────────────────────────────────
+
+	// A name typed at /save-* or /load-* gets .kb when it has no extension of its own,
+	// while a name that has one - or a folder with a dot in it - is left alone.
+	h.check("a bare name gets .kb", knowledge.withExtension("family") == "family.kb")
+	h.check("a name that has .kb keeps it", knowledge.withExtension("family.kb") == "family.kb")
+	h.check("another extension is left alone", knowledge.withExtension("family.txt") == "family.txt")
+	h.check("a dot in a folder name is not an extension",
+		knowledge.withExtension("v1.2/family") == "v1.2/family.kb")
+	h.check("an empty name stays empty", knowledge.withExtension("") == "")
+
+	// --facts ~/draft.kb reaches the home folder, however the platform spells it. HOME is
+	// set for the check, so it reads the same on a machine that has only USERPROFILE, and
+	// put back afterwards.
+	savedHome = null
+	if env.hasIndex("HOME") then savedHome = env["HOME"]
+	env["HOME"] = "test-home"
+	h.check("a ~/ path expands under the home folder",
+		knowledge.expandHome("~/draft.kb") == file.child("test-home", "draft.kb"))
+	h.check("a path without ~ is left alone",
+		knowledge.expandHome("data/facts.kb") == "data/facts.kb")
+	if savedHome == null then
+		removed = env.remove("HOME")
+	else
+		env["HOME"] = savedHome
+	end if
 end function

@@ -43,10 +43,3 @@ provided = function(options, name)
 	if value == "" then return null
 	return value
 end function
-
-withExtension = function(path)
-	"Adds .kb to a name that has no extension, so /save-facts family writes family.kb."
-	if path == "" then return path
-	if file.name(path).indexOf(".") == null then return path + ".kb"
-	return path
-end function

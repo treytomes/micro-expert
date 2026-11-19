@@ -442,6 +442,13 @@ dataPath = function(source, relative)
 	return relative
 end function
 
+withExtension = function(path)
+	"Adds .kb to a name that has no extension, so /save-facts family writes family.kb."
+	if path == "" then return path
+	if file.name(path).indexOf(".") == null then return path + ".kb"
+	return path
+end function
+
 // ── Lines ────────────────────────────────────────────────────────────────────
 
 needsMore = function(text)

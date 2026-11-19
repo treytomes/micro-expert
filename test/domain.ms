@@ -1,8 +1,7 @@
-// Cases for the domain: which three files a run reads, and what a file name typed at the
-// prompt means.
+// Cases for the domain: which three files a run reads.
 
 run = function(domain, h)
-	"Checks the three paths --domain and the per-file options produce, and .kb defaulting."
+	"Checks the three paths --domain and the per-file options produce."
 
 	// A run with no options reads the folder the program ships, which is data/.
 	plain = domain.pathsFor({"domain": null, "facts": null, "rules": null, "schema": null})
@@ -39,13 +38,4 @@ run = function(domain, h)
 	alone = domain.pathsFor({"domain": null, "facts": "mine.kb", "rules": null, "schema": null})
 	h.check("--facts alone replaces the default facts file", alone.facts == "mine.kb" and
 		alone.rules == file.child("data", "rules.kb"))
-
-	// A name typed at /save-* or /load-* gets .kb when it has no extension of its own,
-	// while a name that has one - or a folder with a dot in it - is left alone.
-	h.check("a bare name gets .kb", domain.withExtension("family") == "family.kb")
-	h.check("a name that has .kb keeps it", domain.withExtension("family.kb") == "family.kb")
-	h.check("another extension is left alone", domain.withExtension("family.txt") == "family.txt")
-	h.check("a dot in a folder name is not an extension",
-		domain.withExtension("v1.2/family") == "v1.2/family.kb")
-	h.check("an empty name stays empty", domain.withExtension("") == "")
 end function

@@ -1,6 +1,6 @@
 // Cases for the REPL: a rule line read back as a rule, and a session driven by script.
 
-run = function(t, rules, repl, h, schema, knowledge, domain)
+run = function(t, rules, repl, h, schema, knowledge)
 	"Checks rule-line parsing, a session's transcript, and saving its components."
 	spo = function(s, p, o)
 		return t.SpoTriple.make(s, p, o)
@@ -81,7 +81,7 @@ run = function(t, rules, repl, h, schema, knowledge, domain)
 		end function
 		session = {"triples": t, "Rule": rules.Rule, "facts": facts, "rules": ruleList,
 			"depth": 8, "verbose": verbose, "style": style, "schema": schema, "types": types,
-			"paths": paths, "knowledge": knowledge, "domain": domain,
+			"paths": paths, "knowledge": knowledge,
 			"io": {"read": @reader, "say": @writer}}
 		repl.run(session)
 		return {"session": session, "answers": answers}
@@ -508,4 +508,26 @@ run = function(t, rules, repl, h, schema, knowledge, domain)
 	missing = startSession([], [], ["/load-facts " + scratch("absent")], null, 0, null, {})
 	h.check("a missing file is reported and the session carries on",
 		holds(missing.answers.lines, "  could not read ") and missing.answers.asked.len == 2)
+
+	// A save builds its file under another name and swaps it in, so a write that fails
+	// leaves the file that was already there whole. A folder where the temp file goes is
+	// a write that cannot start.
+	keptPath = scratch("kept-facts.kb")
+	writeFile(keptPath, ["parent-of(bill, tim)"])
+	blocked = keptPath + ".tmp"
+	made = file.makedir(blocked)
+	blockedSave = startSession(family + [], [], ["/save-facts"], null, 0, null, {"facts": keptPath})
+	kept = readBack(keptPath)
+	removed = file.delete(blocked)
+	file.delete(keptPath)
+	h.check("a failed save says so and leaves the old file whole",
+		holds(blockedSave.answers.lines, "  could not write ") and kept.len == 1 and
+			kept[0] == "parent-of(bill, tim)")
+
+	// A save that works leaves neither the temp file nor the copy of the one it replaced.
+	cleanPath = scratch("clean-facts.kb")
+	startSession(family + [], [], ["/save-facts"], null, 0, null, {"facts": cleanPath})
+	leftovers = file.exists(cleanPath + ".tmp") + file.exists(cleanPath + ".old")
+	file.delete(cleanPath)
+	h.check("a finished save leaves nothing else behind", leftovers == 0)
 end function

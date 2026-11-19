@@ -16,7 +16,7 @@
 //
 //   session = {"triples": triples, "Rule": Rule, "facts": facts, "rules": rules,
 //       "depth": 8, "verbose": 0, "style": style, "schema": schema, "types": types,
-//       "paths": paths, "knowledge": knowledge, "domain": domain,
+//       "paths": paths, "knowledge": knowledge,
 //       "io": {"read": reader, "say": writer}}
 //
 // schema is schema.ms, the module that knows the field-type format, and types is what it
@@ -26,10 +26,10 @@
 // entry script's folder, so this file would find a same-named module of the suite's
 // (or a host's) instead of the one beside it.
 //
-// paths is where each of the three data files came from, knowledge.ms is the parser and
-// writer for their format, and domain.ms places a file named at the prompt (and adds the
-// .kb a bare name leaves off), so /save-* and /load-* work on the domain the run started
-// with, or on a file named there.
+// paths is where each of the three data files came from, and knowledge.ms is the parser
+// and writer for their format: it reads and writes the files, and names a file typed at
+// the prompt (adding the .kb a bare name leaves off). So /save-* and /load-* work on the
+// domain the run started with, or on a file named there.
 //
 // io is how a session talks, and the reason its checks need no terminal: read takes
 // the prompt and returns a line (null ends the session), say takes a finished line.
@@ -152,13 +152,6 @@ end function
 // component back to the file it came from, or to a file named, and read one back in its
 // place. A name without an extension gets .kb, so /save-facts family writes family.kb.
 
-hasFiles = function(session)
-	"Says whether the session was handed the modules a save or load needs."
-	if not session.hasIndex("knowledge") or session.knowledge == null then return false
-	if not session.hasIndex("domain") or session.domain == null then return false
-	return true
-end function
-
 countOf = function(session, part)
 	"How many items of this component the session holds."
 	if part == "facts" then return session.facts.len
@@ -182,9 +175,9 @@ end function
 
 targetPath = function(session, part, argument, command)
 	"Where a save or load goes: the file named, or the one this component came from."
-	if argument != "" then return session.domain.withExtension(argument)
+	if argument != "" then return session.knowledge.withExtension(argument)
 	path = null
-	if session.hasIndex("paths") and session.paths.hasIndex(part) then path = session.paths[part]
+	if session.paths.hasIndex(part) then path = session.paths[part]
 	if path == null or path == "" then
 		say(session, "warning", "  no " + part + " file to use: name one, as " + command + " FILE")
 		return null
@@ -192,20 +185,61 @@ targetPath = function(session, part, argument, command)
 	return path
 end function
 
-rememberPath = function(session, part, path)
-	"Keeps the file a component now belongs to, so the next save or load defaults to it."
-	if not session.hasIndex("paths") or session.paths == null then session.paths = {}
-	session.paths[part] = path
-end function
+// A save writes a temp file and swaps it in, so the file that is already there is only
+// replaced once the new one is whole: a save that fails part way through leaves the
+// domain's facts.kb as it was rather than truncated to nothing.
 
 writeLines = function(path, lines)
 	"Replaces the file at path with these lines, or returns an error."
+	temp = path + ".tmp"
+	problem = writeFresh(temp, lines)
+	if problem == null then problem = swapIn(temp, path)
+	// A temp file left over from a failure is swept up; what went wrong with it is
+	// already the answer, so its own failure has nowhere to go.
+	if problem != null then
+		if file.exists(temp) then leftover = file.delete(temp)
+	end if
+	return problem
+end function
+
+writeFresh = function(path, lines)
+	"Writes the lines to a new file at path, or returns an error."
 	handle = file.open(path, "w")
 	if handle isa error then return handle
 	for line in lines
-		handle.writeLine(line)
+		problem = handle.writeLine(line)
+		if problem isa error then
+			handle.close
+			return problem
+		end if
 	end for
 	handle.close
+	return null
+end function
+
+swapIn = function(temp, path)
+	"Puts the finished temp file where the old file was, moving the old one aside until the new one is there."
+	if not file.exists(path) then return moveFile(temp, path)
+	// Windows will not move a file onto one that exists, so the old file is moved aside
+	// first and put back if the new one cannot take its place: at no point is there no
+	// copy of what the session started with.
+	old = path + ".old"
+	if file.exists(old) then leftover = file.delete(old)
+	problem = file.move(path, old)
+	if problem isa error then return problem
+	problem = moveFile(temp, path)
+	if problem == null then
+		if file.exists(old) then leftover = file.delete(old)
+		return null
+	end if
+	restored = file.move(old, path)
+	return problem
+end function
+
+moveFile = function(from, to)
+	"Moves a file, answering an error or null, since file.move does not answer null on success."
+	problem = file.move(from, to)
+	if problem isa error then return problem
 	return null
 end function
 
@@ -226,10 +260,6 @@ end function
 
 savePart = function(session, part, argument)
 	"Writes one component to its file, or to the file named."
-	if not hasFiles(session) then
-		say(session, "warning", "  this session has no data files")
-		return
-	end if
 	if part == "schema" and session.types == null then
 		say(session, "warning", "  no schema to save")
 		return
@@ -242,16 +272,12 @@ savePart = function(session, part, argument)
 		say(session, "warning", "  could not write " + path + ": " + problem.message)
 		return
 	end if
-	rememberPath(session, part, path)
+	session.paths[part] = path
 	say(session, "added", "  wrote " + countName(part, countOf(session, part)) + " to " + path)
 end function
 
 loadPart = function(session, part, argument)
 	"Replaces one component with the contents of its file, or of the file named."
-	if not hasFiles(session) then
-		say(session, "warning", "  this session has no data files")
-		return
-	end if
 	path = targetPath(session, part, argument, "/load-" + part)
 	if path == null then return
 	path = session.knowledge.resolvePath(path)
@@ -270,7 +296,7 @@ loadPart = function(session, part, argument)
 	else
 		session.types = loaded
 	end if
-	rememberPath(session, part, path)
+	session.paths[part] = path
 	say(session, "added", "  loaded " + countName(part, countOf(session, part)) + " from " + path)
 end function
 

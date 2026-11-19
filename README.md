@@ -304,7 +304,8 @@ over the folder's file of that name while the folder supplies the other two:
 With no option the folder is `data/`. At the prompt, `/save-facts`, `/save-rules` and
 `/save-schema` write a component back to the file it came from, or to a file named, and
 `/load-facts`, `/load-rules` and `/load-schema` read one back in its place; a bare name
-gets `.kb`.
+gets `.kb`. A save writes a temp file and swaps it in when it is whole, so a save that
+fails part way through leaves the file it was writing as it was.
 
 A fact is one triple per line, `predicate(subject, object)`:
 
@@ -370,7 +371,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-388 passed, 0 failed
+392 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -386,8 +387,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"repl.ms","line":30}
 
-1 passed, 0 failed, 387 skipped
-##END {"passed":1,"failed":0,"skipped":387}
+1 passed, 0 failed, 391 skipped
+##END {"passed":1,"failed":0,"skipped":391}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -397,10 +398,10 @@ the suite reached the end. The VS Code extension's Testing panel passes exactly 
 arguments, so its tree and its runs come from the suite rather than from a list kept
 beside it.
 
-The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 388 here cover the program itself: display and parsing (22), the
-knowledge data format (68), the predicate schema (25), the loaders (16), proofs and
+The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 392 here cover the program itself: display and parsing (22), the
+knowledge data format (75), the predicate schema (25), the loaders (16), proofs and
 explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations
-including the family rules (78), the session at the prompt (96), and the domain (15).
+including the family rules (78), the session at the prompt (98), and the domain (10).
 
 ## Repository layout
 
@@ -408,7 +409,7 @@ including the family rules (78), the session at the prompt (96), and the domain 
 src/main.ms          options, logging, and the session at the prompt
 src/triples.ms       the solver: terms, unification, search, proofs
 src/rule.ms          the Rule class
-src/knowledge.ms     the parser for the facts, rules and schema data
+src/knowledge.ms     the reader and writer for the facts, rules and schema data
 src/facts.ms         loads the facts
 src/rules.ms         loads the rules
 src/schema.ms        loads the field types
@@ -418,7 +419,7 @@ data/rules.kb        the thirteen rules, as text
 data/schema.kb       the field types, as text
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 388 checks and their runner
+test/                the 392 checks and their runner
 docs/articles/       the long-form write-up
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env
