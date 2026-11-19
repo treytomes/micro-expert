@@ -69,7 +69,7 @@ entry point, and pass the script's exit code back.
 
 ```
 > micro-expert
-[INF] micro-expert: micro-expert 0.1.0 starting
+[INF] micro-expert: micro-expert 0.2.0 starting
 [INF] micro-expert: Command-line arguments (0): (none)
 [INF] micro-expert: depth:      8
 [INF] micro-expert: verbose:    0
@@ -303,7 +303,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-174 passed, 0 failed
+176 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -319,8 +319,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"repl.ms","line":30}
 
-1 passed, 0 failed, 173 skipped
-##END {"passed":1,"failed":0,"skipped":173}
+1 passed, 0 failed, 175 skipped
+##END {"passed":1,"failed":0,"skipped":175}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -331,8 +331,8 @@ arguments, so its tree and its runs come from the suite rather than from a list 
 beside it.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 174 here cover the program itself: display and parsing (12),
-proofs and explanations (19), the missing-fact report (24), recursion and cycle handling
+56 respectively), and the 176 here cover the program itself: display and parsing (12),
+proofs and explanations (21), the missing-fact report (24), recursion and cycle handling
 (13), relations including the family rules (46), and the session at the prompt (60).
 
 ## Repository layout
@@ -345,7 +345,7 @@ src/facts.ms         the 54 facts
 src/rules.ms         the nine rules
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 174 checks and their runner
+test/                the 176 checks and their runner
 docs/                the long-form write-up
 bootstrap.bat        submodules, interpreter, .env
 bootstrap.sh         the same for Linux

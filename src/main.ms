@@ -24,7 +24,7 @@ log = logging.newLogger({"name": "micro-expert"})
 
 // ── Command line ────────────────────────────────────────────────────────────
 
-cmd = cli.newCommand("micro-expert", "0.1.0", "A little expert system for MiniScript 2.")
+cmd = cli.newCommand("micro-expert", "0.2.0", "A little expert system for MiniScript 2.")
 
 finish = function(code=0)
 	"Logs the exit and stops the program with the given status code."
