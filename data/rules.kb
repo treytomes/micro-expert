@@ -9,8 +9,8 @@
 // and and(...) says the same thing out loud and nests. or(...) holds alternatives,
 // any one of which may hold instead, so a rule with two readings is one line, and
 // not(...) holds a body that must have no proof, so a rule can ask for an absence.
-// A condition is a fact, a constraint ?x != ?y, a comparison less-than-or-equal(?n, 18),
-// or a grouping.
+// A condition is a fact, a constraint not-equal(?x, ?y), a comparison
+// less-than-or-equal(?n, 18), or a grouping.
 // A fact reads
 // "?x is the relation of ?y", so ?x comes first.
 //
@@ -27,7 +27,7 @@ married-to(?y, ?x) => married-to(?x, ?y)
 
 // ?x and ?y are siblings when they share at least one parent, so half-siblings count
 // too, and nobody is their own sibling.
-sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y)
+sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y))
 
 // ?x is a brother of ?y when ?x is a male sibling, so the gender is asked of ?x
 // rather than of ?y.

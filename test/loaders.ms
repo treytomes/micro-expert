@@ -11,7 +11,7 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 	expected = [
 		"child-of(?x, ?y) <- parent-of(?y, ?x)",
 		"married-to(?y, ?x) <- married-to(?x, ?y)",
-		"sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y",
+		"sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)",
 		"brother-of(?x, ?y) <- sibling-of(?x, ?y), has-gender(?x, male)",
 		"sister-of(?x, ?y) <- sibling-of(?x, ?y), has-gender(?x, female)",
 		"uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)",

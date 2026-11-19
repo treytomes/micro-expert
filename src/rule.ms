@@ -14,7 +14,7 @@
 //
 // Head comes first and conditions after it, matching (<- head body...). The body is
 // always a list, so a single condition is a list of one. A body may also hold a
-// constraint such as ?x != ?y instead of a triple - see the constraints in
+// constraint such as not-equal(?x, ?y) instead of a triple - see the constraints in
 // triples.ms.
 //
 // This module imports nothing, on purpose: a rule only stores and prints the triples

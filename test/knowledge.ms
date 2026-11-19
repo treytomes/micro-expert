@@ -45,9 +45,10 @@ run = function(t, knowledge, h)
 
 	// ── Constraints ──────────────────────────────────────────────────────────
 
-	constrained = parseOneRule("sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y)")
+	constrained = parseOneRule("sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y))")
 	h.check("a constraint parses inside and(...)", constrained[0].body.len == 3)
-	h.check("a constraint reads as ?x != ?y", constrained[0].body[2].text == "?x != ?y")
+	h.check("a constraint reads as a call",
+		constrained[0].body[2].text == "not-equal(?x, ?y)")
 	h.check("a constraint is not a triple", not (constrained[0].body[2] isa t.SpoTriple))
 
 	// ── Lines ────────────────────────────────────────────────────────────────
@@ -76,7 +77,7 @@ run = function(t, knowledge, h)
 	h.check("or(...) reads back",
 		bodyText(choice[0]) == "or(married-to(?x, ?p), sibling-of(?p, ?y))")
 
-	either = parseOneRule("close(?x, ?y) => and(or(sibling-of(?x, ?y), married-to(?x, ?y)), ?x != ?y)")
+	either = parseOneRule("close(?x, ?y) => and(or(sibling-of(?x, ?y), married-to(?x, ?y)), not-equal(?x, ?y))")
 	h.check("or(...) sits among other conditions", either[0].body.len == 2)
 	h.check("the choice keeps its alternatives", either[0].body[0].alternatives.len == 2)
 
@@ -168,10 +169,11 @@ run = function(t, knowledge, h)
 			"less-than(?n, 2)" and
 			parseOneRule("a(?x, ?y) => and(b(?x, ?n), greater-than(?n, 2))")[0].body[1].text ==
 				"greater-than(?n, 2)")
-	h.check("a comparison does not disturb the != constraint",
-		parseOneRule("a(?x, ?y) => and(b(?x, ?y), ?x != ?y)")[0].body[1] isa t.NotEqual)
+	h.check("a comparison does not disturb the not-equal constraint",
+		parseOneRule("a(?x, ?y) => and(b(?x, ?y), not-equal(?x, ?y))")[0].body[1] isa t.NotEqual)
 	// A comparison is a call shape, not a predicate with a meaning of its own, so one that
 	// is not two fields is refused rather than read as a fact.
-	h.check("a comparison with one field is refused",
-		failure("a(?x, ?y) => less-than-or-equal(?n)") != null)
+	h.check("a constraint with one field is refused",
+		failure("a(?x, ?y) => less-than-or-equal(?n)") != null and
+			failure("a(?x, ?y) => not-equal(?n)") != null)
 end function

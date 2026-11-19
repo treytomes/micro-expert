@@ -36,9 +36,9 @@ run = function(t, rules, repl, h, schema)
 	h.check("Rule.text gets its own line back",
 		rules.Rule.make(parsed.head, parsed.body).text == line)
 
-	constrained = t.parseRule("sibling-of(?x, ?y) <- parent-of(?p, ?x), ?x != ?y")
+	constrained = t.parseRule("sibling-of(?x, ?y) <- parent-of(?p, ?x), not-equal(?x, ?y)")
 	h.check("a constraint in a body is read as a constraint",
-		readable(constrained) and constrained.body[1].text == "?x != ?y")
+		readable(constrained) and constrained.body[1].text == "not-equal(?x, ?y)")
 	h.check("a line without an arrow is refused", t.parseRule("parent-of(?x, susan)") isa error)
 	h.check("a rule with no conditions is refused", t.parseRule("parent-of(?x, ?y) <- ") isa error)
 	h.check("a broken condition refuses the whole line",
@@ -375,8 +375,15 @@ run = function(t, rules, repl, h, schema)
 	// A comparison's name is a shape a rule body checks, not a predicate a fact stores, so
 	// typing one as a fact is refused rather than filed away as something the solver proves.
 	stored = startSession([], [], ["less-than-or-equal(5, 3)"])
-	h.check("a comparison cannot be stored as a fact",
+	h.check("a constraint cannot be stored as a fact",
 		printed(stored.answers.lines,
-			"  refused: less-than-or-equal(5, 3): the predicate is a comparison, checked in a rule body rather than stored") and
+			"  refused: less-than-or-equal(5, 3): the predicate is a constraint, checked in a rule body rather than stored or asked") and
 			stored.session.facts.len == 0)
+	// A comparison asked as a question is refused the same way, before the search: no fact
+	// could ever carry it, so the report and its prompts would only be asking for nonsense.
+	question = startSession([], [], ["less-than-or-equal(?n, 18)"])
+	h.check("a constraint cannot be asked as a question",
+		printed(question.answers.lines,
+			"  refused: less-than-or-equal(?n, 18): the predicate is a constraint, checked in a rule body rather than stored or asked") and
+			question.answers.asked.len == 2 and not holds(question.answers.lines, "no solution"))
 end function

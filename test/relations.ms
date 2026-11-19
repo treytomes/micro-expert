@@ -93,11 +93,11 @@ run = function(t, rules, h)
 	h.check("two shared parents are one answer", siblingsOf("bill", "george")[0].reasons.len == 2)
 	h.check("strangers are not siblings", siblingsOf("bill", "nobody").len == 0)
 	h.check("a parent is not a sibling", siblingsOf("bill", "walter").len == 0)
-	// The ?x != ?y constraint in the body keeps a person from being their own
+	// The not-equal(?x, ?y) constraint in the body keeps a person from being their own
 	// sibling, and a constraint adds nothing to the proof tree.
 	h.check("someone is not their own sibling", siblingsOf("bill", "bill").len == 0)
 	h.check("the rule prints its constraint",
-		siblingRule.text == "sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y")
+		siblingRule.text == "sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)")
 	h.check("a two-parent sibling still has both derivations",
 		siblingsOf("bill", "george")[0].reasons.len == 2)
 	openSiblings = t.proveGoals(spo(v("a"), "sibling-of", v("b")), family, [siblingRule], 2)

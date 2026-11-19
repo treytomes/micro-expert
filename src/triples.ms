@@ -166,10 +166,14 @@ substitute = function(term, binds)
 end function
 
 // ── Constraints ──────────────────────────────────────────────────────────────
-// A rule body is a list of goals, and it may also hold constraints: conditions
-// that are checked against the bindings rather than proved by search. A comparison is
-// one of them: less-than-or-equal(?n, 18) is not a fact to prove, but two numbers
-// standing in an order.
+// A rule body is a list of goals, and it may also hold constraints: conditions that are
+// checked against the bindings rather than proved by search. They are written as calls
+// like everything else - not-equal(?x, ?y), less-than-or-equal(?n, 18) - and their names
+// are reserved, so no fact and no question can use one as a predicate.
+
+// not-equal is the one constraint name that is not a comparison, and its name is reserved
+// like theirs: a term never means "check this" in a body and "assert this" as a fact.
+notEqualName = "not-equal"
 
 NotEqual = {}
 
@@ -182,8 +186,8 @@ NotEqual.make = function(left, right)
 end function
 
 NotEqual.text = function
-	"Says how the constraint reads: ?x != ?y."
-	return termText(self.left) + " != " + termText(self.right)
+	"Says how the constraint reads: not-equal(?x, ?y)."
+	return notEqualName + "(" + termText(self.left) + ", " + termText(self.right) + ")"
 end function
 
 // A comparison is the one constraint that reads its terms arithmetically. Text would
@@ -224,9 +228,10 @@ comparisonCall = function(symbol)
 	return symbol
 end function
 
-isComparison = function(term)
-	"Says whether a term names a comparison, which a body checks rather than a fact stores."
-	return term isa string and comparisonNames.hasIndex(term) != 0
+isConstraint = function(term)
+	"Says whether a term names a constraint, which a body checks rather than a line storing or asking it."
+	if not (term isa string) then return false
+	return term == notEqualName or comparisonNames.hasIndex(term) != 0
 end function
 
 comparisonHolds = function(constraint, binds)
@@ -1069,34 +1074,30 @@ splitConditions = function(text)
 end function
 
 parseCondition = function(text, line)
-	"Reads one condition of a rule body: a triple, or a constraint such as ?x != ?y or less-than-or-equal(?n, 18)."
+	"Reads one condition of a rule body: a triple, or a constraint such as not-equal(?x, ?y) or less-than-or-equal(?n, 18)."
 	text = trimSpace(text)
-	differ = text.split("!=")
 	if text == "" then return err(badRule(line))
-	if differ.len == 2 then
-		return NotEqual.make(termOf(trimSpace(differ[0])), termOf(trimSpace(differ[1])))
-	end if
-	compared = comparisonOf(text)
-	if compared != null then return compared
+	constraint = constraintOf(text)
+	if constraint != null then return constraint
 	return SpoTriple.parse(text)
 end function
 
-comparisonOf = function(text)
-	"Reads a comparison call into a Comparison, null for another predicate, or an error when the call is wrong."
+constraintOf = function(text)
+	"Reads a constraint call into a NotEqual or a Comparison: null for another predicate, an error when the call is wrong."
 	openAt = text.indexOf("(")
 	if openAt == null then return null
 	name = trimSpace(text[:openAt])
-	if comparisonNames.hasIndex(name) == 0 then return null
+	if not isConstraint(name) then return null
+	expected = "expected '" + name + "(field, field)': " + text
 	inner = trimSpace(text[openAt + 1:])
-	if inner.len == 0 then return err("expected '" + name + "(field, field)': " + text)
-	if inner[-1] != ")" then return err("expected '" + name + "(field, field)': " + text)
+	if inner.len == 0 then return err(expected)
+	if inner[-1] != ")" then return err(expected)
 	fields = inner[:-1].split(",")
-	if fields.len != 2 then return err("expected '" + name + "(field, field)': " + text)
+	if fields.len != 2 then return err(expected)
 	left = trimSpace(fields[0])
 	right = trimSpace(fields[1])
-	if left == "" or right == "" then
-		return err("expected '" + name + "(field, field)': " + text)
-	end if
+	if left == "" or right == "" then return err(expected)
+	if name == notEqualName then return NotEqual.make(termOf(left), termOf(right))
 	return Comparison.make(comparisonNames[name], termOf(left), termOf(right))
 end function
 

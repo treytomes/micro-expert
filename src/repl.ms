@@ -158,6 +158,9 @@ handleLine = function(session, line)
 		say(session, "warning", "  " + triple.message)
 		return
 	end if
+	// A constraint's name is a shape, not a predicate: a line that names one is refused
+	// before it is searched, and addFact refuses one before it is stored.
+	if refuseConstraint(session, triple) then return
 	if session.triples.hasUnknowns(triple) then
 		// A question is held against the schema too, so a field already given as a value
 		// that could never be stored is refused before the search starts, rather than
@@ -171,13 +174,7 @@ end function
 
 addFact = function(session, triple)
 	"Adds a fact to the session's knowledge base, and says which one; nothing is added twice."
-	// A comparison's name is a shape a rule body checks, so a fact that uses one would be
-	// asserting arithmetic the solver would then prove by recital rather than by checking.
-	if session.triples.isComparison(triple.predicate) then
-		say(session, "warning", "  refused: " + triple.text +
-			": the predicate is a comparison, checked in a rule body rather than stored")
-		return false
-	end if
+	if refuseConstraint(session, triple) then return false
 	if not fitsSchema(session, triple) then return false
 	if alreadyKnown(session, triple) then
 		say(session, "note", "  already known: " + triple.text)
@@ -185,6 +182,14 @@ addFact = function(session, triple)
 	end if
 	session.facts.push(triple)
 	say(session, "added", "  added " + triple.text)
+	return true
+end function
+
+refuseConstraint = function(session, triple)
+	"Says a constraint's name is not a predicate a line stores or asks about, and whether it was one."
+	if not session.triples.isConstraint(triple.predicate) then return false
+	say(session, "warning", "  refused: " + triple.text +
+		": the predicate is a constraint, checked in a rule body rather than stored or asked")
 	return true
 end function
 

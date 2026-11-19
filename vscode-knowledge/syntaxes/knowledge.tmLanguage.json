@@ -6,7 +6,6 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#arrow" },
-    { "include": "#constraint" },
     { "include": "#variables" },
     { "include": "#numbers" },
     { "include": "#grouping" },
@@ -21,10 +20,6 @@
     "arrow": {
       "match": "=>",
       "name": "keyword.operator.proves.micro-expert-kb"
-    },
-    "constraint": {
-      "match": "!=",
-      "name": "keyword.operator.comparison.micro-expert-kb"
     },
     "variables": {
       "match": "\\?[A-Za-z_][A-Za-z0-9_]*",
