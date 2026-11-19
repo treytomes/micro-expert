@@ -292,7 +292,7 @@ uncle-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, ma
 uncle-of(?x, ?y) => parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
 ```
 
-A condition is a fact or a constraint such as `?x != ?y`. `and(...)` nests, an entry may
+A condition is a fact or a constraint such as `?x != ?y` or `?n <= 18`. `and(...)` nests, an entry may
 run over several lines inside its parentheses, and `or(...)` holds alternatives - any one
 of them may hold instead, so a rule that could be written two ways is still one line:
 
@@ -301,9 +301,8 @@ in-law-of(?x, ?y) => or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling
 ```
 
 `not(...)` holds a body that must have no proof, so a rule can ask for an absence; it takes
-one condition, and `not(and(a, b))` negates several. A comparison such as `?n <= 18` is a
-constraint like `?x != ?y`: it is checked against two numbers rather than proved, and it
-holds only when both sides are numbers, so a name never passes for a zero.
+one condition, and `not(and(a, b))` negates several. A comparison is arithmetic rather than
+text: both sides have to be numbers, and a name never passes for a zero.
 
 ```prolog
 only-child-of(?x, ?y) => and(parent-of(?y, ?x), not(sibling-of(?x, ?q)))
@@ -334,7 +333,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-316 passed, 0 failed
+317 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -350,8 +349,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"repl.ms","line":30}
 
-1 passed, 0 failed, 315 skipped
-##END {"passed":1,"failed":0,"skipped":315}
+1 passed, 0 failed, 316 skipped
+##END {"passed":1,"failed":0,"skipped":316}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -361,11 +360,10 @@ the suite reached the end. The VS Code extension's Testing panel passes exactly 
 arguments, so its tree and its runs come from the suite rather than from a list kept
 beside it.
 
-The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively), and the 316 here cover the program itself: display and parsing (16), the
-knowledge data format (55), the predicate schema (19), the loaders (8), proofs and
+The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 317 here cover the program itself: display and parsing (16), the
+knowledge data format (55), the predicate schema (19), the loaders (10), proofs and
 explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations
-including the family rules (79), and the session at the prompt (71).
+including the family rules (78), and the session at the prompt (71).
 
 ## Repository layout
 
@@ -382,7 +380,7 @@ data/rules.kb        the thirteen rules, as text
 data/schema.kb       the field types, as text
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 316 checks and their runner
+test/                the 317 checks and their runner
 docs/                the long-form write-up
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env

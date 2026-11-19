@@ -10,8 +10,7 @@
 //
 // The prompt holds a typed fact against this before storing it, so has-age(tim, twenty)
 // is refused rather than filed away where no rule could ever reach it. A predicate the
-// file does not name is accepted as it is written: the schema is what the program knows
-// about its own facts, not a gate it has to keep widening.
+// file does not name is accepted as it is written.
 //
 // Only the predicates that store facts are listed. A rule's head is defined by the
 // conditions in its body, and a comparison such as ?n <= 18 keeps its own field a

@@ -1,8 +1,9 @@
 // Cases for the loaders: the data files the program ships, read through the modules
-// that load them, so the loader's path logic cannot regress silently.
+// that load them, so the loader's path logic cannot regress silently, and the facts fit
+// the schema the prompt holds typed ones against.
 
-run = function(t, rulesLoader, factsLoader, h)
-	"Checks that data/rules.kb and data/facts.kb load, in the order their lines hold."
+run = function(t, rulesLoader, factsLoader, schemaLoader, h)
+	"Checks that data/rules.kb and data/facts.kb load in the order their lines hold, and that the facts fit data/schema.kb."
 	loadedRules = rulesLoader.build(t)
 	h.check("data/rules.kb loads through rules.ms", not (loadedRules isa error))
 	if loadedRules isa error then return
@@ -38,4 +39,36 @@ run = function(t, rulesLoader, factsLoader, h)
 		h.check("the last fact is the last line", loadedFacts[53].text == "has-age(oliver, 7)")
 		h.check("ages load as numbers", loadedFacts[1].object + 1 == 79)
 	end if
+
+	// ── The schema the shipped facts have to fit ─────────────────────────────
+
+	// The prompt holds a typed fact against data/schema.kb, so the facts the program
+	// ships have to pass the same check: a value the schema would refuse is the two
+	// files drifting apart, not a fact. A predicate the schema does not name is taken
+	// as written, so the second check is what stops a new predicate going unchecked.
+	types = schemaLoader.build()
+	misfits = []
+	used = {}
+	if not (types isa error) then
+		for fact in loadedFacts
+			used[fact.predicate] = 1
+			problem = schemaLoader.misfit(types, fact)
+			if problem != null then misfits.push(fact.text + " - " + problem)
+		end for
+	end if
+	h.check("every fact in data/facts.kb fits data/schema.kb",
+		not (types isa error) and misfits.len == 0)
+	// Printed only when something drifted, and after the failure it explains, so a
+	// failing run says which facts did.
+	if misfits.len > 0 then print "      " + misfits.join("\n      ")
+
+	undeclared = []
+	if not (types isa error) then
+		for predicate in used.indexes
+			if types.hasIndex(predicate) == 0 then undeclared.push(predicate)
+		end for
+	end if
+	h.check("every predicate the facts use is declared in data/schema.kb",
+		not (types isa error) and undeclared.len == 0)
+	if undeclared.len > 0 then print "      " + undeclared.join(", ")
 end function

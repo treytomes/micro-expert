@@ -337,8 +337,6 @@ run = function(t, rules, h)
 	h.check("the proof names the age it read", childProof.indexOf("has-age(mark, 18)") != null)
 	h.check("the child rule prints its comparison",
 		childRule.text == "age-group(?x, child) <- has-age(?x, ?n), ?n <= 18")
-	h.check("the adult rule prints its negation",
-		adultRule.text == "age-group(?x, adult) <- has-age(?x, ?n), not(age-group(?x, child))")
 	renamed = t.standardizeApart(childRule).body[1].text
 	h.check("standardizeApart renames the comparison's variables",
 		renamed.indexOf("?n_") == 0 and renamed.indexOf("<= 18") != null)

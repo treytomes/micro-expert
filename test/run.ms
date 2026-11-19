@@ -121,6 +121,6 @@ recursion.run(triples, rules, harness)
 relations.run(triples, rules, harness)
 repl.run(triples, rules, prompt, harness, schemaLoader)
 schema.run(triples, parser, schemaLoader, harness)
-loaders.run(triples, rulesLoader, factsLoader, harness)
+loaders.run(triples, rulesLoader, factsLoader, schemaLoader, harness)
 
 harness.summary()

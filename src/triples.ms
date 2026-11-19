@@ -189,6 +189,7 @@ end function
 // put "9" after "18", and MiniScript will not compare a string with a number at all,
 // so a side that is not a number ends the branch rather than passing for a zero.
 
+// Longest first: the text is split on the symbol, so "<=" has to be tried before "<".
 comparisonSymbols = ["<=", ">=", "<", ">"]
 
 Comparison = {}
