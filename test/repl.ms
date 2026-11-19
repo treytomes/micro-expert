@@ -343,4 +343,32 @@ run = function(t, rules, repl, h, schema)
 		printed(fitted.answers.lines, "  refused: has-gender(walter, boy): the object should be one of: male, female"))
 	h.check("a fact that fits the schema is added",
 		startSession([], [], ["has-age(tim, 24)"], null, 0, ageTypes).session.facts.len == 1)
+
+	// A question is held against the schema before it is searched, so a field already given
+	// as a value that no fact could ever carry is refused at once: the search would find
+	// nothing, and asking the question's own variable would only set up a fact the same
+	// check refuses.
+	asked = startSession([spo("bill", "has-age", 54)], [], ["has-age(?a, twenty)"],
+		null, 0, ageTypes)
+	h.check("a question whose value misses the schema is refused",
+		printed(asked.answers.lines,
+			"  refused: has-age(?a, twenty): the object should be a number"))
+	h.check("and a refused question asks for nothing",
+		asked.answers.asked.len == 2 and asked.answers.asked[1] == "? " and
+			not holds(asked.answers.lines, "no solution"))
+
+	// A value that completes a fact the schema refuses changes nothing, so the question
+	// stops there rather than asking the same variable again.
+	refused = startSession([], [], ["has-age(tim, ?n)", "twenty"], null, 0, ageTypes)
+	h.check("a value that makes a refused fact is refused",
+		printed(refused.answers.lines,
+			"  refused: has-age(tim, twenty): the object should be a number"))
+	h.check("and the question ends instead of asking again",
+		refused.answers.asked.len == 3 and refused.answers.asked[2] == "? ")
+
+	// A question may name its predicate with a variable, which no schema can type, so that
+	// question is searched as it always was.
+	open = startSession([], [], ["?p(?a, ?b)"], null, 0, ageTypes)
+	h.check("a question with a variable predicate is not refused",
+		not holds(open.answers.lines, "refused"))
 end function

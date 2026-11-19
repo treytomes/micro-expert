@@ -159,6 +159,10 @@ handleLine = function(session, line)
 		return
 	end if
 	if session.triples.hasUnknowns(triple) then
+		// A question is held against the schema too, so a field already given as a value
+		// that could never be stored is refused before the search starts, rather than
+		// after the reader has filled in the question's own variable for nothing.
+		if not fitsSchema(session, triple) then return
 		askGoal(session, triple)
 	else
 		addFact(session, triple)
@@ -178,7 +182,7 @@ addFact = function(session, triple)
 end function
 
 fitsSchema = function(session, triple)
-	"Says whether a typed fact matches the schema, saying what it misses when it does not."
+	"Says whether a typed fact or question matches the schema, saying what it misses when it does not."
 	if not session.hasIndex("types") then return true
 	if session.types == null then return true
 	problem = session.schema.misfit(session.types, triple)
@@ -361,6 +365,10 @@ fillMissing = function(session, options, goal, given)
 				session.triples.paint(session.style, "note", "  (not added: what is left is the question's own)"))
 			continue
 		end if
+		// A completed fact the schema refuses adds nothing, so the question stops where it
+		// is: asking for the same value again would only collect the same refusal, and the
+		// report is left standing the way an empty value leaves it.
+		if not fitsSchema(session, filled) then return "stopped"
 		if addFact(session, filled) then changed = true
 	end for
 	if changed then return "changed"
