@@ -151,19 +151,27 @@ run = function(t, knowledge, h)
 
 	// ── A condition that compares numbers ────────────────────────────────────
 
-	aged = parseOneRule("age-group(?x, child) => and(has-age(?x, ?n), ?n <= 18)")
+	aged = parseOneRule("age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))")
 	h.check("a comparison parses", not (aged isa error))
 	h.check("a comparison is a constraint, not a fact", aged[0].body[1] isa t.Comparison)
-	h.check("a comparison reads back", bodyText(aged[0]) == "has-age(?x, ?n), ?n <= 18")
+	h.check("a comparison reads back",
+		bodyText(aged[0]) == "has-age(?x, ?n), less-than-or-equal(?n, 18)")
 	h.check("the symbol is kept", aged[0].body[1].symbol == "<=")
 	h.check("a number on the right is a number", aged[0].body[1].right isa number and
 		aged[0].body[1].right == 18)
 
-	greater = parseOneRule("a(?x, ?y) => and(b(?x, ?n), ?n >= 19)")
-	h.check(">= parses", greater[0].body[1].text == "?n >= 19")
-	h.check("< and > parse",
-		parseOneRule("a(?x, ?y) => and(b(?x, ?n), ?n < 2)")[0].body[1].text == "?n < 2" and
-			parseOneRule("a(?x, ?y) => and(b(?x, ?n), ?n > 2)")[0].body[1].text == "?n > 2")
+	greater = parseOneRule("a(?x, ?y) => and(b(?x, ?n), greater-than-or-equal(?n, 19))")
+	h.check("greater-than-or-equal parses",
+		greater[0].body[1].text == "greater-than-or-equal(?n, 19)")
+	h.check("less-than and greater-than parse",
+		parseOneRule("a(?x, ?y) => and(b(?x, ?n), less-than(?n, 2))")[0].body[1].text ==
+			"less-than(?n, 2)" and
+			parseOneRule("a(?x, ?y) => and(b(?x, ?n), greater-than(?n, 2))")[0].body[1].text ==
+				"greater-than(?n, 2)")
 	h.check("a comparison does not disturb the != constraint",
 		parseOneRule("a(?x, ?y) => and(b(?x, ?y), ?x != ?y)")[0].body[1] isa t.NotEqual)
+	// A comparison is a call shape, not a predicate with a meaning of its own, so one that
+	// is not two fields is refused rather than read as a fact.
+	h.check("a comparison with one field is refused",
+		failure("a(?x, ?y) => less-than-or-equal(?n)") != null)
 end function

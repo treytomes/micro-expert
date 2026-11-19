@@ -371,4 +371,12 @@ run = function(t, rules, repl, h, schema)
 	open = startSession([], [], ["?p(?a, ?b)"], null, 0, ageTypes)
 	h.check("a question with a variable predicate is not refused",
 		not holds(open.answers.lines, "refused"))
+
+	// A comparison's name is a shape a rule body checks, not a predicate a fact stores, so
+	// typing one as a fact is refused rather than filed away as something the solver proves.
+	stored = startSession([], [], ["less-than-or-equal(5, 3)"])
+	h.check("a comparison cannot be stored as a fact",
+		printed(stored.answers.lines,
+			"  refused: less-than-or-equal(5, 3): the predicate is a comparison, checked in a rule body rather than stored") and
+			stored.session.facts.len == 0)
 end function

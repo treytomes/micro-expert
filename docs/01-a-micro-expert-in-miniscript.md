@@ -54,7 +54,7 @@ The last row is the honest one. This program cannot read *"who are Bill's nephew
 What a rules engine buys you, concretely, in an era of cheap text generation:
 
 - **Auditability.** Every claim has a proof you can print. There is no "the model said so" step to defend to a reviewer, an auditor, or yourself in six months.
-- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 338 assertions and they either pass or they don't.
+- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 340 assertions and they either pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility, scheduling constraints, device diagnostics, family relationships — questions where the rule is the requirement and being consistently right matters more than being fluent.
 - **Knowledge as a reviewed artifact.** Adding a rule is a five-line pull request with a test. There is no training run, and nothing else silently changes.
 - **No data leaving the machine.** The facts are the data, and they are text files.
@@ -95,7 +95,7 @@ A body item does not have to be a triple. It can be a **constraint**, checked ag
 sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), ?x != ?y)
 ```
 
-A comparison is the other constraint: `?n <= 18` reads two numbers and holds when they stand in that order, so `age-group(?x, child) => and(has-age(?x, ?n), ?n <= 18)` puts the age where childhood ends into the rule instead of into a column of `is-child` facts. The parser reads a number as a number, which is what makes that arithmetic rather than text — as text, `"9"` would sort after `"18"` — and a side that is not a number ends the branch rather than passing for a zero. A number may also carry an exponent - `1e3` is a thousand - with digits required on both sides of the `e`, so `1e` stays text. `not(...)` then gives the other group without writing the line twice:
+A comparison is the other constraint, written as a call like every other condition: `less-than-or-equal(?n, 18)` reads two numbers and holds when they stand in that order, so `age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))` puts the age where childhood ends into the rule instead of into a column of `is-child` facts. The parser reads a number as a number, which is what makes that arithmetic rather than text — as text, `"9"` would sort after `"18"` — and a side that is not a number ends the branch rather than passing for a zero. A number may also carry an exponent - `1e3` is a thousand - with digits required on both sides of the `e`, so `1e` stays text. `not(...)` then gives the other group without writing the line twice:
 
 ```prolog
 age-group(?x, adult) => and(has-age(?x, ?n), not(age-group(?x, child)))
@@ -271,12 +271,12 @@ The session paints from the same style table as the report, so `NO_COLOR` turns 
 
 ```plaintext
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-338 passed, 0 failed
+340 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it for the session or paste the path in its place.
 
-The 338 checks are split by area: display and parsing (22), the knowledge data format (57), the predicate schema (25), the loaders (12), proofs and explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (78), and the session at the prompt (76). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
+The 340 checks are split by area: display and parsing (22), the knowledge data format (58), the predicate schema (25), the loaders (12), proofs and explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (78), and the session at the prompt (77). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
 
 ## Where an LLM fits
 

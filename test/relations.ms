@@ -336,10 +336,10 @@ run = function(t, rules, h)
 	h.check("a comparison adds no step to the proof", childProof.split("\n").len == 2)
 	h.check("the proof names the age it read", childProof.indexOf("has-age(mark, 18)") != null)
 	h.check("the child rule prints its comparison",
-		childRule.text == "age-group(?x, child) <- has-age(?x, ?n), ?n <= 18")
+		childRule.text == "age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)")
 	renamed = t.standardizeApart(childRule).body[1].text
 	h.check("standardizeApart renames the comparison's variables",
-		renamed.indexOf("?n_") == 0 and renamed.indexOf("<= 18") != null)
+		renamed.indexOf("less-than-or-equal(?n_") == 0 and renamed.indexOf(", 18)") != null)
 	h.check("a comparison against an unbound variable cannot hold",
 		t.proveGoals(spo("x", "young", "yes"), [],
 			[rule(spo("x", "young", "yes"), [t.Comparison.make("<", v("n"), 18)])], 2).len == 0)

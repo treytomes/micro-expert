@@ -168,7 +168,8 @@ end function
 // ── Constraints ──────────────────────────────────────────────────────────────
 // A rule body is a list of goals, and it may also hold constraints: conditions
 // that are checked against the bindings rather than proved by search. A comparison is
-// one of them: ?n <= 18 is not a fact to prove, but two numbers standing in an order.
+// one of them: less-than-or-equal(?n, 18) is not a fact to prove, but two numbers
+// standing in an order.
 
 NotEqual = {}
 
@@ -189,8 +190,15 @@ end function
 // put "9" after "18", and MiniScript will not compare a string with a number at all,
 // so a side that is not a number ends the branch rather than passing for a zero.
 
-// Longest first: the text is split on the symbol, so "<=" has to be tried before "<".
-comparisonSymbols = ["<=", ">=", "<", ">"]
+// A comparison is written as a call, like every other condition in a body, so the format
+// keeps one shape: less-than-or-equal(?n, 18). The names are words, as the predicates
+// are, and the symbol each stands for is what the check reads.
+comparisonNames = {
+	"less-than": "<",
+	"less-than-or-equal": "<=",
+	"greater-than": ">",
+	"greater-than-or-equal": ">=",   // this comma is required: the entry ends the line
+}
 
 Comparison = {}
 
@@ -204,8 +212,21 @@ Comparison.make = function(symbol, left, right)
 end function
 
 Comparison.text = function
-	"Says how the comparison reads: ?n <= 18."
-	return termText(self.left) + " " + self.symbol + " " + termText(self.right)
+	"Says how the comparison reads: less-than-or-equal(?n, 18)."
+	return comparisonCall(self.symbol) + "(" + termText(self.left) + ", " + termText(self.right) + ")"
+end function
+
+comparisonCall = function(symbol)
+	"Names a symbol the way a body writes it: '<=' is less-than-or-equal."
+	for name in comparisonNames.indexes
+		if comparisonNames[name] == symbol then return name
+	end for
+	return symbol
+end function
+
+isComparison = function(term)
+	"Says whether a term names a comparison, which a body checks rather than a fact stores."
+	return term isa string and comparisonNames.hasIndex(term) != 0
 end function
 
 comparisonHolds = function(constraint, binds)
@@ -1048,7 +1069,7 @@ splitConditions = function(text)
 end function
 
 parseCondition = function(text, line)
-	"Reads one condition of a rule body: a triple, or a constraint such as ?x != ?y or ?n <= 18."
+	"Reads one condition of a rule body: a triple, or a constraint such as ?x != ?y or less-than-or-equal(?n, 18)."
 	text = trimSpace(text)
 	differ = text.split("!=")
 	if text == "" then return err(badRule(line))
@@ -1061,15 +1082,22 @@ parseCondition = function(text, line)
 end function
 
 comparisonOf = function(text)
-	"Reads a numeric comparison into a Comparison, or null when the text is not one."
-	for symbol in comparisonSymbols
-		pieces = text.split(symbol)
-		if pieces.len == 2 then
-			return Comparison.make(symbol, termOf(trimSpace(pieces[0])),
-				termOf(trimSpace(pieces[1])))
-		end if
-	end for
-	return null
+	"Reads a comparison call into a Comparison, null for another predicate, or an error when the call is wrong."
+	openAt = text.indexOf("(")
+	if openAt == null then return null
+	name = trimSpace(text[:openAt])
+	if comparisonNames.hasIndex(name) == 0 then return null
+	inner = trimSpace(text[openAt + 1:])
+	if inner.len == 0 then return err("expected '" + name + "(field, field)': " + text)
+	if inner[-1] != ")" then return err("expected '" + name + "(field, field)': " + text)
+	fields = inner[:-1].split(",")
+	if fields.len != 2 then return err("expected '" + name + "(field, field)': " + text)
+	left = trimSpace(fields[0])
+	right = trimSpace(fields[1])
+	if left == "" or right == "" then
+		return err("expected '" + name + "(field, field)': " + text)
+	end if
+	return Comparison.make(comparisonNames[name], termOf(left), termOf(right))
 end function
 
 parseBodyPart = function(text, line)

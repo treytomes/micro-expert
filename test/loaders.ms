@@ -20,7 +20,7 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 		"grandma-of(?x, ?y) <- parent-of(?p, ?y), parent-of(?x, ?p), has-gender(?x, female)",
 		"in-law-of(?x, ?y) <- or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling-of(?x, ?p), married-to(?p, ?y)))",
 		"only-child-of(?x, ?y) <- parent-of(?y, ?x), not(sibling-of(?x, ?q))",
-		"age-group(?x, child) <- has-age(?x, ?n), ?n <= 18",
+		"age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)",
 		"age-group(?x, adult) <- has-age(?x, ?n), not(age-group(?x, child))",
 	]
 	texts = []

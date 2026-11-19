@@ -18,8 +18,8 @@
 // the prompt. A stored predicate's line comes from the facts that use it; a derived one's
 // from the rules that conclude it, since every condition in a body says what its fields
 // have to be - sibling-of takes the two people parent-of links, and age-group's second
-// field is one of the two words its rules write. A comparison such as ?n <= 18 keeps its
-// own field a number without being told.
+// field is one of the two words its rules write. A comparison such as
+// less-than-or-equal(?n, 18) keeps its own field a number without being told.
 //
 // knowledge.ms reads this file; schema.ms loads it for main.ms.
 

@@ -14,7 +14,8 @@
 // entry may run on to the next line inside its parentheses, or after a rule's arrow.
 //
 // A condition is a fact, or a constraint such as ?x != ?y. A comparison is a
-// constraint too: ?n <= 18 is checked against two numbers rather than proved, and it
+// constraint too, written as a call like every other condition:
+// less-than-or-equal(?n, 18) is checked against two numbers rather than proved, and it
 // holds only when both sides are numbers, so text never passes for a zero. A value
 // is a name, a number, or a ?x variable. Blank lines and lines starting with // are
 // skipped, and an entry that will not parse names its line.
@@ -260,7 +261,7 @@ parseGrouping = function(triples, called)
 end function
 
 parseCondition = function(triples, text)
-	"Reads one condition: a fact, a '?x != ?y' constraint, or a comparison such as ?n <= 18."
+	"Reads one condition: a fact, a '?x != ?y' constraint, or a comparison such as less-than-or-equal(?n, 18)."
 	text = trimSpace(text)
 	differ = text.split("!=")
 	if differ.len == 2 then
@@ -275,17 +276,22 @@ parseCondition = function(triples, text)
 end function
 
 comparisonOf = function(triples, text)
-	"Reads a numeric comparison into the caller's Comparison, or null when the text is not one."
-	for symbol in triples.comparisonSymbols
-		pieces = text.split(symbol)
-		if pieces.len == 2 then
-			left = termOf(triples, pieces[0])
-			right = termOf(triples, pieces[1])
-			if left == null or right == null then return null
-			return triples.Comparison.make(symbol, left, right)
-		end if
-	end for
-	return null
+	"Reads a comparison call into the caller's Comparison: null for another predicate, an error when the call is wrong."
+	openAt = text.indexOf("(")
+	if openAt == null then return null
+	name = trimSpace(text[:openAt])
+	if triples.comparisonNames.hasIndex(name) == 0 then return null
+	inner = trimSpace(text[openAt + 1:])
+	if inner.len == 0 then return err("expected '" + name + "(field, field)': " + text)
+	if inner[-1] != ")" then return err("expected '" + name + "(field, field)': " + text)
+	fields = inner[:-1].split(",")
+	if fields.len != 2 then return err("expected '" + name + "(field, field)': " + text)
+	left = termOf(triples, trimSpace(fields[0]))
+	right = termOf(triples, trimSpace(fields[1]))
+	if left == null or right == null then
+		return err("expected '" + name + "(field, field)': " + text)
+	end if
+	return triples.Comparison.make(triples.comparisonNames[name], left, right)
 end function
 
 parseFact = function(triples, text)
