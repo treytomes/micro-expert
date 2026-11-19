@@ -5,7 +5,7 @@
 A little expert system for MiniScript 2: 54 facts about one imaginary family, thirteen rules about what those facts imply, and a backward-chaining solver that answers a question only by showing you the facts and rules that make the answer true.
 
 ```prolog
-Query: uncle-of(bill, ?p)
+? uncle-of(bill, ?p)
   uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
     parent-of(george, anna)  <- fact
     sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)
@@ -129,7 +129,7 @@ fact would change that.
 ```prolog
 $ micro-expert --verbose
 Verbose run: depth 8
-Query: uncle-of(bill, ?p)
+? uncle-of(bill, ?p)
   uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
     parent-of(george, anna)  <- fact
     sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)
@@ -194,31 +194,31 @@ MINISCRIPT_EXE_PATH=C:\path\to\miniscript.exe
 ENTRY_POINT=./src/main.ms
 ```
 
-`micro-expert.bat` reads `.env`, forwards every argument to the entry point, and passes the script's exit code back. Then:
+`micro-expert.bat` reads `.env`, forwards every argument to the entry point, and passes the script's exit code back. Opening it puts you at a prompt: the program is the session, `data/` is already loaded, and every line you type is answered against those facts and rules. Then:
 
 ```plaintext
 > micro-expert
 [INF] micro-expert: micro-expert 0.2.0 starting
-[INF] micro-expert: depth:      8
-[INF] micro-expert: verbose:    1
-[INF] micro-expert: log-level:  information
-
-Verbose run: depth 8
-Query: uncle-of(bill, ?p)
-  uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
-    parent-of(george, anna)  <- fact
-    ...
-  ...
+[INF] micro-expert: Command-line arguments (0): (none)
+...
+Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
+? uncle-of(bill, ?p)
+  uncle-of(bill, anna)
+  uncle-of(bill, mark)
+  uncle-of(bill, clara)
+  uncle-of(bill, jack)
+  uncle-of(bill, nina)
+  uncle-of(bill, oliver)
+? /exit
 [INF] micro-expert: micro-expert exiting with code 0
 ```
 
-(timestamps trimmed for width)
+(timestamps trimmed for width; `...` stands for the option lines the logger prints before the prompt)
 
 | Option | Meaning |
 | --- | --- |
 | `--depth <NUM>` | Maximum backward-chaining depth, default `8`; `0` is facts only |
-| `--verbose` | Print the proof tree behind each answer; on by default in this demo |
-| `--repl` | Start a session that takes facts and rules at the prompt |
+| `--verbose` | Print the proof tree behind each answer |
 | `--log-level <TEXT>` | `debug`, `information`, `warning`, `error`, `fatal`; default `information` |
 | `--help`, `-h` | Usage, generated from the same option declarations the parser uses |
 | `--version`, `-v` | Version line |
@@ -232,19 +232,13 @@ Query: uncle-of(bill, ?p)
 [DBG] micro-expert: (rule) uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
 ```
 
-**Change the question** by editing the last `runQuery` line of `src/main.ms`:
+**Change the question** by typing another one at the prompt: `grandma-of(?x, ?y)` asks for every grandmother/grandchild pair (seven of them), and `grandpa-of(?who, tim)` asks for Tim's grandfather, the predicate reading "?who is the grandpa of tim", so the variable goes in the subject.
 
-```miniscript
-runQuery fact("bill", "uncle-of", var("?p"))
-```
-
-Try `fact(var("x"), "grandma-of", var("y"))` for every  grandmother/grandchild pair (seven of them), or `fact(var("who"), "grandpa-of", "tim")` for Tim's grandfather: the predicate reads "?who is the grandpa of tim", so the variable goes in the subject.
-
-**Ask at the prompt** with `--repl`, which turns the run into a session. One line has one meaning: a ground line adds a fact, a line with a variable asks a question, a line with `<-` adds a rule, and a line starting with `/` is a command for the session (`/help`, `/facts`, `/rules`, `/exit`).
+**Type a fact or a rule** at the same prompt and it joins the search. One line has one meaning: a ground line adds a fact, a line with a variable asks a question, a line with `<-` adds a rule, and a line starting with `/` is a command for the session (`/help`, `/facts`, `/rules`, `/undo`, `/exit`).
 
 ```plaintext
-> micro-expert --repl
-Type a fact to add it, a question to ask it, or a rule as 'head <- conditions'. 'quit' leaves.
+> micro-expert
+Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
 ? parent-of(?p, susan)
   no solution found at depth 8
   A solution would need one of these:
@@ -261,7 +255,7 @@ Type a fact to add it, a question to ask it, or a rule as 'head <- conditions'. 
 
 A question with no answer reads the report above, asks for the fact that would let a rule reach one, adds it, and asks again - the loop the report was written for. It asks for a rule's fact before the query's own shape, since asserting the answer proves nothing; it shows the fact it is filling, with the values given so far in it, and the report above reads the same way; and it asks one variable at a time, so a missing `parent-of(?p, ?q)` takes two answers. A rule's fact is filled in by the variables it brings itself, so `parent-of(?p', ?p)` asks for `?p'` and not again for `?p`, which the question already named; a fact that is still incomplete once its own variables are filled is shown with what is left over and not added, rather than the answer being written in as though it had been found, and the answers given are carried to the rest of that rule's facts, so a value is never asked for twice; a fact the session can already prove needs nothing added, so it drops out of the report too. A whole fact typed where a value is asked for is a fact too, so the answer can still be asserted by fiat when that is what you want: the session adds it and asks again from there, while a line that parses as a fact but still holds a variable is refused rather than stored as a value. A fact with no variable left is offered with `add it? [y/N]` rather than assumed, and a value left empty stops the asking and leaves the report standing. A fact and a question are both held to `data/schema.kb`: a question that names a value no fact could store is refused before the search, and an answer that completes a refused fact stops the question instead of being asked for again. `/undo` takes back the last fact the session added - at the prompt or in the middle of a question, which asks it again - so a wrong value does not stick for the rest of the run. Nothing is written back: the session adds to the arrays `main.ms` built, so what it learns lasts for the run.
 
-Adding `--verbose` prints the proof tree behind each answer here too, exactly as it does for a run.
+Adding `--verbose` prints the proof tree behind each answer here too, exactly as in the example above.
 
 A rule typed at the prompt is read from the line `Rule.text` prints, which is why that parser lives in `triples.ms` and returns the pieces `Rule.make` takes rather than a rule: the engine stays free of the Rule class. The data files have their own parser, `src/knowledge.ms`, built the same way, with a fact as a bare `predicate(subject, object)` and a rule's `=>` in place of `<-`.
 
