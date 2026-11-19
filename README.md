@@ -1,6 +1,6 @@
 # micro-expert
 
-A little expert system for MiniScript 2: 54 facts about one imaginary family, thirteen rules
+A little expert system for MiniScript 2: 54 facts about one imaginary family, fourteen rules
 about what those facts imply, and a backward-chaining solver that answers a question
 only by showing you the facts and rules that make the answer true.
 
@@ -118,7 +118,7 @@ Verbose run: depth 8
 
 `--depth 1` is a good sanity check: `uncle-of` is two rule levels above the facts
 (`uncle-of` -> `sibling-of` -> facts), so it answers nothing and says what it would need.
-`--log-level debug` prints all 54 facts as they load and all thirteen rules as they are
+`--log-level debug` prints all 54 facts as they load and all fourteen rules as they are
 registered, which is the fastest way to see what the engine was actually given.
 
 ### When there is no answer
@@ -325,8 +325,8 @@ uncle-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, ma
 uncle-of(?x, ?y) => parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
 ```
 
-A condition is a fact or a constraint such as `not-equal(?x, ?y)` or `less-than-or-equal(?n, 18)`.
-`and(...)` nests, an entry may
+A condition is a fact or a constraint such as `not-equal(?x, ?y)`, `equal(?n, 18)` or
+`less-than-or-equal(?n, 18)`. `and(...)` nests, an entry may
 run over several lines inside its parentheses, and `or(...)` holds alternatives - any one
 of them may hold instead, so a rule that could be written two ways is still one line:
 
@@ -335,8 +335,11 @@ in-law-of(?x, ?y) => or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling
 ```
 
 `not(...)` holds a body that must have no proof, so a rule can ask for an absence; it takes
-one condition, and `not(and(a, b))` negates several. A comparison is arithmetic rather than
-text: both sides have to be numbers, and a name never passes for a zero. A constraint's
+one condition, and `not(and(a, b))` negates several. `equal` is the one constraint that can
+bind as well as check: a side that is still a variable takes the other side's value, so
+`same-age-group-as` reaches the second age group through the first group's word. A
+comparison is arithmetic rather than text: both sides have to be numbers, and a name never
+passes for a zero. A constraint's
 name is a shape a body checks, not a predicate a fact stores or a question asks, so
 `less-than-or-equal(5, 3)` typed at the prompt is refused rather than kept as a fact. A number is
 written as one, exponent and all - `1e3` is a thousand - and the digits are checked on
@@ -346,6 +349,7 @@ both sides of the `e`, so `1e` stays text.
 only-child-of(?x, ?y) => and(parent-of(?y, ?x), not(sibling-of(?x, ?q)))
 age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))
 age-group(?x, adult) => and(has-age(?x, ?n), not(age-group(?x, child)))
+same-age-group-as(?x, ?y) => and(age-group(?x, ?g), equal(?g, ?h), age-group(?y, ?h), not-equal(?x, ?y))
 ```
 
 Facts and rules share the parser, so a fact may be added to `data/facts.kb` the same way a
@@ -372,7 +376,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-395 passed, 0 failed
+409 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -388,8 +392,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"repl.ms","line":30}
 
-1 passed, 0 failed, 391 skipped
-##END {"passed":1,"failed":0,"skipped":391}
+1 passed, 0 failed, 408 skipped
+##END {"passed":1,"failed":0,"skipped":408}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -399,10 +403,10 @@ the suite reached the end. The VS Code extension's Testing panel passes exactly 
 arguments, so its tree and its runs come from the suite rather than from a list kept
 beside it.
 
-The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 395 here cover the program itself: display and parsing (22), the
-knowledge data format (75), the predicate schema (25), the loaders (16), proofs and
+The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 409 here cover the program itself: display and parsing (22), the
+knowledge data format (78), the predicate schema (25), the loaders (16), proofs and
 explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations
-including the family rules (78), the session at the prompt (101), and the domain (10).
+including the family rules (89), the session at the prompt (101), and the domain (10).
 
 ## Repository layout
 
@@ -416,11 +420,11 @@ src/rules.ms         loads the rules
 src/schema.ms        loads the field types
 src/domain.ms        places a domain's facts, rules and schema
 data/facts.kb        the 54 facts, as text
-data/rules.kb        the thirteen rules, as text
+data/rules.kb        the fourteen rules, as text
 data/schema.kb       the field types, as text
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 395 checks and their runner
+test/                the 409 checks and their runner
 docs/articles/       the long-form write-up
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env

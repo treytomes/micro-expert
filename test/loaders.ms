@@ -22,12 +22,13 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 		"only-child-of(?x, ?y) <- parent-of(?y, ?x), not(sibling-of(?x, ?q))",
 		"age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)",
 		"age-group(?x, adult) <- has-age(?x, ?n), not(age-group(?x, child))",
+		"same-age-group-as(?x, ?y) <- age-group(?x, ?g), equal(?g, ?h), age-group(?y, ?h), not-equal(?x, ?y)",
 	]
 	texts = []
 	for rule in loadedRules
 		texts.push(rule.text)
 	end for
-	h.check("data/rules.kb holds thirteen rules", loadedRules.len == 13)
+	h.check("data/rules.kb holds fourteen rules", loadedRules.len == 14)
 	h.check("the rules load in order", texts.join("|") == expected.join("|"))
 
 	loadedFacts = factsLoader.build(t)

@@ -168,12 +168,18 @@ end function
 // ── Constraints ──────────────────────────────────────────────────────────────
 // A rule body is a list of goals, and it may also hold constraints: conditions that are
 // checked against the bindings rather than proved by search. They are written as calls
-// like everything else - not-equal(?x, ?y), less-than-or-equal(?n, 18) - and their names
-// are reserved, so no fact and no question can use one as a predicate.
+// like everything else - not-equal(?x, ?y), equal(?n, 18), less-than-or-equal(?n, 18) - and
+// their names are reserved, so no fact and no question can use one as a predicate.
 
-// not-equal is the one constraint name that is not a comparison, and its name is reserved
-// like theirs: a term never means "check this" in a body and "assert this" as a fact.
+// not-equal and equal read their two terms as they are, whatever type they hold: not-equal
+// asks that they differ, equal that they are the same one. Their names are reserved like a
+// comparison's: a term never means "check this" in a body and "assert this" as a fact.
+//
+// equal is the one constraint that can bind. The others only agree or disagree with what the
+// conditions before them settled; equal settles a side that is still a variable, so a body
+// may write equal(?n, 18) before anything has bound ?n and go on with ?n as 18.
 notEqualName = "not-equal"
+equalName = "equal"
 
 NotEqual = {}
 
@@ -188,6 +194,21 @@ end function
 NotEqual.text = function
 	"Says how the constraint reads: not-equal(?x, ?y)."
 	return notEqualName + "(" + termText(self.left) + ", " + termText(self.right) + ")"
+end function
+
+Equal = {}
+
+Equal.make = function(left, right)
+	"Builds a 'these two terms must be the same one' constraint."
+	c = new Equal
+	c.left = left
+	c.right = right
+	return c
+end function
+
+Equal.text = function
+	"Says how the constraint reads: equal(?x, ?y)."
+	return equalName + "(" + termText(self.left) + ", " + termText(self.right) + ")"
 end function
 
 // A comparison is the one constraint that reads its terms arithmetically. Text would
@@ -231,7 +252,7 @@ end function
 isConstraint = function(term)
 	"Says whether a term names a constraint, which a body checks rather than a line storing or asking it."
 	if not (term isa string) then return false
-	return term == notEqualName or comparisonNames.hasIndex(term) != 0
+	return term == notEqualName or term == equalName or comparisonNames.hasIndex(term) != 0
 end function
 
 comparisonHolds = function(constraint, binds)
@@ -252,6 +273,23 @@ holdsConstraint = function(constraint, binds)
 		return substitute(constraint.left, binds) != substitute(constraint.right, binds)
 	end if
 	return false
+end function
+
+// equal is applied rather than checked: unifying its two terms returns the bindings the
+// equality extends, and null when they cannot agree. unifyTerms already reads two terms the
+// one way equal needs - the same value holds, and a variable takes the other side's - so an
+// equal is exactly one unification whose bindings are kept.
+
+equalBinds = function(constraint, binds)
+	"The bindings that make the two terms the same one, or null when they cannot be."
+	return unifyTerms(constraint.left, constraint.right, binds)
+end function
+
+applyConstraint = function(constraint, binds)
+	"The bindings a constraint leaves, or null when the branch ends: the ones it was given, unless it bound something."
+	if constraint isa Equal then return equalBinds(constraint, binds)
+	if holdsConstraint(constraint, binds) then return binds
+	return null
 end function
 
 // ── Proof search ─────────────────────────────────────────────────────────────
@@ -346,6 +384,10 @@ end function
 
 renameConstraint = function(constraint, suffix)
 	"Copies a constraint, renaming the variables it mentions."
+	if constraint isa Equal then
+		return Equal.make(renameTerm(constraint.left, suffix),
+			renameTerm(constraint.right, suffix))
+	end if
 	if constraint isa Comparison then
 		return Comparison.make(constraint.symbol, renameTerm(constraint.left, suffix),
 			renameTerm(constraint.right, suffix))
@@ -545,7 +587,7 @@ matchingRules = function(goal, rules, binds)
 end function
 
 proveConditions = function(conditions, facts, rules, depth, binds, open=null, index=null)
-	"Proves each condition in turn: a goal by search, a constraint by checking it, or(...) by one alternative, and not(...) by finding no proof."
+	"Proves each condition in turn: a goal by search, a constraint by checking or binding, or(...) by one alternative, and not(...) by finding no proof."
 	// Any one alternative settles the choice, and the rest of the body follows it,
 	// so every way through an alternative is a way through the body.
 	if conditions.len > 0 and (conditions[0] isa Or) then
@@ -570,9 +612,11 @@ proveConditions = function(conditions, facts, rules, depth, binds, open=null, in
 	first = conditions[0]
 	if not (first isa SpoTriple) then
 		// A constraint either holds or the branch ends; it proves nothing, so it
-		// contributes no proof to the tree.
-		if not holdsConstraint(first, binds) then return []
-		return proveConditions(conditions[1:], facts, rules, depth, binds, open, index)
+		// contributes no proof to the tree. equal can also bind, and what it leaves is
+		// what the conditions after it are judged against.
+		settled = applyConstraint(first, binds)
+		if settled == null then return []
+		return proveConditions(conditions[1:], facts, rules, depth, settled, open, index)
 	end if
 	results = []
 	for proved in proveGoals(first, facts, rules, depth, binds, open, index)
@@ -689,9 +733,12 @@ bodyRequirements = function(conditions, facts, rules, depth, binds, open, newVar
 	if conditions.len == 0 then return [{"binds": binds, "needs": []}]
 	first = conditions[0]
 	if not (first isa SpoTriple) then
-		// A constraint is checked here rather than proved, so it asks for no fact.
-		if not holdsConstraint(first, binds) then return []
-		return bodyRequirements(conditions[1:], facts, rules, depth, binds, open, newVars, reportOpen)
+		// A constraint is checked here rather than proved, so it asks for no fact; one
+		// that binds still settles a variable for the conditions after it.
+		settled = applyConstraint(first, binds)
+		if settled == null then return []
+		return bodyRequirements(conditions[1:], facts, rules, depth, settled, open, newVars,
+			reportOpen)
 	end if
 	options = []
 	// The bindings a condition proves carry into the conditions after it, so each of
@@ -1074,7 +1121,7 @@ splitConditions = function(text)
 end function
 
 parseCondition = function(text, line)
-	"Reads one condition of a rule body: a triple, or a constraint such as not-equal(?x, ?y) or less-than-or-equal(?n, 18)."
+	"Reads one condition of a rule body: a triple, or a constraint such as not-equal(?x, ?y), equal(?n, 18) or less-than-or-equal(?n, 18)."
 	text = trimSpace(text)
 	if text == "" then return err(badRule(line))
 	constraint = constraintOf(text)
@@ -1083,7 +1130,7 @@ parseCondition = function(text, line)
 end function
 
 constraintOf = function(text)
-	"Reads a constraint call into a NotEqual or a Comparison: null for another predicate, an error when the call is wrong."
+	"Reads a constraint call into an Equal, a NotEqual or a Comparison: null for another predicate, an error when the call is wrong."
 	openAt = text.indexOf("(")
 	if openAt == null then return null
 	name = trimSpace(text[:openAt])
@@ -1097,6 +1144,7 @@ constraintOf = function(text)
 	left = trimSpace(fields[0])
 	right = trimSpace(fields[1])
 	if left == "" or right == "" then return err(expected)
+	if name == equalName then return Equal.make(termOf(left), termOf(right))
 	if name == notEqualName then return NotEqual.make(termOf(left), termOf(right))
 	return Comparison.make(comparisonNames[name], termOf(left), termOf(right))
 end function

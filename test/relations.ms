@@ -304,6 +304,61 @@ run = function(t, rules, h)
 	h.check("the rule prints its negation",
 		onlyChildRule.text == "only-child-of(?x, ?y) <- parent-of(?y, ?x), not(sibling-of(?x, ?q))")
 
+	// ── A body that asks two terms to be equal ──────────────────────────────
+
+	// equal is the one constraint that can bind: ?n is bound by the first condition, and
+	// ?m takes its value, so the second condition searches with its object already settled.
+	crowd = [
+		spo("amy", "has-age", 9),
+		spo("bob", "has-age", 9),
+		spo("cleo", "has-age", 30),
+		spo("dee", "has-age", 7),
+	]
+	sameAge = rule(spo(v("x"), "same-age-as", v("y")),
+		[spo(v("x"), "has-age", v("n")), t.Equal.make(v("n"), v("m")),
+			spo(v("y"), "has-age", v("m")), t.NotEqual.make(v("x"), v("y"))])
+	sameAgeOf = function(a, b)
+		return t.proveGoals(spo(a, "same-age-as", b), crowd, [sameAge], 3)
+	end function
+	h.check("equal finds the other person of the same age", sameAgeOf("amy", v("y")).len == 1)
+	h.check("and it answers from either side", sameAgeOf(v("x"), "bob").len == 1)
+	h.check("the two with different ages are not a pair", sameAgeOf("cleo", v("y")).len == 0)
+	// equal compares the values it is handed, so the age a fact stored as a number is the
+	// one it reads, and the partner equal settled is the one the answer carries.
+	h.check("equal keeps the value the fact supplied",
+		sameAgeOf("amy", v("y"))[0].binds["y"] == "bob")
+	// A constraint proves nothing, so it adds no step to the tree: the head, and the two
+	// facts behind it, are the whole proof.
+	sameAgeProof = t.proofLines(sameAgeOf("amy", v("y"))[0], "")
+	h.check("equal adds no step to the proof",
+		sameAgeProof.len == 3 and
+			sameAgeProof.join("|").indexOf("has-age(bob, 9)  <- fact") != null)
+	h.check("the rule prints its equal",
+		sameAge.text == "same-age-as(?x, ?y) <- has-age(?x, ?n), equal(?n, ?m), has-age(?y, ?m), not-equal(?x, ?y)")
+	renamedEqual = t.standardizeApart(sameAge).body[1].text
+	h.check("standardizeApart renames equal's variables",
+		renamedEqual.indexOf("equal(?n_") == 0 and renamedEqual.indexOf(", ?m_") != null)
+
+	// A side nothing has bound takes the other's value: here the head's ?n is supplied by
+	// no condition at all, only by the constraint.
+	luckyRule = rule(spo(v("x"), "lucky", v("n")),
+		[spo(v("x"), "has-age", v("a")), t.Equal.make(v("n"), 7)])
+	h.check("equal binds a variable no condition supplied",
+		t.proveGoals(spo("amy", "lucky", v("n")), crowd, [luckyRule], 3)[0].binds["n"] == 7)
+	// When both sides are bound it checks them instead: amy is not 7.
+	sevenRule = rule(spo(v("x"), "aged-seven", v("n")),
+		[spo(v("x"), "has-age", v("n")), t.Equal.make(v("n"), 7)])
+	h.check("equal refuses a value that is not the one it names",
+		t.proveGoals(spo("amy", "aged-seven", v("n")), crowd, [sevenRule], 3).len == 0)
+	h.check("equal accepts the value a fact did supply",
+		t.proveGoals(spo("dee", "aged-seven", v("n")), crowd, [sevenRule], 3).len == 1)
+	// The missing-fact report reads the same body, so a constraint that binds has to leave
+	// its binding behind for the conditions after it there too.
+	report = t.needsFor(spo("amy", "lucky", v("n")), [], [luckyRule], 3)
+	h.check("a body whose constraint binds still reports the fact it needs",
+		report.len == 2 and report[1].needs.len == 1 and
+			t.reportLines(report).join("|").indexOf("has-age(amy, ?a)") != null)
+
 	// ── A body that compares numbers ────────────────────────────────────────
 
 	// An age is stored as a number, so a rule can ask where the line is: a child is 18

@@ -105,7 +105,7 @@ end if
 
 // A partly loaded module would otherwise surface as a puzzling error inside one
 // case, so check the surface the suite relies on up front.
-for name in ["SpoTriple", "proveGoals", "substitute", "NotEqual", "Comparison", "isConstraint",
+for name in ["SpoTriple", "proveGoals", "substitute", "NotEqual", "Equal", "Comparison", "isConstraint",
 	"constraintOf", "proofLines", "Or", "Not", "standardizeApart", "parseRule", "needsFor",
 	"reportLines", "reportLabels", "unboundVars", "paint"]
 	if triples.hasIndex(name) == 0 then

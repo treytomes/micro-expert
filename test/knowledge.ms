@@ -52,6 +52,12 @@ run = function(t, knowledge, h)
 		constrained[0].body[2].text == "not-equal(?x, ?y)")
 	h.check("a constraint is not a triple", not (constrained[0].body[2] isa t.SpoTriple))
 
+	equal = parseOneRule("same-age-group-as(?x, ?y) => and(age-group(?x, ?g), equal(?g, ?h), age-group(?y, ?h))")
+	h.check("equal parses as a constraint", equal[0].body[1] isa t.Equal)
+	h.check("equal is not a triple", not (equal[0].body[1] isa t.SpoTriple))
+	h.check("equal reads back as a call",
+		bodyText(equal[0]) == "age-group(?x, ?g), equal(?g, ?h), age-group(?y, ?h)")
+
 	// ── Lines ────────────────────────────────────────────────────────────────
 
 	spread = knowledge.parseRules(t, [
@@ -176,7 +182,8 @@ run = function(t, knowledge, h)
 	// is not two fields is refused rather than read as a fact.
 	h.check("a constraint with one field is refused",
 		failure("a(?x, ?y) => less-than-or-equal(?n)") != null and
-			failure("a(?x, ?y) => not-equal(?n)") != null)
+			failure("a(?x, ?y) => not-equal(?n)") != null and
+			failure("a(?x, ?y) => equal(?n)") != null)
 
 	// ── Writing the format back ──────────────────────────────────────────────
 	// /save-* writes what the session holds through these, so the two halves have to

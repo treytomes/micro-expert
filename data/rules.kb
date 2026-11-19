@@ -9,7 +9,7 @@
 // and and(...) says the same thing out loud and nests. or(...) holds alternatives,
 // any one of which may hold instead, so a rule with two readings is one line, and
 // not(...) holds a body that must have no proof, so a rule can ask for an absence.
-// A condition is a fact, a constraint not-equal(?x, ?y), a comparison
+// A condition is a fact, a constraint not-equal(?x, ?y) or equal(?n, 18), a comparison
 // less-than-or-equal(?n, 18), or a grouping.
 // A fact reads
 // "?x is the relation of ?y", so ?x comes first.
@@ -67,4 +67,10 @@ age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))
 // a negation cannot go looking: it can only report that a body with ?x already bound
 // has no proof.
 age-group(?x, adult) => and(has-age(?x, ?n), not(age-group(?x, child)))
+
+// ?x and ?y are in the same age group when both fall into one and it is the same one.
+// The two groups are reached by separate conditions, so equal(?g, ?h) is what says they
+// have to agree - and it is written the moment ?g is known, so ?h is already bound when
+// the second condition goes looking for the people in it.
+same-age-group-as(?x, ?y) => and(age-group(?x, ?g), equal(?g, ?h), age-group(?y, ?h), not-equal(?x, ?y))
 

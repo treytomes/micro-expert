@@ -14,9 +14,10 @@
 // entry may run on to the next line inside its parentheses, or after a rule's arrow.
 //
 // A condition is a fact, or a constraint: not-equal(?x, ?y) asks that two terms differ,
-// and less-than-or-equal(?n, 18) compares two numbers rather than proving anything, so it
-// holds only when both sides are numbers and text never passes for a zero. Constraints are
-// written as calls like every other condition. A value
+// equal(?n, 18) that they are the same one, and less-than-or-equal(?n, 18) compares two
+// numbers rather than proving anything, so it holds only when both sides are numbers and
+// text never passes for a zero. equal is the one that can bind: a side still unbound takes
+// the other's value. Constraints are written as calls like every other condition. A value
 // is a name, a number, or a ?x variable. Blank lines and lines starting with // are
 // skipped, and an entry that will not parse names its line.
 //
