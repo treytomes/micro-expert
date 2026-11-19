@@ -187,29 +187,36 @@ end function
 
 // A save writes a temp file and swaps it in, so the file that is already there is only
 // replaced once the new one is whole: a save that fails part way through leaves the
-// domain's facts.kb as it was rather than truncated to nothing.
+// domain's facts.kb as it was rather than truncated to nothing. Only a file the save
+// wrote itself is ever removed, and a swap that cannot put the old copy back says where
+// it was left.
 
 writeLines = function(path, lines)
 	"Replaces the file at path with these lines, or returns an error."
 	temp = path + ".tmp"
 	problem = writeFresh(temp, lines)
-	if problem == null then problem = swapIn(temp, path)
-	// A temp file left over from a failure is swept up; what went wrong with it is
-	// already the answer, so its own failure has nowhere to go.
-	if problem != null then
-		if file.exists(temp) then leftover = file.delete(temp)
-	end if
+	if problem != null then return problem
+	problem = swapIn(temp, path)
+	// The temp file is swept up now because the save finished writing it, so it is this
+	// save's own to remove; what went wrong with it is already the answer, so its own
+	// failure has nowhere to go. Clearing whatever answers to the name would also delete
+	// what the save never touched, a folder called facts.kb.tmp among them.
+	if problem != null and file.exists(temp) then leftover = file.delete(temp)
 	return problem
 end function
 
 writeFresh = function(path, lines)
-	"Writes the lines to a new file at path, or returns an error."
+	"Writes the lines to a new file at path, or returns an error, taking away the part-written file it made."
 	handle = file.open(path, "w")
 	if handle isa error then return handle
 	for line in lines
 		problem = handle.writeLine(line)
 		if problem isa error then
 			handle.close
+			// The open worked, so the file at path is this write's own and a part-written
+			// temp file must not be left to be taken for a whole one later. An open that
+			// failed leaves whatever is already at path alone, which is not this save's.
+			if file.exists(path) then leftover = file.delete(path)
 			return problem
 		end if
 	end for
@@ -232,7 +239,11 @@ swapIn = function(temp, path)
 		if file.exists(old) then leftover = file.delete(old)
 		return null
 	end if
+	// The old file goes back where it was, so the session still has what it started with.
+	// If even that cannot be done, path is empty and the copy is at old, so the error says
+	// where to find it rather than only why the move failed.
 	restored = file.move(old, path)
+	if restored isa error then return err(problem.message + "; the copy it replaced is at " + old)
 	return problem
 end function
 

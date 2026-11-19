@@ -518,11 +518,25 @@ run = function(t, rules, repl, h, schema, knowledge)
 	made = file.makedir(blocked)
 	blockedSave = startSession(family + [], [], ["/save-facts"], null, 0, null, {"facts": keptPath})
 	kept = readBack(keptPath)
+	stillThere = file.info(blocked).isDirectory
 	removed = file.delete(blocked)
 	file.delete(keptPath)
 	h.check("a failed save says so and leaves the old file whole",
 		holds(blockedSave.answers.lines, "  could not write ") and kept.len == 1 and
 			kept[0] == "parent-of(bill, tim)")
+	h.check("and the folder that stood where the temp file goes is still there", stillThere == 1)
+
+	// A swap that cannot put its temp file in place puts the old one back: the session's
+	// file is where it was, and no copy of it is left beside it. A temp file that is not
+	// there is a swap that cannot finish.
+	restorePath = scratch("restore-facts.kb")
+	writeFile(restorePath, ["parent-of(bill, tim)"])
+	putBack = repl.swapIn(scratch("vanished"), restorePath)
+	restored = readBack(restorePath)
+	oldLeft = file.exists(restorePath + ".old")
+	file.delete(restorePath)
+	h.check("a swap that cannot finish puts the old file back", putBack isa error and
+		restored.len == 1 and restored[0] == "parent-of(bill, tim)" and oldLeft == 0)
 
 	// A save that works leaves neither the temp file nor the copy of the one it replaced.
 	cleanPath = scratch("clean-facts.kb")
