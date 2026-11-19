@@ -14,7 +14,8 @@
 //       "components": [{"name": "facts", "singular": "fact",
 //           "write": @factsLines, "read": @factsRead}],    // may be left out
 //       "paths": {"facts": "data/facts.kb"},       // where each component's file is
-//       "pathFor": @pathOf}                        // a name typed at the prompt, as a path
+//       "pathFor": @pathOf,                        // a name typed at the prompt, as a path
+//       "resolvePath": @findPath}                  // a path already held, found the same way
 //   session.prompt.run(session)
 //
 // Everything the prompt calls is a pointer, never a name it would have to know: handle takes
@@ -114,9 +115,12 @@ end function
 //   read        function(session, path) -> what the session now holds, or an error
 //
 // Where each file is stays in the session's paths map, keyed by the component's name: a save or
-// a load moves it, so a bare /save-facts writes where the last one went. pathFor turns the name
-// typed at the prompt into a path, which is the host's rule and not the prompt's - that a bare
-// name should end in .kb is knowledge-base business.
+// a load moves it, so a bare /save-facts writes where the last one went.
+//
+// Only a name typed at the prompt goes through pathFor, which is the host's rule and not the
+// prompt's - that a bare name should end in .kb is knowledge-base business. The file the session
+// started with is a path it already holds, so resolvePath is handed it as it is: extending it
+// would move a domain's own facts file beside itself, from data/family to data/family.kb.
 
 componentsOf = function(session)
 	"The components a session describes, or none when it has no files of its own."
@@ -178,6 +182,8 @@ end function
 
 componentTarget = function(session, component, argument, command)
 	"Where a save or load goes: the file the line named, or the one this component came from."
+	// A name typed at the prompt is the host's to complete; the path the session started with
+	// is not a name, and is only found the way the host finds a path it already holds.
 	if argument != "" then return session.pathFor(session, argument)
 	path = null
 	if session.paths.hasIndex(component.name) then path = session.paths[component.name]
@@ -186,7 +192,7 @@ componentTarget = function(session, component, argument, command)
 			command + " FILE")
 		return null
 	end if
-	return session.pathFor(session, path)
+	return session.resolvePath(session, path)
 end function
 
 // ── The loop ─────────────────────────────────────────────────────────────────

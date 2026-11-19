@@ -52,10 +52,15 @@ run = function(prompt, h)
 			// the library is meant not to know a format.
 			session.things = ["alpha", "beta"]
 			session.paths = {}
+			if options.hasIndex("path") then session.paths["things"] = options.path
 			session.pathFor = function(given, name)
 				// The host's own rule, kept tiny: a name without a dot gets .kb.
 				if file.name(name).indexOf(".") == null then return name + ".kb"
 				return name
+			end function
+			session.resolvePath = function(given, path)
+				// A path the session already holds is a path, and is taken as it is.
+				return path
 			end function
 			lines = function(given)
 				return given.things
@@ -169,6 +174,22 @@ run = function(prompt, h)
 	leftover = file.delete(thingsPath)
 	h.check("a save remembers its file, so a bare save goes there again",
 		remembered.lines.len == 2 and remembered.lines[1] == "  wrote 2 things to " + thingsPath)
+
+	// A file the session started with is a path it already holds, not a name typed at the
+	// prompt: an extensionless one is written where it is, rather than gaining .kb and
+	// landing beside itself.
+	extensionless = scratch("named-without-extension")
+	leftover = file.delete(extensionless)
+	leftover = file.delete(extensionless + ".kb")
+	plainSave = scripted(prompt, ["/save-things", "q"], {"components": 1, "path": extensionless})
+	inPlace = file.exists(extensionless)
+	beside = file.exists(extensionless + ".kb")
+	leftover = file.delete(extensionless)
+	leftover = file.delete(extensionless + ".kb")
+	h.check("a component's own file is used as it is, with no extension added",
+		inPlace == 1 and beside == 0)
+	h.check("and the save says it wrote there",
+		said(plainSave.lines, "  wrote 2 things to " + extensionless))
 
 	unnamed = scripted(prompt, ["/save-things", "q"], {"components": 1})
 	h.check("a component with no file to fall back on says how to name one",

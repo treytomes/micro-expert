@@ -148,8 +148,13 @@ components = function()
 end function
 
 componentPath = function(session, name)
-	"A component's file as this session reads paths: .kb added to a bare name, found from the domain's folder."
+	"A name typed at the prompt, as this session reads it: .kb added to a bare name, then found from the domain's folder."
 	return session.knowledge.resolvePath(session.knowledge.withExtension(name))
+end function
+
+resolveComponent = function(session, path)
+	"A path the session already holds, found the same way - but not a name, so nothing is added to it."
+	return session.knowledge.resolvePath(path)
 end function
 
 // A component's write answers the lines a save writes, or null when the session holds nothing
@@ -215,6 +220,7 @@ run = function(session)
 	session.commands = commandTable()
 	session.components = components()
 	session.pathFor = @componentPath
+	session.resolvePath = @resolveComponent
 	session.paint = @paint
 	say(session, "note",
 		"Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.")
