@@ -305,12 +305,16 @@ fillMissing = function(session, options, goal, given)
 	style = session.triples.filledStyle(session.style)
 	binds = {}
 	changed = false
+	gaveValue = false
 	// The facts of one rule share their variables, so an answer given under one of them is
 	// carried to the rest: what was a check becomes a fact with nothing left to fill.
 	for need in found.option.needs
 		triple = session.triples.substitute(need.triple, binds)
 		if not session.triples.hasUnknowns(triple) then
-			if alreadyKnown(session, triple) then continue
+			// Already a stored fact, or derivable from the facts and rules the session holds:
+			// either way there is nothing to add, so the fill passes over it rather than
+			// offering it. The report side drops the same conditions in withoutHeld.
+			if alreadyKnown(session, triple) or proved(session, triple) then continue
 			if confirmFact(session, triple) == "stopped" then return "stopped"
 			changed = true
 			continue
@@ -327,6 +331,7 @@ fillMissing = function(session, options, goal, given)
 			if value == changedMark then return "changed"
 			binds[variable.name] = value
 			given[labels[variable.name]] = value
+			gaveValue = true
 		end for
 		filled = session.triples.substitute(triple, binds)
 		// What is left is the question's own variable, so this fact cannot be completed
@@ -340,6 +345,11 @@ fillMissing = function(session, options, goal, given)
 		if addFact(session, filled) then changed = true
 	end for
 	if changed then return "changed"
+	// A value given for a variable the rule introduces is progress too: the next pass shows
+	// the report with that value in it and asks for what is still open, rather than giving up
+	// because no fact happened to be added on this one. Each such value closes a variable, so
+	// the report shrinks pass by pass and the loop still terminates.
+	if gaveValue then return "changed"
 	return "stopped"
 end function
 

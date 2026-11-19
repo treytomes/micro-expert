@@ -145,15 +145,40 @@ run = function(t, rules, repl, h)
 	h.check("no leaves the fact out", declined.session.facts.len == 4 and
 		not holds(declined.answers.lines, "  added has-gender"))
 
-	// A rule's fact is filled in by the variables it brings itself. ?p is the answer the
-	// question asks for, so it is asked about in the question and not again underneath it:
-	// filling it in there would assert the answer instead of finding it.
+	// A value given for a variable the rule introduces is progress, even when the rest of
+	// that rule's conditions already hold: naming the sibling lets the next pass ask for the
+	// one fact really missing, instead of the session giving up because nothing was added.
 	apart = family + [spo("bill", "sibling-of", "george"), spo("bill", "has-gender", "male")]
-	tangled = startSession(apart + [], [uncleRule], ["uncle-of(bill, ?p)", "george", "quit"])
+	tangled = startSession(apart + [], [uncleRule], ["uncle-of(bill, ?p)", "george", "zed", "quit"])
 	h.check("a rule's fact is asked about for the variables it introduces",
 		printed(tangled.answers.lines, "      parent-of(?p', ?p)") and
-			tangled.answers.asked[1] == "  ?p' = " and tangled.answers.asked[2] == "? " and
-			tangled.session.facts.len == 4)
+			tangled.answers.asked[1] == "  ?p' = ")
+	h.check("naming the introduced variable carries the loop to the fact really missing",
+		tangled.answers.asked[2] == "  ?p = " and
+			printed(tangled.answers.lines, "  added parent-of(george, zed)") and
+			tangled.answers.lines[tangled.answers.lines.len - 1] == "  uncle-of(bill, zed)" and
+			tangled.session.facts.len == 5)
+
+	// A condition a rule already derives - not a stored fact, but provable from the rules -
+	// is treated the same as one already stored: the fill does not offer to add it, and the
+	// loop still reaches the one fact that is genuinely missing. Here bill and george are
+	// derivably siblings, so only a child for george is missing.
+	siblingRule = rules.Rule.make(spo(v("x"), "sibling-of", v("y")),
+		[spo(v("p"), "parent-of", v("x")), spo(v("p"), "parent-of", v("y")),
+			t.NotEqual.make(v("x"), v("y"))])
+	// Two sets of parents keep parent-of(?p, ?y) open in the report, so the fill asks for the
+	// sibling by name; oliver and clara are derivably siblings through henry, so once the
+	// sibling is named the only fact still missing is a child for clara.
+	kin = [spo("henry", "parent-of", "oliver"), spo("henry", "parent-of", "clara"),
+		spo("walter", "parent-of", "bill"), spo("walter", "parent-of", "george"),
+		spo("oliver", "has-gender", "male")]
+	derivable = startSession(kin + [], [siblingRule, uncleRule],
+		["uncle-of(oliver, ?y)", "clara", "zed", "quit"])
+	h.check("a derivable condition is not offered as a fact to add",
+		not holds(derivable.answers.asked, "add it?"))
+	h.check("and the loop still reaches the fact that is really missing",
+		printed(derivable.answers.lines, "  added parent-of(clara, zed)") and
+			derivable.answers.lines[derivable.answers.lines.len - 1] == "  uncle-of(oliver, zed)")
 
 	// An answer given under one line of a rule's block is carried to the next: ?p' = sam
 	// turns the check below it into a fact with nothing left to fill, so it is kept.
