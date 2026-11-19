@@ -71,4 +71,39 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 	h.check("every predicate the facts use is declared in data/schema.kb",
 		not (types isa error) and undeclared.len == 0)
 	if undeclared.len > 0 then print "      " + undeclared.join(", ")
+
+	// A rule names predicates too, in its head and in every condition under it, and each
+	// of them has to be typed: otherwise a new rule could quietly use a field no fact could
+	// hold. The walk follows or(...) alternatives and not(...) bodies, since a predicate can
+	// be needed under either.
+	walkPredicates = function(conditions, names)
+		"Adds each predicate the conditions name to the set."
+		for condition in conditions
+			if condition isa t.SpoTriple then
+				if condition.predicate isa string then names[condition.predicate] = 1
+			else if condition isa t.Or then
+				for alternative in condition.alternatives
+					walkPredicates(alternative, names)
+				end for
+			else if condition isa t.Not then
+				walkPredicates(condition.body, names)
+			else if condition isa list then
+				walkPredicates(condition, names)
+			end if
+		end for
+	end function
+	named = {}
+	for rule in loadedRules
+		if rule.head.predicate isa string then named[rule.head.predicate] = 1
+		walkPredicates(rule.body, named)
+	end for
+	untyped = []
+	if not (types isa error) then
+		for predicate in named.indexes
+			if types.hasIndex(predicate) == 0 then untyped.push(predicate)
+		end for
+	end if
+	h.check("every predicate the rules name is declared in data/schema.kb",
+		not (types isa error) and untyped.len == 0)
+	if untyped.len > 0 then print "      " + untyped.join(", ")
 end function

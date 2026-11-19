@@ -1,7 +1,7 @@
 // schema.ms — the type of each predicate's fields, as data/schema.kb writes them.
 //
-// The file names each predicate that stores facts, and the type of its two fields in
-// the order a fact writes them:
+// The file names each predicate the knowledge base uses, stored or derived by a rule, and
+// the type of its two fields in the order a fact writes them:
 //
 //   has-age(text, number)
 //

@@ -171,9 +171,10 @@ if rules isa error then
 	finish 1
 end if
 
-// The field types the prompt checks a typed fact against, from data/schema.kb. The
-// solver never reads it: it is there for the moment a fact is written down, so a value
-// no rule could ever reach is refused instead of stored.
+// The field types the prompt checks a typed fact or question against, from
+// data/schema.kb. The solver never reads it: it is there for the moment something is
+// written down or asked, so a value no rule could ever reach is refused instead of
+// stored, and a question about one is refused instead of searched.
 import "schema"
 types = globals["schema"].build()
 if types isa error then

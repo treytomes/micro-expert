@@ -324,8 +324,9 @@ To add a rule:
 
 1. Add its line to `data/rules.kb`.
 2. Add a check to `test/relations.ms` that asserts both a positive and a negative case.
-3. If it asks for a predicate that stores facts, give that predicate a line in
-   `data/schema.kb`, so the prompt checks what is typed against it.
+3. If it names a predicate `data/schema.kb` does not type, add its line there, so the
+   prompt can refuse a value no rule could use. Every predicate the rules name is typed,
+   not only the ones that store facts.
 
 For example, grandparenthood from the child's side:
 
@@ -340,7 +341,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-334 passed, 0 failed
+337 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -356,8 +357,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"repl.ms","line":30}
 
-1 passed, 0 failed, 333 skipped
-##END {"passed":1,"failed":0,"skipped":333}
+1 passed, 0 failed, 336 skipped
+##END {"passed":1,"failed":0,"skipped":336}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -367,8 +368,8 @@ the suite reached the end. The VS Code extension's Testing panel passes exactly 
 arguments, so its tree and its runs come from the suite rather than from a list kept
 beside it.
 
-The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 334 here cover the program itself: display and parsing (22), the
-knowledge data format (57), the predicate schema (23), the loaders (10), proofs and
+The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 337 here cover the program itself: display and parsing (22), the
+knowledge data format (57), the predicate schema (25), the loaders (11), proofs and
 explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations
 including the family rules (78), and the session at the prompt (76).
 
@@ -387,7 +388,7 @@ data/rules.kb        the thirteen rules, as text
 data/schema.kb       the field types, as text
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 334 checks and their runner
+test/                the 337 checks and their runner
 docs/                the long-form write-up
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env

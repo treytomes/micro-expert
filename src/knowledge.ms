@@ -29,11 +29,11 @@
 //
 //   has-age(text, number)
 //
-// one line per predicate that stores facts, giving the type of each field in the order
+// one line per predicate, stored or derived, giving the type of each field in the order
 // a fact writes them. A type is number, text, boolean, or a '|' list of the values allowed. The
-// prompt checks what is typed against it, so a fact no rule could ever reach is refused
-// at the door; the solver never reads it, and a predicate it does not name is accepted
-// as written.
+// prompt checks what is typed, and what is asked, against it, so a fact no rule could
+// ever reach is refused at the door; the solver never reads it, and a predicate it does
+// not name is accepted as written.
 //
 // Nothing here imports triples.ms. The parsers are handed the caller's copy, so the
 // terms they build are the ones the caller's solver recognizes, and they return the
