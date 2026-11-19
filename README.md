@@ -107,7 +107,6 @@ Query: uncle-of(bill, ?p)
 | --- | --- |
 | `--depth <NUM>` | Maximum backward-chaining depth, default `8`; `0` is facts only |
 | `--verbose` | Print the proof tree behind each answer |
-| `--repl` | Start a session that takes facts and rules at the prompt |
 | `--log-level <TEXT>` | `debug`, `information`, `warning`, `error`, `fatal`; default `information` |
 | `--help`, `-h` | Usage, generated from the same option declarations the parser uses |
 | `--version`, `-v` | Version line |
@@ -168,12 +167,12 @@ grandmother/grandchild pair - seven of them, all Doris.
 
 ## A session at the prompt
 
-`--repl` trades the fixed questions for a session. One line has one meaning: a ground line
+The program is the session. One line has one meaning: a ground line
 adds a fact, a line with a variable asks a question, a line with `<-` adds a rule, and a line
 starting with `/` is a command for the session itself.
 
 ```
-> micro-expert --repl
+> micro-expert
 Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
 ? parent-of(?p, susan)
   no solution found at depth 8

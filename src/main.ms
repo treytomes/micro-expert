@@ -50,13 +50,6 @@ cli.add(cmd, {
 	"description": "Print extra progress detail.",
 })
 cli.add(cmd, {
-	"name": "repl",
-	"aliases": ["--repl"],
-	"type": "flag",
-	"default": 0,
-	"description": "Start a session that takes facts and rules at the prompt.",
-})
-cli.add(cmd, {
 	"name": "log-level",
 	"aliases": ["--log-level"],
 	"type": "string",
