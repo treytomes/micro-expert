@@ -119,6 +119,12 @@ listFacts = function(session, command, argument)
 	return false
 end function
 
+depthCommand = function(session, command, argument)
+	"Says how deep the search goes, which --depth set before the loop started."
+	say(session, "note", "  searching to depth " + session.depth)
+	return false
+end function
+
 listRules = function(session, command, argument)
 	"Prints every rule the session holds, in the order search tries them."
 	say(session, "note", "  " + session.prompt.countText(session.rules.len, "rule"))
@@ -225,6 +231,10 @@ run = function(session)
 	session.pathFor = @componentPath
 	session.resolvePath = @resolveComponent
 	session.paint = @paint
+	// Registered rather than seeded: this is the program's own use of the call a session makes
+	// while it is running, and it lands after the component commands the table was built from.
+	registered = session.prompt.addCommand(session, {"name": "/depth",
+		"note": "say how deep the search goes", "run": @depthCommand})
 	say(session, "note",
 		"Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.")
 	session.prompt.run(session)

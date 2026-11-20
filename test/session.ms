@@ -290,11 +290,11 @@ run = function(t, rules, host, h, schema, knowledge, library)
 			printed(commandLines, "  /save-schema  write the schema to its file, or to one named"))
 
 	// The block as the program itself prints it, pinned line for line: the first line is the
-	// greeting the session gives before the loop, the eleven after it are /help. The labels are
+	// greeting the session gives before the loop, the twelve after it are /help. The labels are
 	// the library's and the notes are this host's, so this is where the two meet - a change to
 	// either shows up here, rather than only in a run someone happens to be watching.
 	pinned = startSession([], [], ["/help", "q"])
-	h.check("the program's greeting and /help block are exactly these twelve lines",
+	h.check("the program's greeting and /help block are exactly these thirteen lines",
 		pinned.answers.lines == [
 		"Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.",
 		"  /exit  leave the session",
@@ -308,7 +308,14 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		"  /load-rules  replace the rules with a file's",
 		"  /save-schema  write the schema to its file, or to one named",
 		"  /load-schema  replace the schema with a file's",
+		"  /depth  say how deep the search goes",
 	])
+
+	// The line /help lists last is the program's own registration: src/session.ms adds /depth
+	// through the library's call after the component commands the table was built from.
+	depthed = startSession([], [], ["/depth", "q"])
+	h.check("/depth says the depth the session searches to",
+		printed(depthed.answers.lines, "  searching to depth 8"))
 	h.check("/facts lists the facts it holds",
 		printed(commandLines, "  2 facts") and printed(commandLines, "    parent-of(bill, tim)"))
 	h.check("/rules lists the rules it holds",

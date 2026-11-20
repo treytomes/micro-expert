@@ -257,6 +257,7 @@ it bounds a run, and `--verbose` prints the proof tree behind each answer here t
 | `/undo` | Take back the last fact the session added |
 | `/facts` | List the facts the session holds |
 | `/rules` | List the rules the session holds |
+| `/depth` | Say how deep the search goes |
 | `/save-facts [FILE]` | Write the facts to their file, or to the file named |
 | `/load-facts [FILE]` | Replace the facts with a file's |
 | `/save-rules [FILE]` | Write the rules to their file, or to the file named |
@@ -376,7 +377,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-454 passed, 0 failed
+457 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -392,8 +393,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 453 skipped
-##END {"passed":1,"failed":0,"skipped":453}
+1 passed, 0 failed, 456 skipped
+##END {"passed":1,"failed":0,"skipped":456}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -403,11 +404,11 @@ the suite reached the end. The VS Code extension's Testing panel passes exactly 
 arguments, so its tree and its runs come from the suite rather than from a list kept
 beside it.
 
-The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 454 here cover the program itself: display and parsing (22), the
+The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 457 here cover the program itself: display and parsing (22), the
 knowledge data format (78), the predicate schema (25), the loaders (16), proofs and
 explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations
-including the family rules (89), the session at the prompt (102), the repl library itself
-(44), and the domain (10).
+including the family rules (89), the session at the prompt (103), the repl library itself
+(46), and the domain (10).
 
 ## Repository layout
 
@@ -428,7 +429,7 @@ data/schema.kb       the field types, as text
 examples/notes.ms    a whole host for the repl library that is not a knowledge base
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 454 checks and their runner
+test/                the 457 checks and their runner
 docs/articles/       the long-form write-up
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env

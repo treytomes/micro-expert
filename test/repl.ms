@@ -38,6 +38,11 @@ run = function(library, h)
 			stop = function(given, command, argument)
 				return true
 			end function
+			// The other reading of /echo, for a registration that takes an existing name's place.
+			shout = function(given, command, argument)
+				seen.lines.push("  shout " + argument)
+				return false
+			end function
 			// A note is the host's to add: /stop has none, and is listed by its name alone.
 			session.commands = [
 				{"name": "/echo", "note": "say the line back", "run": @echo},
@@ -45,8 +50,13 @@ run = function(library, h)
 			// A command that adds one while the loop is running: registration is an ordinary
 			// call on the session the command was handed, so the next line can name it.
 			grow = function(given, command, argument)
-				module.addCommand(given, {"name": "/grown", "note": "added while running",
-					"run": @echo})
+				if options.hasIndex("replace") then
+					module.addCommand(given, {"name": "/echo", "note": "the echo, replaced",
+						"run": @shout})
+				else
+					module.addCommand(given, {"name": "/grown", "note": "added while running",
+						"run": @echo})
+				end if
 				return false
 			end function
 			if options.hasIndex("grow") then
@@ -167,6 +177,14 @@ run = function(library, h)
 		growing.lines[0] == "  /grown now")
 	h.check("and /help lists the one just added",
 		said(growing.lines, "  /grown  added while running"))
+
+	// A registration that names a command the table already answers replaces it where it sits
+	// rather than adding a second one, so /help keeps its order and one name means one command.
+	replacing = scripted(library, ["/grow", "/help", "/echo hi", "q"],
+		{"commands": 1, "grow": 1, "replace": 1})
+	h.check("a name the table already answers is replaced where it sits",
+		replacing.lines.len == 6 and replacing.lines[2] == "  /echo  the echo, replaced")
+	h.check("and the loop runs the command that replaced it", replacing.lines[5] == "  shout hi")
 
 	// ── What a host may change, and what it must supply ──────────────────────
 	// The loop asks for the pieces it needs before it reads a line, so a forgotten one is

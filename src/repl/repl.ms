@@ -36,7 +36,9 @@
 //
 // The table is assembled once, from the library's two, the host's own and one save and load per
 // component, and addCommand grows it while the session runs: a command handed the session can
-// register another, and the loop dispatches it from the next line on. /help prints the table, or
+// register another, and the loop dispatches it from the next line on. A name the table already
+// answers is not a second entry - the command given takes that one's place, so /help keeps its
+// order and the last registration of a name is the one the loop runs. /help prints the table, or
 // one command's line when it is named - /help /facts, or /help facts, since a name is typed with
 // its slash at the prompt.
 //
@@ -138,8 +140,15 @@ allCommands = function(session)
 end function
 
 addCommand = function(session, command)
-	"Adds one command to a session already running, so the next line can name it; answers the table."
+	"Adds one command to a session already running, so the next line can name it; a name the table already answers is replaced where it sits. Answers the table."
 	table = prepare(session)
+	for at in range(0, table.len - 1)
+		if table[at].name == command.name then
+			// In place, so nothing moves in /help and one name stays one command.
+			table[at] = command
+			return table
+		end if
+	end for
 	table.push(command)
 	return table
 end function
