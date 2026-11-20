@@ -451,6 +451,18 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	other = startSession([spo("zed", "has-age", 24)], [], ["has-age(tim, 17)"], null, 0, uniqueAge)
 	h.check("another subject is another pair", other.session.facts.len == 2)
 
+	// A value given at the prompt that would be a second one stops the question the way a
+	// value of the wrong type does, rather than completing a fact the session refuses and
+	// then asking for the same variable again. Nobody has 30, so the question is open on who
+	// does, and the person named for it already has an age of their own.
+	clash = startSession([spo("zed", "has-age", 24)], [], ["has-age(?x, 30)", "zed"], null, 0, uniqueAge)
+	h.check("a prompted value that breaks uniqueness is refused",
+		printed(clash.answers.lines,
+			"  refused: has-age(zed, 30): the object is already taken: has-age(zed, 24)"))
+	h.check("and the question ends instead of asking again",
+		clash.answers.asked.len == 3 and clash.answers.asked[2] == "? ")
+	h.check("and the value is not stored", clash.session.facts.len == 1)
+
 	// The wrapper says how many, not what, so a wrapped list is still the list the prompt
 	// offers: unique(...) does not turn a choice back into a word to remember.
 	wrapped = startSession([], [], ["has-gender(zed, ?g)", "2"], null, 0,
@@ -592,6 +604,26 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("and the loaded rule answers a question",
 		printed(loadedRules.answers.lines, "  grandparent(bill, anna)"))
 
+	// A rule whose head the schema marks unique(...) has nowhere to refuse a second value,
+	// since a fact a rule concludes is never added, so loading one is refused the way startup
+	// refuses the schema that marks it: the session keeps the rules it had.
+	uniqueHead = {"age-group": ["text", "unique(child|adult)"]}
+	rulePath = scratch("unique-rules.kb")
+	writeFile(rulePath, ["age-group(?x, child) => has-age(?x, ?n), less-than-or-equal(?n, 18)"])
+	refusedRules = startSession(family + [], [], ["/load-rules " + quoted(rulePath)],
+		null, 0, uniqueHead, {})
+	file.delete(rulePath)
+	h.check("/load-rules refuses a rule whose head the schema marks unique(...)",
+		holds(refusedRules.answers.lines, "concluded by a rule"))
+	h.check("and the session keeps the rules it had", refusedRules.session.rules.len == 0)
+
+	// The same line typed at the prompt is the same hole, so it is refused there too rather
+	// than added to a schema that has no place to enforce it.
+	typedRule = startSession([], [],
+		["age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)"], null, 0, uniqueHead)
+	h.check("a typed rule whose head the schema marks unique(...) is refused",
+		holds(typedRule.answers.lines, "concluded by a rule") and typedRule.session.rules.len == 0)
+
 	// The schema is written and read the same way, and a loaded one is used at once.
 	schemaPath = scratch("schema.kb")
 	savedSchema = startSession([], [], ["/save-schema"], null, 0,
@@ -610,6 +642,22 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("and the loaded schema refuses a fact that misses it",
 		printed(loadedSchema.answers.lines,
 			"  refused: has-age(tim, twenty): the object should be a number"))
+
+	// A schema that marks a predicate the session's rules conclude unique(...) cannot be
+	// enforced, since a derived fact is never added, so loading one is refused the way
+	// startup refuses it: the session keeps the types it had rather than holding a line it
+	// has nowhere to check.
+	derivedPath = scratch("derived-schema.kb")
+	writeFile(derivedPath, ["age-group(text, unique(child|adult))"])
+	older = t.parseRule("age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)")
+	refusedSchema = startSession([], [rules.Rule.make(older.head, older.body)],
+		["/load-schema " + quoted(derivedPath)], null, 0, {"has-age": ["text", "number"]}, {})
+	file.delete(derivedPath)
+	h.check("/load-schema refuses a unique(...) a rule leaves no place to enforce",
+		holds(refusedSchema.answers.lines, "concluded by a rule"))
+	h.check("and the session keeps the schema it had",
+		refusedSchema.session.types.hasIndex("age-group") == 0 and
+			refusedSchema.session.types.hasIndex("has-age") == 1)
 
 	// What cannot be saved says why, and the session carries on.
 	noSchema = startSession([], [], ["/save-schema"], null, 0, null,

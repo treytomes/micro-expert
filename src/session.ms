@@ -173,9 +173,7 @@ factsRead = function(session, path)
 	"Replaces the session's facts with the file at path, answering them, or an error."
 	// The types the session holds are handed to the reader, so a file that gives one pair
 	// two values of a unique(...) field is refused here as it would be at the prompt.
-	held = null
-	if session.hasIndex("types") then held = session.types
-	loaded = session.knowledge.loadFactsAt(session.triples, path, held)
+	loaded = session.knowledge.loadFactsAt(session.triples, path, heldTypes(session))
 	if loaded isa error then return loaded
 	session.facts = loaded
 	// What was loaded is the knowledge base now, so /undo no longer reaches back past it.
@@ -196,8 +194,20 @@ rulesRead = function(session, path)
 	for piece in pieces
 		loaded.push(session.Rule.make(piece.head, piece.body))
 	end for
+	// The other half of the guard schemaRead makes: a rule whose head the schema marks
+	// unique(...) has nowhere to refuse a second value, since a fact a rule concludes is
+	// never added. Loading such a file would be the way around the check startup makes, so
+	// it is refused before it is held and the session keeps the rules it had.
+	unenforceable = session.knowledge.derivedUniques(heldTypes(session), loaded)
+	if unenforceable isa error then return unenforceable
 	session.rules = loaded
 	return loaded
+end function
+
+heldTypes = function(session)
+	"The field types the session holds, or null for a session given no schema."
+	if not session.hasIndex("types") then return null
+	return session.types
 end function
 
 schemaLines = function(session)
@@ -212,6 +222,13 @@ schemaRead = function(session, path)
 	"Replaces the session's field types with the file at path, answering them, or an error."
 	loaded = session.knowledge.loadSchemaAt(path)
 	if loaded isa error then return loaded
+	// A unique(...) on a predicate the session's rules conclude is the one thing a schema
+	// line can say that the program has nowhere to enforce, since a fact a rule concludes
+	// is never added and so never refused. Startup refuses such a file; loading one here
+	// would be the way around that, so the file is refused before it is held and the
+	// session keeps the types it had.
+	unenforceable = session.knowledge.derivedUniques(loaded, session.rules)
+	if unenforceable isa error then return unenforceable
 	session.types = loaded
 	return loaded
 end function
@@ -323,6 +340,14 @@ addRule = function(session, line)
 		return
 	end if
 	added = session.Rule.make(pieces.head, pieces.body)
+	// A typed rule is the third way to introduce one, and it is the same hole as /load-rules:
+	// a head the schema marks unique(...) leaves the check with nowhere to run, so the line is
+	// refused rather than added.
+	unenforceable = session.knowledge.derivedUniques(heldTypes(session), [added])
+	if unenforceable isa error then
+		repl.say(session, "warning", "  refused: " + added.text + ": " + unenforceable.message)
+		return
+	end if
 	session.rules.push(added)
 	repl.say(session, "added", "  added rule " + added.text)
 end function
