@@ -10,8 +10,8 @@ import "cli/cli"
 import "triples"
 import "logging/logging"
 import "vt"
-// The library is imported before the session module, which reads it from the globals this file
-// shares with it: a two-segment import inside a module binds no name of its own here.
+// The library comes before the session module, which takes it from globals as it loads; why is in
+// session.ms, and the suite pins the order.
 import "repl/repl"
 import "session"
 import "rule"
