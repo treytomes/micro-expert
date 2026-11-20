@@ -10,3 +10,6 @@
 [submodule "src/logging"]
 	path = src/logging
 	url = git@github.com:treytomes/micro-logging.git
+[submodule "src/repl"]
+	path = src/repl
+	url = git@github.com:treytomes/micro-repl.git

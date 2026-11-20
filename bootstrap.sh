@@ -31,7 +31,7 @@ cd "$ROOT"
 # One line per submodule: its path as .gitmodules spells it, a file that proves it
 # checked out, and a name for the log. Extracting another one is a single line here.
 # Failures are collected rather than raised, so one bad submodule still leaves the
-# report for the other three behind it.
+# report for the other four behind it.
 missing=""
 while IFS='|' read -r path marker label; do
     [ -n "$path" ] || continue
@@ -57,6 +57,7 @@ done <<'TABLE'
 vscode-miniscript|package.json|VS Code extension
 src/cli|cli.ms|Command-line library
 src/logging|logging.ms|Logger
+src/repl|repl.ms|Repl library
 TABLE
 
 [ -z "$missing" ] || fail "Giving up on \"$missing\" - fix .gitmodules and run this again."

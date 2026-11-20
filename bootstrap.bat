@@ -39,6 +39,7 @@ for %%M in (
     "vscode-miniscript|package.json|VS Code extension"
     "src/cli|cli.ms|Command-line library"
     "src/logging|logging.ms|Logger"
+    "src/repl|repl.ms|Repl library"
 ) do for /f "tokens=1-3 delims=|" %%P in ("%%~M") do (
     if not exist "%%~P/%%Q" (
         echo [bootstrap] Cloning %%~P ...
