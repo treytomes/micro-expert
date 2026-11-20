@@ -370,6 +370,32 @@ run = function(library, h)
 		example.len > 0 and imports.len == 1 and
 			imports[0].indexOf("src/repl/repl") != null)
 
+	// ── The entry's import order ─────────────────────────────────────────────
+	// The library is reached through the entry's globals, which is why a host has to import it
+	// before loading anything that reads it: src/session.ms takes the map when it loads, so a
+	// program that imports "session" first hands it null and every call through it fails. No case
+	// here can see that short of launching the program, so main.ms's two lines are pinned as text,
+	// in order - the contract the module's header in src/session.ms describes.
+
+	entry = file.readLines(file.child("src", "main.ms"))
+	// A string literal holds no escapes here, so the quote an import line ends in is char(34).
+	quoteMark = char(34)
+	libraryLine = "import " + quoteMark + "repl/repl" + quoteMark
+	sessionLine = "import " + quoteMark + "session" + quoteMark
+	libraryAt = null
+	sessionAt = null
+	for i in range(0, entry.len - 1)
+		if entry[i].indexOf(libraryLine) == 0 and libraryAt == null then libraryAt = i
+		if entry[i].indexOf(sessionLine) == 0 and sessionAt == null then sessionAt = i
+	end for
+	// Found and in order, so a missing import and a flipped one fail the same check and the name
+	// still says what broke: the order.
+	ordered = 0
+	if libraryAt != null and sessionAt != null then
+		if libraryAt < sessionAt then ordered = 1
+	end if
+	h.check("the main entry imports the repl library before the session module", ordered)
+
 	helpedComponents = scripted(library, ["/help", "q"], {"components": 1})
 	h.check("/help lists a save and a load per component, after the host's own",
 		said(helpedComponents.lines, "  /save-things [FILE]  write the things to their file, or to one named") and
