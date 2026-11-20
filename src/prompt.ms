@@ -132,9 +132,16 @@ end function
 //   name        what the commands are called: /save-facts, /load-facts
 //   singular    one of them, for the message: 54 facts, 1 fact
 //   possessive  whose file it is, for the help: their, unless the entry says its
-//   write       function(session) -> [line], or null when there is nothing to save
+//   write       function(session) -> [line] to write, which may be empty - an empty list
+//               empties the file - or a line of text saying why there is nothing to save
 //   read        function(session, path) -> the collection the session now holds, whose len is
 //               the count a load reports, or an error
+//
+// The two answers a save can get are kept apart: a list is written as it stands, so a session
+// with nothing left to hold writes a file with no lines in it; text is the component saying
+// there is nothing to save at all, in its own words, and is said as a warning. A component that
+// checks nothing and a component with nothing in it are different things, and the shape of the
+// answer is what tells them apart.
 //
 // Where each file is stays in the session's paths map, keyed by the component's name: a save or
 // a load moves it, so a bare /save-facts writes where the last one went.
@@ -172,8 +179,9 @@ saveCommand = function(session, command, argument)
 	"Writes the component this command names, keeping the file it replaces whole."
 	component = command.component
 	lines = component.write(session)
-	if lines == null then
-		say(session, "warning", "  no " + component.name + " to save")
+	// Text is the component saying it has nothing to save, and the words are its own.
+	if lines isa string then
+		say(session, "warning", "  " + lines)
 		return false
 	end if
 	path = componentTarget(session, component, argument, command.name)

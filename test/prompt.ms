@@ -62,7 +62,12 @@ run = function(prompt, h)
 				return given.things
 			end function
 			missing = function(given)
-				return null
+				// The other answer a write can give: text saying why there is nothing to save.
+				return "no empties to save"
+			end function
+			blank = function(given)
+				// And a list with no lines in it, which is a file rather than nothing to save.
+				return []
 			end function
 			read = function(given, path)
 				given.things = ["one", "two", "three"]
@@ -72,6 +77,7 @@ run = function(prompt, h)
 				{"name": "things", "singular": "thing", "write": @lines, "read": @read},
 				{"name": "empties", "singular": "empty", "possessive": "its",
 					"write": @missing, "read": @read},
+				{"name": "blanks", "singular": "blank", "write": @blank, "read": @read},
 			]
 		end if
 		// The one thing the host must supply: what to do with a line that is not a command.
@@ -212,8 +218,18 @@ run = function(prompt, h)
 	h.check("a component with no file to fall back on says how to name one",
 		said(unnamed.lines, "  no things file to use: name one, as /save-things FILE"))
 	emptySave = scripted(prompt, ["/save-empties " + scratch("empties.kb"), "q"], {"components": 1})
-	h.check("a component with nothing to write says so, rather than writing an empty file",
+	h.check("a component that says it has nothing to save says so in its own words",
 		said(emptySave.lines, "  no empties to save"))
+
+	// An empty list is not "nothing to save": it is a file with no lines in it, which is how a
+	// session empties a file it no longer holds anything for.
+	blankPath = scratch("blank.kb")
+	leftover = file.delete(blankPath)
+	blankSave = scripted(prompt, ["/save-blanks " + blankPath, "q"], {"components": 1})
+	blankLines = file.readLines(blankPath)
+	leftover = file.delete(blankPath)
+	h.check("a component that answers no lines writes an empty file",
+		blankLines.len == 0 and said(blankSave.lines, "  wrote 0 blanks to " + blankPath))
 
 	thingsPath = scratch("load.kb")
 	leftover = file.delete(thingsPath)
@@ -235,6 +251,19 @@ run = function(prompt, h)
 	leftover = file.delete(paintedPath)
 	h.check("a save is painted as a file, not as an addition",
 		said(paintedSave.lines, "file:  wrote 2 things to " + paintedPath))
+
+	// ── The example ──────────────────────────────────────────────────────────
+	// examples/notes.ms is a whole program written on this module, so it is what proves the
+	// module stands alone in the repository rather than only in an argument. A second import
+	// in it would be that claim failing quietly.
+
+	example = file.readLines(file.child("examples", "notes.ms"))
+	imports = []
+	for line in example
+		if line.indexOf("import ") == 0 then imports.push(line)
+	end for
+	h.check("the notes example imports the prompt library and nothing else",
+		example.len > 0 and imports.len == 1 and imports[0].indexOf("src/prompt") != null)
 
 	helpedComponents = scripted(prompt, ["/help", "q"], {"components": 1})
 	h.check("/help lists a save and a load per component, after the host's own",

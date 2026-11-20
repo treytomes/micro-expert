@@ -157,9 +157,10 @@ resolveComponent = function(session, path)
 	return session.knowledge.resolvePath(path)
 end function
 
-// A component's write answers the lines a save writes, or null when the session holds nothing
-// to write; its read puts the file in place and answers what is held now, or an error. Between
-// them they are the component's whole knowledge of its own format.
+// A component's write answers the lines a save writes, which may be none (an empty file is a
+// thing a session can want), or a line of text saying why there is nothing to save at all; its
+// read puts the file in place and answers what is held now, or an error. Between them they are
+// the component's whole knowledge of its own format.
 
 factsLines = function(session)
 	"One facts-file line per fact the session holds."
@@ -194,8 +195,10 @@ rulesRead = function(session, path)
 end function
 
 schemaLines = function(session)
-	"One schema line per predicate the session types, or null when it types nothing."
-	if session.types == null then return null
+	"One schema line per predicate the session types, or the reason there is nothing to save."
+	// A session given no schema at all has nothing to save, which is not the same as a schema
+	// with no predicates in it: the first says so in words, the second writes an empty file.
+	if session.types == null then return "no schema to save"
 	return session.knowledge.schemaLines(session.types)
 end function
 
