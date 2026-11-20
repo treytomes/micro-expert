@@ -245,18 +245,16 @@ runCommand = function(session, line)
 		if command.name == name then
 			// What follows the name reaches a command in one of two shapes: words for a command
 			// that declared parameters, and the trimmed rest of the line for one that did not.
+			given = argument
 			if command.hasIndex("parameters") then
-				parsed = words(argument)
-				if not fitsParameters(command, parsed) then
+				given = words(argument)
+				if not fitsParameters(command, given) then
 					say(session, "warning", "  usage: " + usage(command))
 					return false
 				end if
-				// A command answers whether the session should end, and only /exit says so.
-				if command.run(session, command, parsed) then return true
-				return false
 			end if
-			if command.run(session, command, argument) then return true
-			return false
+			// A command answers whether the session should end, and only /exit says so.
+			return command.run(session, command, given)
 		end if
 	end for
 	say(session, "warning", "  no such command: " + name + " (/help lists them)")

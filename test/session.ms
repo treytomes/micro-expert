@@ -433,6 +433,10 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		"Where a case's file goes: the temp folder, under a name only this suite uses."
 		return file.child(temp, "micro-expert-test-" + name)
 	end function
+	quoted = function(path)
+		"A path as a command line holds it: quoted, so a temp folder with a space in it is one word."
+		return "'" + path + "'"
+	end function
 	writeFile = function(path, lines)
 		handle = file.open(path, "w")
 		if handle isa error then return handle
@@ -462,7 +466,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// A name given at the prompt is used, with .kb added when it has no extension, and
 	// becomes the file the next save writes.
 	namedPath = scratch("named")
-	named = startSession(family + [], [], ["/save-facts " + namedPath], null, 0, null, {})
+	named = startSession(family + [], [], ["/save-facts " + quoted(namedPath)], null, 0, null, {})
 	namedFile = namedPath + ".kb"
 	namedLines = readBack(namedFile)
 	file.delete(namedFile)
@@ -474,7 +478,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// no longer reach past.
 	loadedPath = scratch("loaded-facts.kb")
 	writeFile(loadedPath, ["has-gender(walter, male)", "parent-of(walter, bill)"])
-	loaded = startSession([], [], ["/load-facts " + loadedPath, "/undo"], null, 0, null, {})
+	loaded = startSession([], [], ["/load-facts " + quoted(loadedPath), "/undo"], null, 0, null, {})
 	file.delete(loadedPath)
 	h.check("/load-facts replaces the facts with the file's", loaded.session.facts.len == 2 and
 		loaded.session.facts[1].text == "parent-of(walter, bill)")
@@ -499,7 +503,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	rulePath = scratch("loaded-rules.kb")
 	writeFile(rulePath, ["grandparent(?x, ?y) => parent-of(?x, ?p), parent-of(?p, ?y)"])
 	loadedRules = startSession(family + [], [],
-		["/load-rules " + rulePath, "grandparent(bill, ?who)"], null, 0, null, {})
+		["/load-rules " + quoted(rulePath), "grandparent(bill, ?who)"], null, 0, null, {})
 	file.delete(rulePath)
 	h.check("/load-rules replaces the rules with the file's", loadedRules.session.rules.len == 1 and
 		loadedRules.session.rules[0].text ==
@@ -519,7 +523,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	schemaPath = scratch("loaded-schema.kb")
 	writeFile(schemaPath, ["has-age(text, number)"])
 	loadedSchema = startSession([], [],
-		["/load-schema " + schemaPath, "has-age(tim, twenty)"], null, 0, null, {})
+		["/load-schema " + quoted(schemaPath), "has-age(tim, twenty)"], null, 0, null, {})
 	file.delete(schemaPath)
 	h.check("/load-schema replaces the schema", loadedSchema.session.types.hasIndex("has-age") == 1)
 	h.check("and the loaded schema refuses a fact that misses it",
@@ -534,7 +538,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	unset = startSession([], [], ["/save-facts"], null, 0, null, {})
 	h.check("with no file set and none named, a save says how to name one",
 		printed(unset.answers.lines, "  no facts file to use: name one, as /save-facts FILE"))
-	missing = startSession([], [], ["/load-facts " + scratch("absent")], null, 0, null, {})
+	missing = startSession([], [], ["/load-facts " + quoted(scratch("absent"))], null, 0, null, {})
 	h.check("a missing file is reported and the session carries on",
 		holds(missing.answers.lines, "  could not read ") and missing.answers.asked.len == 2)
 

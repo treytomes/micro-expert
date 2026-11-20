@@ -199,9 +199,9 @@ run = function(library, h)
 	h.check("and the loop runs the command that replaced it", replacing.lines[5] == "  shout hi")
 
 	// ── Parameters a command declares ──────────────────────────────────────
-	// A declaration is what /help renders: capitals for the placeholder, brackets for the
-	// optional one. It changes the help and not the call, so the rest of the line still reaches
-	// the command as it was typed.
+	// A declaration is what /help renders and what decides the shape of the argument: capitals
+	// for the placeholder, brackets for the optional one, and words for the command. One that
+	// declares nothing is handed the rest of the line as it was typed.
 
 	declared = scripted(library, ["/help /greet", "/greet ann", "q"], {"commands": 1, "usage": 1})
 	h.check("/help renders a declaration as the command's usage",
@@ -257,10 +257,14 @@ run = function(library, h)
 	scratch = function(name)
 		return file.child(temp, "micro-expert-repl-" + name)
 	end function
+	quoted = function(path)
+		"A path as a command line holds it: quoted, so a temp folder with a space in it is one word."
+		return "'" + path + "'"
+	end function
 
 	thingsPath = scratch("things.kb")
 	leftover = file.delete(thingsPath)
-	saved = scripted(library, ["/save-things " + thingsPath, "q"], {"components": 1})
+	saved = scripted(library, ["/save-things " + quoted(thingsPath), "q"], {"components": 1})
 	back = file.readLines(thingsPath)
 	leftover = file.delete(thingsPath)
 	h.check("a save writes the lines the component gives", back == ["alpha", "beta"])
@@ -271,7 +275,7 @@ run = function(library, h)
 	bare = scratch("bare")
 	bareFile = bare + ".kb"
 	leftover = file.delete(bareFile)
-	namedSave = scripted(library, ["/save-things " + bare, "q"], {"components": 1})
+	namedSave = scripted(library, ["/save-things " + quoted(bare), "q"], {"components": 1})
 	named = file.exists(bareFile)
 	leftover = file.delete(bareFile)
 	h.check("a bare name is left to the session's own path rule", named == 1)
@@ -280,7 +284,7 @@ run = function(library, h)
 
 	thingsPath = scratch("again.kb")
 	leftover = file.delete(thingsPath)
-	remembered = scripted(library, ["/save-things " + thingsPath, "/save-things", "q"],
+	remembered = scripted(library, ["/save-things " + quoted(thingsPath), "/save-things", "q"],
 		{"components": 1})
 	leftover = file.delete(thingsPath)
 	h.check("a save remembers its file, so a bare save goes there again",
@@ -305,7 +309,8 @@ run = function(library, h)
 	unnamed = scripted(library, ["/save-things", "q"], {"components": 1})
 	h.check("a component with no file to fall back on says how to name one",
 		said(unnamed.lines, "  no things file to use: name one, as /save-things FILE"))
-	emptySave = scripted(library, ["/save-empties " + scratch("empties.kb"), "q"], {"components": 1})
+	emptySave = scripted(library, ["/save-empties " + quoted(scratch("empties.kb")), "q"],
+		{"components": 1})
 	h.check("a component that says it has nothing to save says so in its own words",
 		said(emptySave.lines, "  no empties to save"))
 
@@ -313,7 +318,7 @@ run = function(library, h)
 	// session empties a file it no longer holds anything for.
 	blankPath = scratch("blank.kb")
 	leftover = file.delete(blankPath)
-	blankSave = scripted(library, ["/save-blanks " + blankPath, "q"], {"components": 1})
+	blankSave = scripted(library, ["/save-blanks " + quoted(blankPath), "q"], {"components": 1})
 	blankLines = file.readLines(blankPath)
 	leftover = file.delete(blankPath)
 	h.check("a component that answers no lines writes an empty file",
@@ -321,7 +326,7 @@ run = function(library, h)
 
 	thingsPath = scratch("load.kb")
 	leftover = file.delete(thingsPath)
-	loadedThing = scripted(library, ["/load-things " + thingsPath, "/save-things", "q"],
+	loadedThing = scripted(library, ["/load-things " + quoted(thingsPath), "/save-things", "q"],
 		{"components": 1})
 	leftover = file.delete(thingsPath)
 	h.check("a load hands the file to the component's read and says how many",
@@ -334,7 +339,7 @@ run = function(library, h)
 	// the vocabulary is the library's, and the colors are the host's own.
 	paintedPath = scratch("painted.kb")
 	leftover = file.delete(paintedPath)
-	paintedSave = scripted(library, ["/save-things " + paintedPath, "q"],
+	paintedSave = scripted(library, ["/save-things " + quoted(paintedPath), "q"],
 		{"components": 1, "paint": 1})
 	leftover = file.delete(paintedPath)
 	h.check("a save is painted as a file, not as an addition",
@@ -354,7 +359,7 @@ run = function(library, h)
 	// declared command is given have to hold together for.
 	spacedPath = file.child(temp, "micro-expert repl spaced.kb")
 	leftover = file.delete(spacedPath)
-	spacedSave = scripted(library, ["/save-things '" + spacedPath + "'", "q"], {"components": 1})
+	spacedSave = scripted(library, ["/save-things " + quoted(spacedPath), "q"], {"components": 1})
 	spacedLines = file.readLines(spacedPath)
 	leftover = file.delete(spacedPath)
 	h.check("a quoted path with a space in it is one parameter",
@@ -362,7 +367,8 @@ run = function(library, h)
 			said(spacedSave.lines, "  wrote 2 things to " + spacedPath))
 
 	h.check("the notes example imports the repl library and nothing else",
-		example.len > 0 and imports.len == 1 and 			imports[0].indexOf("src/repl/repl") != null)
+		example.len > 0 and imports.len == 1 and
+			imports[0].indexOf("src/repl/repl") != null)
 
 	helpedComponents = scripted(library, ["/help", "q"], {"components": 1})
 	h.check("/help lists a save and a load per component, after the host's own",
