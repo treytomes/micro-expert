@@ -15,7 +15,7 @@
 //           "write": @factsLines, "read": @factsRead}],    // may be left out
 //       "paths": {"facts": "data/facts.kb"},       // where each component's file is
 //       "pathFor": @pathOf,                        // a name typed at the prompt, as a path
-//       "resolvePath": @findPath,                  // a path already held, found the same way
+//       "resolvePath": @findPath,                  // may be left out: for one that needs finding
 //       "promptText": "notes> ",                   // may be left out: '? '
 //       "exitWords": ["done"]}                    // may be left out: q and quit
 //   session.prompt.run(session)
@@ -131,8 +131,10 @@ end function
 //
 // Only a name typed at the prompt goes through pathFor, which is the host's rule and not the
 // prompt's - that a bare name should end in .kb is knowledge-base business. The file the session
-// started with is a path it already holds, so resolvePath is handed it as it is: extending it
-// would move a domain's own facts file beside itself, from data/family to data/family.kb.
+// started with is a path it already holds, so it is used as it is: extending it would move a
+// domain's own facts file beside itself, from data/family to data/family.kb. A session whose
+// paths are written relative to where its data lives adds resolvePath and each is found that
+// way; one that says nothing about it has said its paths mean what they say.
 
 componentsOf = function(session)
 	"The components a session describes, or none when it has no files of its own."
@@ -195,7 +197,7 @@ end function
 componentTarget = function(session, component, argument, command)
 	"Where a save or load goes: the file the line named, or the one this component came from."
 	// A name typed at the prompt is the host's to complete; the path the session started with
-	// is not a name, and is only found the way the host finds a path it already holds.
+	// is not a name, and is used as it is unless the session says how to find one.
 	if argument != "" then return session.pathFor(session, argument)
 	path = null
 	if session.paths.hasIndex(component.name) then path = session.paths[component.name]
@@ -204,7 +206,8 @@ componentTarget = function(session, component, argument, command)
 			command + " FILE")
 		return null
 	end if
-	return session.resolvePath(session, path)
+	if session.hasIndex("resolvePath") then return session.resolvePath(session, path)
+	return path
 end function
 
 // ── The loop ─────────────────────────────────────────────────────────────────
@@ -212,8 +215,6 @@ end function
 // handle makes of it. q and quit leave as /exit does, since a session is closed by the same
 // keystrokes whatever program it belongs to - and a host with other words for it, or another
 // prompt, says so on the session and the loop uses those instead.
-
-defaultExitWords = ["q", "quit"]
 
 promptTextOf = function(session)
 	"The text the loop shows while it waits: the session's own, or '? '."
@@ -224,7 +225,7 @@ end function
 exitWordsOf = function(session)
 	"The words that leave besides /exit: the session's own, or q and quit."
 	if session.hasIndex("exitWords") then return session.exitWords
-	return defaultExitWords
+	return ["q", "quit"]
 end function
 
 // A session is a record the host fills in, so a piece left out would surface as a failure
@@ -255,29 +256,23 @@ seamProblems = function(session)
 		if not session.hasIndex("pathFor") then
 			problems.push("pathFor, which turns a name typed at the prompt into a path")
 		end if
-		if not session.hasIndex("resolvePath") then
-			problems.push("resolvePath, which finds a path the session already holds")
-		end if
 	end if
 	return problems
-end function
-
-report = function(session, problem)
-	"Says the session cannot start, through io when there is one to say it with."
-	line = "  the session cannot start without " + problem
-	if ioHas(session, "say") then
-		session.io.say(line)
-	else
-		print line
-	end if
 end function
 
 run = function(session)
 	"Reads lines until the session ends: commands here, every other line to the session's handle."
 	problems = seamProblems(session)
 	if problems.len > 0 then
+		// One line through io when there is io to say it with, and print when there is
+		// not: a session that cannot speak must still say why it is not starting.
 		for problem in problems
-			report(session, problem)
+			line = "  the session cannot start without " + problem
+			if ioHas(session, "say") then
+				session.io.say(line)
+			else
+				print line
+			end if
 		end for
 		return
 	end if

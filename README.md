@@ -376,7 +376,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-443 passed, 0 failed
+442 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -392,8 +392,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"repl.ms","line":30}
 
-1 passed, 0 failed, 442 skipped
-##END {"passed":1,"failed":0,"skipped":442}
+1 passed, 0 failed, 441 skipped
+##END {"passed":1,"failed":0,"skipped":441}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -403,11 +403,11 @@ the suite reached the end. The VS Code extension's Testing panel passes exactly 
 arguments, so its tree and its runs come from the suite rather than from a list kept
 beside it.
 
-The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 443 here cover the program itself: display and parsing (22), the
+The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 442 here cover the program itself: display and parsing (22), the
 knowledge data format (78), the predicate schema (25), the loaders (16), proofs and
 explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations
 including the family rules (89), the session at the prompt (101), the prompt library itself
-(34), and the domain (10).
+(33), and the domain (10).
 
 ## Repository layout
 
@@ -427,7 +427,7 @@ data/rules.kb        the fourteen rules, as text
 data/schema.kb       the field types, as text
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 443 checks and their runner
+test/                the 442 checks and their runner
 docs/articles/       the long-form write-up
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env

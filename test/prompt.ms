@@ -36,11 +36,10 @@ run = function(prompt, h)
 			stop = function(given, command, argument)
 				return true
 			end function
-			// A note is the host's to add, so this one can be left off entirely.
-			echoEntry = {"name": "/echo", "run": @echo}
-			if not options.hasIndex("nonote") then echoEntry.note = "say the line back"
-			session.commands = [echoEntry,
-				{"name": "/stop", "note": "leave quietly", "run": @stop}]
+			// A note is the host's to add: /stop has none, and is listed by its name alone.
+			session.commands = [
+				{"name": "/echo", "note": "say the line back", "run": @echo},
+				{"name": "/stop", "run": @stop}]
 		end if
 		if options.hasIndex("paint") then
 			session.paint = function(given, role, text)
@@ -58,10 +57,6 @@ run = function(prompt, h)
 				// The host's own rule, kept tiny: a name without a dot gets .kb.
 				if file.name(name).indexOf(".") == null then return name + ".kb"
 				return name
-			end function
-			session.resolvePath = function(given, path)
-				// A path the session already holds is a path, and is taken as it is.
-				return path
 			end function
 			lines = function(given)
 				return given.things
@@ -120,8 +115,7 @@ run = function(prompt, h)
 		helped.lines[0] == "  /exit  leave the session" and
 			helped.lines[1] == "  /help  list these commands")
 	h.check("/help lists the host's commands after them, in the table's order",
-		helped.lines[2] == "  /echo  say the line back" and
-			helped.lines[3] == "  /stop  leave quietly")
+		helped.lines[2] == "  /echo  say the line back" and helped.lines[3] == "  /stop")
 	h.check("/help says nothing else", helped.lines.len == 4)
 
 	// A session that holds no commands is still a session: /exit and /help are the
@@ -133,8 +127,6 @@ run = function(prompt, h)
 	h.check("an unknown command is refused", unknown.lines ==
 		["  no such command: /nope (/help lists them)"])
 	h.check("and the loop carries on with the next line", unknown.handled == ["after"])
-	noteless = scripted(prompt, ["/help", "q"], {"commands": 1, "nonote": 1})
-	h.check("a command without a note is listed by its name alone", noteless.lines[2] == "  /echo")
 
 	// ── What a host may change, and what it must supply ──────────────────────
 	// The loop asks for the pieces it needs before it reads a line, so a forgotten one is
@@ -202,7 +194,7 @@ run = function(prompt, h)
 
 	// A file the session started with is a path it already holds, not a name typed at the
 	// prompt: an extensionless one is written where it is, rather than gaining .kb and
-	// landing beside itself.
+	// landing beside itself. This session says nothing about finding a path either.
 	extensionless = scratch("named-without-extension")
 	leftover = file.delete(extensionless)
 	leftover = file.delete(extensionless + ".kb")
