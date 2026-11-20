@@ -39,7 +39,7 @@
 // a line with <- is a rule, a line with a variable in it is a question, and a ground
 // line is a fact.
 //
-// prompt is prompt.ms, the prompt itself: the loop, the talk with the reader, the slash
+// prompt is repl/repl.ms, the prompt itself: the loop, the talk with the reader, the slash
 // commands, and the saving and loading of the components described below, none of which knows
 // what a fact is. It is handed in like triples and Rule, and what this module gives it back is
 // the reading of a line of knowledge - session.handle - the commands the session answers
@@ -80,7 +80,7 @@ changedMark = {"changed": 1}
 
 // ── Slash commands ───────────────────────────────────────────────────────────
 // One line that starts with / is aimed at the session rather than the knowledge base, and
-// prompt.ms dispatches it: the table below is what this session answers, and /help prints it
+// the repl library dispatches it: the table below is what this session answers, and /help prints it
 // beside the library's own /exit and /help. A command takes the session and whatever
 // followed the name, and answers whether the session should end - which none of these do.
 
@@ -129,7 +129,7 @@ listRules = function(session, command, argument)
 end function
 
 // ── The components ───────────────────────────────────────────────────────────
-// The three data files the session is made of, described the way prompt.ms builds its save and
+// The three data files the session is made of, described the way the repl library builds its save and
 // load commands from: what each is called, one of them for the messages, and the two calls that
 // put it in a file and take it back out. Where each file is stays in session.paths, which the
 // library moves after a save, so /save-facts with no name writes where it last went.
@@ -218,7 +218,7 @@ run = function(session)
 	// started from.
 	session.baseFacts = session.facts.len
 	// What the library needs from this module: how to read a line that is not a command,
-	// and the commands the session answers itself. The loop is prompt.ms's.
+	// and the commands the session answers itself. The loop is the repl library's.
 	session.handle = @handleLine
 	session.commands = commandTable()
 	session.components = components()

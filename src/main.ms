@@ -11,7 +11,7 @@ import "triples"
 import "logging/logging"
 import "vt"
 import "session"
-import "prompt"
+import "repl/repl"
 import "rule"
 import "domain"
 import "knowledge"
@@ -21,6 +21,9 @@ import "knowledge"
 // to the plain name the rest of this file uses.
 cli = globals["cli/cli"]
 logging = globals["logging/logging"]
+// The prompt library lives in the folder src/repl, so its module is named by the path it was
+// given and aliased here, the way the two submodules are.
+repl = globals["repl/repl"]
 
 // ── Logging ──────────────────────────────────────────────────────────────────
 // Console output plus a daily rolling file under logs/ (app-YYYYMMDD.log, with
@@ -249,7 +252,7 @@ replSession = function()
 		"types": types,
 		"paths": domainPaths,
 		"knowledge": globals["knowledge"],
-		"prompt": globals["prompt"],
+		"prompt": repl,
 		"io": {
 			"read": function(question)
 				return input(question)

@@ -376,7 +376,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-445 passed, 0 failed
+446 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -388,12 +388,12 @@ A test runner asks for part of the suite instead, and `test/harness.ms` gives it
 per check to read:
 
 ```
-> "%MINISCRIPT_EXE_PATH%" test\run.ms --json --file repl.ms --filter "a rule line parses"
+> "%MINISCRIPT_EXE_PATH%" test\run.ms --json --file session.ms --filter "a rule line parses"
 PASS  a rule line parses
-##TEST {"name":"a rule line parses","status":"pass","file":"repl.ms","line":30}
+##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 444 skipped
-##END {"passed":1,"failed":0,"skipped":444}
+1 passed, 0 failed, 445 skipped
+##END {"passed":1,"failed":0,"skipped":445}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -403,17 +403,17 @@ the suite reached the end. The VS Code extension's Testing panel passes exactly 
 arguments, so its tree and its runs come from the suite rather than from a list kept
 beside it.
 
-The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 445 here cover the program itself: display and parsing (22), the
+The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 446 here cover the program itself: display and parsing (22), the
 knowledge data format (78), the predicate schema (25), the loaders (16), proofs and
 explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations
-including the family rules (89), the session at the prompt (101), the prompt library itself
-(36), and the domain (10).
+including the family rules (89), the session at the prompt (101), the repl library itself
+(37), and the domain (10).
 
 ## Repository layout
 
 ```
 src/main.ms          options, logging, and the session at the prompt
-src/prompt.ms        the loop, the commands and the component save, with no domain in them
+src/repl/repl.ms     the loop, the commands and the component save, with no domain in them
 src/session.ms       the session's knowledge side: facts, rules, questions
 src/triples.ms       the solver: terms, unification, search, proofs
 src/rule.ms          the Rule class
@@ -425,10 +425,10 @@ src/domain.ms        places a domain's facts, rules and schema
 data/facts.kb        the 54 facts, as text
 data/rules.kb        the fourteen rules, as text
 data/schema.kb       the field types, as text
-examples/notes.ms    a whole host for prompt.ms that is not a knowledge base
+examples/notes.ms    a whole host for the repl library that is not a knowledge base
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
-test/                the 445 checks and their runner
+test/                the 446 checks and their runner
 docs/articles/       the long-form write-up
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env

@@ -1,8 +1,8 @@
-// notes.ms — a host for prompt.ms that is not a knowledge base.
+// notes.ms — a host for the repl library that is not a knowledge base.
 //
 // The prompt library says of itself that nothing in it knows what a fact is. This is that claim
-// kept in the repository rather than argued: a session of notes, built on prompt.ms and nothing
-// else. No triples, no facts, no rules, no schema, no colors and no path finding - the library
+// kept in the repository rather than argued: a session of notes, built on the repl library and
+// nothing else. No triples, no facts, no rules, no schema, no colors and no path finding - the library
 // asks for none of them unless a session says it has them.
 //
 // What comes from the library: the loop, /help, /exit, the refusal of an unknown command, and
@@ -16,15 +16,15 @@
 // it: a list with nothing in it is still a list, which is a different answer from a component
 // saying it has nothing to save, and the two are kept apart on purpose.
 
-import "../src/prompt"
+import "../src/repl/repl"
 
-prompt = globals["../src/prompt"]
+repl = globals["../src/repl/repl"]
 
 // ── The session's own state ──────────────────────────────────────────────────
 
 countCommand = function(session, command, argument)
 	"Says how many notes there are."
-	prompt.say(session, "note", "  " + prompt.countText(session.notes.len, "note"))
+	repl.say(session, "note", "  " + repl.countText(session.notes.len, "note"))
 	return false
 end function
 
@@ -33,7 +33,7 @@ clearCommand = function(session, command, argument)
 	session.notes = []
 	// "added" is this host's own role, not one of the library's: a change to what the session
 	// holds. A painter it does not know is a painter the example does not need.
-	prompt.say(session, "added", "  cleared the notes")
+	repl.say(session, "added", "  cleared the notes")
 	return false
 end function
 
@@ -63,7 +63,7 @@ end function
 handle = function(session, line)
 	"A line that is not a command is one more note."
 	session.notes.push(line)
-	prompt.say(session, "added", "  noted: " + line)
+	repl.say(session, "added", "  noted: " + line)
 end function
 
 // ── Wiring, then the loop ────────────────────────────────────────────────────
@@ -91,5 +91,5 @@ session.components = [
 ]
 session.pathFor = @notesPath
 
-prompt.say(session, "note", "Every line is a note. /count, /clear, /save-notes, /help, /exit.")
-prompt.run(session)
+repl.say(session, "note", "Every line is a note. /count, /clear, /save-notes, /help, /exit.")
+repl.run(session)

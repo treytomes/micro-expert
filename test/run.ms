@@ -5,7 +5,7 @@
 //
 // A test runner asks for part of the suite instead:
 //
-//   miniscript.exe test\run.ms --json --filter "display with variables" --file repl.ms
+//   miniscript.exe test\run.ms --json --filter "a rule line parses" --file session.ms
 //
 // --filter takes a substring of a check's name, --file the name of a case module, and
 // --json adds the ##TEST/##END records a runner reads. See harness.ms.
@@ -21,7 +21,7 @@
 import "../src/triples"
 import "../src/rule"
 import "../src/session"
-import "../src/prompt"
+import "../src/repl/repl"
 import "../src/knowledge"
 import "../src/domain"
 import "harness"
@@ -30,9 +30,9 @@ import "proofs"
 import "absence"
 import "recursion"
 import "relations"
-import "repl"
+import "session"
 import "knowledge"
-import "prompt"
+import "repl"
 import "schema"
 import "loaders"
 import "domain"
@@ -70,13 +70,14 @@ triples = globals["../src/triples"]
 // rule.ms holds the Rule class; the cases build the rules they test with it.
 rules = globals["../src/rule"]
 // session.ms holds no classes, but it is handed over all the same, so every case works
-// with the one copy of everything. It is aliased to `sessionModule`, leaving `session`
-// free for the record a case builds.
-promptCases = globals["prompt"]
+// with the one copy of everything. It is aliased to `sessionModule`, leaving `session` to
+// this suite's own case module for it and to the record a case builds.
+sessionCases = globals["session"]
 sessionModule = globals["../src/session"]
-// prompt.ms is the generic part of the prompt, and is aliased to `files` because the name
-// `prompt` above belongs to the session module itself.
-files = globals["../src/prompt"]
+// The prompt library at src/repl/repl.ms is aliased to `replLibrary`, since `repl` is the
+// name of this suite's own case module for it.
+replCases = globals["repl"]
+replLibrary = globals["../src/repl/repl"]
 // knowledge.ms is the parser behind the data files, aliased away for the same reason:
 // `knowledge` is this suite's own case module for it.
 parser = globals["../src/knowledge"]
@@ -100,8 +101,8 @@ factsLoader = globals["../src/facts"]
 // The schema loader, for the checks that read data/schema.kb itself.
 schemaLoader = globals["../src/schema"]
 
-if triples == null or rules == null or parser == null or files == null then
-	print "error: could not import ../src/triples, ../src/rule, ../src/knowledge and ../src/prompt"
+if triples == null or rules == null or parser == null or replLibrary == null then
+	print "error: could not import ../src/triples, ../src/rule, ../src/knowledge and ../src/repl/repl"
 	exit 1
 end if
 if rulesLoader == null or factsLoader == null or schemaLoader == null then
@@ -125,8 +126,8 @@ if rules.hasIndex("Rule") == 0 then
 end if
 for name in ["run", "runCommand", "say", "ask", "trimSpace", "writeLines", "saveCommand",
 	"loadCommand", "componentCommands"]
-	if files.hasIndex(name) == 0 then
-		print "error: ../src/prompt loaded without " + name
+	if replLibrary.hasIndex(name) == 0 then
+		print "error: ../src/repl/repl loaded without " + name
 		exit 1
 	end if
 end for
@@ -137,8 +138,8 @@ proofs.run(triples, rules, harness)
 absence.run(triples, rules, harness)
 recursion.run(triples, rules, harness)
 relations.run(triples, rules, harness)
-repl.run(triples, rules, sessionModule, harness, schemaLoader, parser, files)
-promptCases.run(files, harness)
+sessionCases.run(triples, rules, sessionModule, harness, schemaLoader, parser, replLibrary)
+replCases.run(replLibrary, harness)
 schema.run(triples, parser, schemaLoader, harness)
 loaders.run(triples, rulesLoader, factsLoader, schemaLoader, harness)
 globals["domain"].run(domainModule, harness)

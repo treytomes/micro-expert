@@ -1,12 +1,12 @@
-// prompt.ms — the session at the prompt, and none of what a session is about.
+// repl.ms — the session at the prompt, and none of what a session is about.
 //
 // A prompt is a loop over one record: read a line, dispatch it when it names a command, and
 // hand anything else back to whoever owns the text. A session made of data files can describe
 // them too, and the prompt answers /save-<name> and /load-<name> for each, writing the file
 // through a swap that keeps the old copy whole. Nothing here knows what a fact is.
 //
-//   import "prompt"
-//   session = {"prompt": globals["prompt"],
+//   import "repl/repl"
+//   session = {"prompt": globals["repl/repl"],
 //       "io": {"read": @readLine, "say": @printLine},
 //       "handle": @readOneLine,
 //       "paint": @paintOneLine,                    // may be left out
@@ -38,9 +38,10 @@
 // text the prompt shows, and the words that leave besides /exit.
 //
 // Like triples.ms and rule.ms, this module is handed to the session rather than imported by
-// repl.ms, for the reason the rest of the engine is: a bare import resolves against the entry
-// script's folder, so repl.ms would find the suite's own module of the same name instead of the
-// one beside it. Nothing here holds a class, so a copy is only a copy of its functions.
+// session.ms, for the reason the rest of the engine is: a bare import resolves against the entry
+// script's folder, so session.ms would find the suite's own case module of the same name instead
+// of the one in this folder. Nothing here holds a class, so it could be imported twice safely,
+// but a session that hands in one copy is what every host here already does.
 
 // ── Talking to the reader ────────────────────────────────────────────────────
 // The session holds how to read and how to write; this module decides only what to say, and
@@ -64,7 +65,7 @@ paint = function(session, role, text)
 end function
 
 // What a painter is asked for, and all of it: a line from this module is doing one of four
-// things, so there are four roles. A host may have more of its own - repl.ms colors the facts
+// things, so there are four roles. A host may have more of its own - session.ms colors the facts
 // and answers it says itself - but these are the ones that arrive from here, and a palette that
 // does not know a role is expected to print it as it stands rather than take it for a fault.
 //

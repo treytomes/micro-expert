@@ -1,562 +1,293 @@
-// Cases for the REPL: a rule line read back as a rule, and a session driven by script.
+// Cases for the repl library on its own: the loop, the command table, and the text it hands
+// back to the host. Nothing here knows what a fact is, which is the point - the only
+// things in these sessions are lines and the functions they are given to.
 
-run = function(t, rules, repl, h, schema, knowledge, files)
-	"Checks rule-line parsing, a session's transcript, and saving its components."
-	spo = function(s, p, o)
-		return t.SpoTriple.make(s, p, o)
-	end function
-	v = function(name)
-		return t.var(name)
-	end function
-	readable = function(result)
-		return not (result isa error)
-	end function
-	printed = function(lines, text)
+run = function(library, h)
+	"Checks the loop, the command dispatch, the handoff and the components, against scripted sessions."
+	said = function(lines, text)
 		"Whether a transcript holds this line exactly."
 		return lines.indexOf(text) != null
 	end function
-	holds = function(lines, piece)
-		"Whether any transcript line holds this piece of text."
-		for line in lines
-			if line.indexOf(piece) != null then return true
-		end for
-		return false
-	end function
 
-	// ── A rule line is the line Rule.text prints ─────────────────────────────
-
-	line = "grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)"
-	parsed = t.parseRule(line)
-	h.check("a rule line parses", readable(parsed))
-	h.check("the head is the triple before the arrow",
-		parsed.head.text == "grandparent(?x, ?y)")
-	h.check("the body takes one condition per comma", parsed.body.len == 2)
-	h.check("a condition reads back as it was written",
-		parsed.body[1].text == "parent-of(?p, ?y)")
-	h.check("Rule.text gets its own line back",
-		rules.Rule.make(parsed.head, parsed.body).text == line)
-
-	constrained = t.parseRule("sibling-of(?x, ?y) <- parent-of(?p, ?x), not-equal(?x, ?y)")
-	h.check("a constraint in a body is read as a constraint",
-		readable(constrained) and constrained.body[1].text == "not-equal(?x, ?y)")
-	h.check("a line without an arrow is refused", t.parseRule("parent-of(?x, susan)") isa error)
-	h.check("a rule with no conditions is refused", t.parseRule("parent-of(?x, ?y) <- ") isa error)
-	h.check("a broken condition refuses the whole line",
-		t.parseRule("grandparent(?x, ?y) <- parent-of(?x, ?p") isa error)
-
-	// The line data/rules.kb prints for in-law-of, so a rule the session shows can be
-	// typed back in: or(...) around two and(...) alternatives.
-	choice = "in-law-of(?x, ?y) <- or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling-of(?x, ?p), married-to(?p, ?y)))"
-	chosen = t.parseRule(choice)
-	h.check("a rule line with or(...) parses", readable(chosen))
-	h.check("or(...) is one condition holding two and(...) alternatives",
-		readable(chosen) and chosen.body.len == 1 and chosen.body[0].alternatives.len == 2 and
-			chosen.body[0].alternatives[0].len == 2)
-	h.check("Rule.text gets an or(...) line back",
-		readable(chosen) and rules.Rule.make(chosen.head, chosen.body).text == choice)
-
-	// The line data/rules.kb prints for only-child-of, so a negation can be typed back in.
-	single = "only-child-of(?x, ?y) <- parent-of(?y, ?x), not(sibling-of(?x, ?q))"
-	negated = t.parseRule(single)
-	h.check("a rule line with not(...) parses", readable(negated) and negated.body.len == 2)
-	h.check("not(...) is one condition holding the body it negates",
-		readable(negated) and negated.body[1] isa t.Not and negated.body[1].body.len == 1)
-	h.check("Rule.text gets a not(...) line back",
-		readable(negated) and rules.Rule.make(negated.head, negated.body).text == single)
-
-	// ── A scripted session ───────────────────────────────────────────────────
-
-	// A session over a script of typed lines, recording what it printed and asked.
-	startSession = function(facts, ruleList, script, style=null, verbose=0, types=null, paths=null)
-		if paths == null then paths = {}
-		answers = {"lines": [], "asked": [], "at": 0}
+	// A session over a script of typed lines, recording what it printed, asked, and what the
+	// host's handle was given. options say whether this session has commands of its own and
+	// whether it paints at all; the library has to work with neither.
+	scripted = function(module, script, options)
+		seen = {"lines": [], "asked": [], "handled": [], "at": 0}
 		reader = function(question)
-			answers.asked.push(question)
-			if answers.at >= script.len then return null
-			answers.at = answers.at + 1
-			return script[answers.at - 1]
+			seen.asked.push(question)
+			// Running out of script is what a reader returning null means.
+			if seen.at >= script.len then return null
+			seen.at = seen.at + 1
+			return script[seen.at - 1]
 		end function
 		writer = function(line)
-			answers.lines.push(line)
+			seen.lines.push(line)
 		end function
-		session = {"triples": t, "Rule": rules.Rule, "facts": facts, "rules": ruleList,
-			"depth": 8, "verbose": verbose, "style": style, "schema": schema, "types": types,
-			"paths": paths, "knowledge": knowledge, "prompt": files,
-			"io": {"read": @reader, "say": @writer}}
-		repl.run(session)
-		return {"session": session, "answers": answers}
+		// No `prompt` field: the library is run directly here, and nothing in it asks the session
+		// which module it is.
+		session = {"io": {"read": @reader, "say": @writer}}
+		if options.hasIndex("commands") then
+			// A command takes the session, its own record and the rest of the line, and
+			// answers whether the session should end. Which command it is, it reads from
+			// the record, so one function could serve several.
+			echo = function(given, command, argument)
+				seen.lines.push("  " + command.name + " " + argument)
+				return false
+			end function
+			stop = function(given, command, argument)
+				return true
+			end function
+			// A note is the host's to add: /stop has none, and is listed by its name alone.
+			session.commands = [
+				{"name": "/echo", "note": "say the line back", "run": @echo},
+				{"name": "/stop", "run": @stop}]
+		end if
+		if options.hasIndex("paint") then
+			session.paint = function(given, role, text)
+				return role + ":" + text
+			end function
+		end if
+		if options.hasIndex("components") then
+			// Two described files: one written from what the session holds, and one that
+			// holds nothing and so has nothing to save. Their lines are plain words, since
+			// the library is meant not to know a format.
+			session.things = ["alpha", "beta"]
+			if not options.hasIndex("nopaths") then session.paths = {}
+			if options.hasIndex("path") then session.paths["things"] = options.path
+			session.pathFor = function(given, name)
+				// The host's own rule, kept tiny: a name without a dot gets .kb.
+				if file.name(name).indexOf(".") == null then return name + ".kb"
+				return name
+			end function
+			lines = function(given)
+				return given.things
+			end function
+			missing = function(given)
+				// The other answer a write can give: text saying why there is nothing to save.
+				return "no empties to save"
+			end function
+			blank = function(given)
+				// And a list with no lines in it, which is a file rather than nothing to save.
+				return []
+			end function
+			read = function(given, path)
+				given.things = ["one", "two", "three"]
+				return given.things
+			end function
+			session.components = [
+				{"name": "things", "singular": "thing", "write": @lines, "read": @read},
+				{"name": "empties", "singular": "empty", "possessive": "its",
+					"write": @missing, "read": @read},
+				{"name": "blanks", "singular": "blank", "write": @blank, "read": @read},
+			]
+		end if
+		// The one thing the host must supply: what to do with a line that is not a command.
+		if not options.hasIndex("nohandle") then
+			session.handle = function(given, line)
+				seen.handled.push(line)
+			end function
+		end if
+		if options.hasIndex("promptText") then session.promptText = options.promptText
+		if options.hasIndex("exitWords") then session.exitWords = options.exitWords
+		module.run(session)
+		return seen
 	end function
 
-	family = [spo("bill", "parent-of", "tim"), spo("tim", "parent-of", "anna")]
+	// ── A line that is not a command ─────────────────────────────────────────
 
-	// A question nothing answers, and the one value it asks for.
-	asked = startSession(family + [], [], ["parent-of(?p, susan)", "walter", "quit"])
-	lines = asked.answers.lines
-	h.check("the session says where the commands are", lines[0].indexOf("/help") != null)
-	h.check("a question with no answer says so",
-		printed(lines, "  no solution found at depth 8"))
-	h.check("the report names the fact still missing",
-		printed(lines, "    a fact like parent-of(?p, susan)"))
-	h.check("the session asks for the variable the report left open",
-		asked.answers.asked[1] == "  ?p = ")
-	h.check("the value it is given becomes a fact",
-		printed(lines, "  added parent-of(walter, susan)"))
-	h.check("the query's own fact is not repeated above the prompt",
-		not printed(lines, "  parent-of(?p, susan)"))
-	h.check("the fact answers the question on the next pass",
-		printed(lines, "  parent-of(walter, susan)"))
-	h.check("the fact stays in the session", asked.session.facts.len == 3)
+	plain = scripted(library, ["hello", "  spaced  ", "", "q"], {})
+	h.check("a line that is not a command goes to the host's handle",
+		plain.handled == ["hello", "spaced"])
+	h.check("the host is given the line trimmed, not as typed", plain.handled[1] == "spaced")
+	h.check("a blank line is skipped rather than handed over",
+		plain.handled.len == 2 and plain.asked.len == 4)
+	h.check("the loop asks with the prompt it was given", plain.asked[0] == "? ")
+	h.check("q leaves before the next line is read", plain.asked.len == 4)
+	short = scripted(library, ["only"], {})
+	h.check("a reader that runs out ends the session", short.handled == ["only"] and
+		short.asked.len == 2)
 
-	// A missing fact with two variables is asked about one at a time.
-	pair = startSession(family + [], [], ["aunt-of(?p, ?q)", "doris", "nina", "quit"])
-	h.check("a two-variable fact is asked for a variable at a time",
-		pair.answers.asked[1] == "  ?p = " and pair.answers.asked[2] == "  ?q = ")
-	h.check("both answers make the one fact",
-		printed(pair.answers.lines, "  added aunt-of(doris, nina)"))
-	h.check("the question is answered too",
-		printed(pair.answers.lines, "  aunt-of(doris, nina)"))
+	// ── The command table ────────────────────────────────────────────────────
 
-	// A rule typed at the prompt joins the search.
-	ruleLine = "grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)"
-	ruled = startSession(family + [], [], [ruleLine, "grandparent(?p, ?y)"])
-	h.check("a rule typed at the prompt is added",
-		printed(ruled.answers.lines, "  added rule " + ruleLine))
-	h.check("the new rule answers the next question",
-		printed(ruled.answers.lines, "  grandparent(bill, anna)"))
+	echoed = scripted(library, ["/echo hi there", "q"], {"commands": 1})
+	h.check("a command is called with its own record and the rest of the line",
+		echoed.lines == ["  /echo hi there"] and echoed.handled.len == 0)
+	h.check("a command's name is matched whatever its case",
+		scripted(library, ["/ECHO Hi", "q"], {"commands": 1}).lines == ["  /echo Hi"])
+	stopped = scripted(library, ["/stop", "never"], {"commands": 1})
+	h.check("a command that answers true ends the session", stopped.asked.len == 1 and
+		stopped.handled.len == 0)
+	helped = scripted(library, ["/help", "q"], {"commands": 1})
+	h.check("/help lists the library's commands first",
+		helped.lines[0] == "  /exit  leave the session" and
+			helped.lines[1] == "  /help  list these commands")
+	h.check("/help lists the host's commands after them, in the table's order",
+		helped.lines[2] == "  /echo  say the line back" and helped.lines[3] == "  /stop")
+	h.check("/help says nothing else", helped.lines.len == 4)
 
-	// A malformed line is refused, quoted, and the session carries on.
-	stumbling = startSession(family + [], [],
-		["parent-of(walter", "parent-of(walter, susan)", "parent-of(?p, susan)"])
-	h.check("a bad line is refused with the line quoted",
-		holds(stumbling.answers.lines, "malformed spo") and
-			holds(stumbling.answers.lines, "parent-of(walter"))
-	h.check("the session carries on after it",
-		printed(stumbling.answers.lines, "  added parent-of(walter, susan)"))
+	// A session that holds no commands is still a session: /exit and /help are the
+	// library's, so a host with nothing of its own to answer need not build a table.
+	alone = scripted(library, ["/help", "q"], {})
+	h.check("a session with no commands still answers /help", alone.lines.len == 2 and
+		alone.lines[0] == "  /exit  leave the session")
+	unknown = scripted(library, ["/nope", "after"], {})
+	h.check("an unknown command is refused", unknown.lines ==
+		["  no such command: /nope (/help lists them)"])
+	h.check("and the loop carries on with the next line", unknown.handled == ["after"])
 
-	// ── A rule's own facts are asked for, not the query's shape ────────────
+	// ── What a host may change, and what it must supply ──────────────────────
+	// The loop asks for the pieces it needs before it reads a line, so a forgotten one is
+	// a sentence rather than a failure on a line the host has never seen.
 
-	// The uncle rule is the case where asking the query's own variable would end the
-	// session by assertion: ?p is the uncle, so the report needs a parent of Susan and
-	// a male sibling of that parent.
-	uncleRule = rules.Rule.make(spo(v("x"), "uncle-of", v("y")),
-		[spo(v("p"), "parent-of", v("y")), spo(v("x"), "sibling-of", v("p")),
-			spo(v("x"), "has-gender", "male")])
-	uncle = startSession(family + [], [uncleRule],
-		["uncle-of(?p, susan)", "george", "alfonso", "y"])
-	uncleLines = uncle.answers.lines
-	uncleAsked = uncle.answers.asked
-	h.check("a rule's fact is asked for before the query's own shape",
-		uncleAsked[1] == "  ?p' = ")
-	h.check("the fact being filled is shown above its question",
-		printed(uncleLines, "  parent-of(?p', susan)"))
-	h.check("that answer is added as a fact",
-		printed(uncleLines, "  added parent-of(george, susan)"))
-	h.check("the sibling condition follows, named against the parent just given",
-		printed(uncleLines, "  sibling-of(?p, george)") and uncleAsked[2] == "  ?p = ")
-	h.check("a fact with no variable left is offered instead of asked about",
-		printed(uncleLines, "  has-gender(alfonso, male)") and
-			uncleAsked[3] == "  add it? [y/N] ")
-	h.check("yes adds it and the rules reach the answer from those facts",
-		printed(uncleLines, "  added has-gender(alfonso, male)") and
-			uncleLines[uncleLines.len - 1] == "  uncle-of(alfonso, susan)")
-	h.check("the query's own fact was never asserted", uncle.session.facts.len == 5)
+	askedText = scripted(library, ["/help", "q"], {"promptText": "notes> "})
+	h.check("a host chooses the text its prompt shows", askedText.asked[0] == "notes> ")
+	mine = scripted(library, ["q", "done"], {"exitWords": ["done"]})
+	h.check("a host chooses the words that leave, so q is then just a line",
+		mine.handled == ["q"] and mine.asked.len == 2)
 
-	// Declining the offer leaves the knowledge base as it was.
-	declined = startSession(family + [], [uncleRule],
-		["uncle-of(?p, susan)", "george", "alfonso", "n"])
-	h.check("no leaves the fact out", declined.session.facts.len == 4 and
-		not holds(declined.answers.lines, "  added has-gender"))
+	seamless = scripted(library, ["a line"], {"nohandle": 1})
+	h.check("a session with no handle says so and does not start",
+		seamless.lines.len == 1 and seamless.asked.len == 0 and
+			said(seamless.lines, "  the session cannot start without a handle, which every line that is not a command is given to"))
+	pathless = scripted(library, ["a line"], {"components": 1, "nopaths": 1})
+	h.check("a session with components and no paths says which piece is missing",
+		said(pathless.lines, "  the session cannot start without a paths map, which is where each component's file is kept"))
 
-	// A value given for a variable the rule introduces is progress, even when the rest of
-	// that rule's conditions already hold: naming the sibling lets the next pass ask for the
-	// one fact really missing, instead of the session giving up because nothing was added.
-	apart = family + [spo("bill", "sibling-of", "george"), spo("bill", "has-gender", "male")]
-	tangled = startSession(apart + [], [uncleRule], ["uncle-of(bill, ?p)", "george", "zed", "quit"])
-	h.check("a rule's fact is asked about for the variables it introduces",
-		printed(tangled.answers.lines, "      parent-of(?p', ?p)") and
-			tangled.answers.asked[1] == "  ?p' = ")
-	h.check("naming the introduced variable carries the loop to the fact really missing",
-		tangled.answers.asked[2] == "  ?p = " and
-			printed(tangled.answers.lines, "  added parent-of(george, zed)") and
-			tangled.answers.lines[tangled.answers.lines.len - 1] == "  uncle-of(bill, zed)" and
-			tangled.session.facts.len == 5)
+	// ── Painting, once the host says how ─────────────────────────────────────
 
-	// A condition a rule already derives - not a stored fact, but provable from the rules -
-	// is treated the same as one already stored: the fill does not offer to add it, and the
-	// loop still reaches the one fact that is genuinely missing. Here bill and george are
-	// derivably siblings, so only a child for george is missing.
-	siblingRule = rules.Rule.make(spo(v("x"), "sibling-of", v("y")),
-		[spo(v("p"), "parent-of", v("x")), spo(v("p"), "parent-of", v("y")),
-			t.NotEqual.make(v("x"), v("y"))])
-	// Two sets of parents keep parent-of(?p, ?y) open in the report, so the fill asks for the
-	// sibling by name; oliver and clara are derivably siblings through henry, so once the
-	// sibling is named the only fact still missing is a child for clara.
-	kin = [spo("henry", "parent-of", "oliver"), spo("henry", "parent-of", "clara"),
-		spo("walter", "parent-of", "bill"), spo("walter", "parent-of", "george"),
-		spo("oliver", "has-gender", "male")]
-	derivable = startSession(kin + [], [siblingRule, uncleRule],
-		["uncle-of(oliver, ?y)", "clara", "zed", "quit"])
-	h.check("a derivable condition is not offered as a fact to add",
-		not holds(derivable.answers.asked, "add it?"))
-	h.check("and the loop still reaches the fact that is really missing",
-		printed(derivable.answers.lines, "  added parent-of(clara, zed)") and
-			derivable.answers.lines[derivable.answers.lines.len - 1] == "  uncle-of(oliver, zed)")
+	painted = scripted(library, ["/help", "/echo x", "q"], {"commands": 1, "paint": 1})
+	h.check("the prompt is painted when the session paints", painted.asked[0] == "prompt:? ")
+	h.check("and so is every line the library says", painted.lines[0] == "note:  /exit  leave the session" and
+		painted.lines[4] == "  /echo x")
 
-	// An answer given under one line of a rule's block is carried to the next: ?p' = sam
-	// turns the check below it into a fact with nothing left to fill, so it is kept.
-	carried = startSession(apart + [], [uncleRule], ["uncle-of(bill, ?p)", "sam", "y"])
-	h.check("an answer is carried to the next fact of the block",
-		carried.answers.asked[1] == "  ?p' = " and
-			carried.answers.asked[2] == "  add it? [y/N] " and
-			printed(carried.answers.lines, "  added sibling-of(bill, sam)") and
-			carried.session.facts.len == 5)
-
-	// What was given is remembered for as long as the report stands, so the question that
-	// comes round again shows the fact with the value in it and asks only what is left.
-	remembered = startSession(apart + [], [uncleRule],
-		["uncle-of(bill, ?p)", "sam", "y", "alfonso"])
-	h.check("a value given once is not asked for a second time",
-		printed(remembered.answers.lines, "  parent-of(sam, ?p)") and
-			remembered.answers.asked[3] == "  ?p = " and
-			printed(remembered.answers.lines, "  added parent-of(sam, alfonso)") and
-			remembered.answers.lines[remembered.answers.lines.len - 1] == "  uncle-of(bill, alfonso)")
-	// The block above reads the same way, so the report and the question agree.
-	h.check("the report block shows the values already given",
-		printed(remembered.answers.lines, "      parent-of(sam, ?p)"))
-	// A fact the session can already prove needs nothing added, so the block stops asking
-	// for it - though it lists it while it is still only a check.
-	h.check("the report stops listing a fact the session holds",
-		not holds(remembered.answers.lines, "      sibling-of(bill, sam)") and
-			holds(remembered.answers.lines, "      sibling-of(bill, ?p')"))
-
-	// ── The query's own shape is the last thing offered ─────────────────────
-
-	// A rule in the knowledge base that cannot conclude this query leaves the query's
-	// own shape as the only fact there is to ask about.
-	unrelated = rules.Rule.make(spo(v("x"), "child-of", v("y")),
-		[spo(v("y"), "parent-of", v("x"))])
-	ownShape = startSession(family + [], [unrelated], ["parent-of(?p, susan)", "walter", "quit"])
-	h.check("the query's own shape is asked when no rule can conclude it",
-		ownShape.answers.asked[1] == "  ?p = " and
-			printed(ownShape.answers.lines, "  added parent-of(walter, susan)"))
-
-	// A goal with no variable at all is a fact to add, not a question to ask, so the
-	// ranking above only ever decides between facts that still have one.
-	settled = family + [spo("george", "parent-of", "susan")]
-	asserted = startSession(settled + [], [uncleRule], ["uncle-of(zed, susan)"])
-	h.check("a ground line is a fact, even when nothing proves it",
-		printed(asserted.answers.lines, "  added uncle-of(zed, susan)"))
-
-	// Answering by fiat is deliberate but still there: a whole fact typed where a value is
-	// asked for is a fact, with the standing any typed fact has, and the question starts
-	// again from it.
-	fiat = startSession(family + [], [uncleRule], ["uncle-of(bill, ?p)", "uncle-of(bill, zed)"])
-	h.check("a fact typed instead of a value is added, and answers the question",
-		printed(fiat.answers.lines, "  added uncle-of(bill, zed)") and
-			fiat.answers.lines[fiat.answers.lines.len - 1] == "  uncle-of(bill, zed)")
-
-	// A line that parses but still holds a variable is neither a fact to add nor a value
-	// to bind, so it is refused and the question is put again.
-	refused = startSession(family + [], [],
-		["parent-of(?p, susan)", "parent-of(walter, ?x)", "walter", "quit"])
-	h.check("a fact-shaped line with a variable is refused at a value prompt",
-		printed(refused.answers.lines,
-			"  parent-of(walter, ?x) still holds a variable: type a value, or a fact without one") and
-			refused.answers.asked.len == 4 and refused.answers.asked[2] == "  ?p = " and
-			printed(refused.answers.lines, "  added parent-of(walter, susan)"))
-
-	// ── --verbose gives the tree behind each answer, as a run does ──────────
-
-	verbose = startSession(family + [], [], ["parent-of(?p, susan)", "walter", "quit"], null, 1)
-	h.check("a verbose session prints the proof tree behind an answer",
-		printed(verbose.answers.lines, "  parent-of(walter, susan)  <- fact"))
-	verboseRule = startSession(family + [], [], [ruleLine, "grandparent(bill, ?y)"], null, 1)
-	h.check("a verbose answer names the rule behind it",
-		holds(verboseRule.answers.lines, "  <- rule grandparent(?x, ?y)"))
-
-	// ── Slash commands ──────────────────────────────────────────────────────
-
-	commands = startSession(family + [], [uncleRule],
-		["/help", "/facts", "/rules", "/nope", "/exit", "parent-of(?p, susan)"])
-	commandLines = commands.answers.lines
-	h.check("/help lists every command",
-		printed(commandLines, "  /exit  leave the session") and
-			printed(commandLines, "  /undo  take back the last fact added") and
-			printed(commandLines, "  /rules  list the rules"))
-	h.check("/help lists the save and load commands",
-		printed(commandLines, "  /save-facts  write the facts to their file, or to one named") and
-			printed(commandLines, "  /load-facts  replace the facts with a file's") and
-			printed(commandLines, "  /save-schema  write the schema to its file, or to one named"))
-	h.check("/facts lists the facts it holds",
-		printed(commandLines, "  2 facts") and printed(commandLines, "    parent-of(bill, tim)"))
-	h.check("/rules lists the rules it holds",
-		printed(commandLines, "  1 rule") and
-			holds(commandLines, "    uncle-of(?x, ?y) <- parent-of(?p, ?y)"))
-	h.check("an unknown command is refused",
-		printed(commandLines, "  no such command: /nope (/help lists them)"))
-	h.check("/exit leaves before the next line is read", commands.answers.asked.len == 5)
-
-	// ── Taking a fact back ───────────────────────────────────────────────────
-
-	taken = startSession(family + [], [], ["parent-of(walter, susan)", "/undo", "/undo"])
-	h.check("/undo takes back the fact just added",
-		printed(taken.answers.lines, "  took back parent-of(walter, susan)"))
-	h.check("the knowledge base loses it again", taken.session.facts.len == 2)
-	h.check("/undo with nothing to take back says so",
-		printed(taken.answers.lines, "  nothing to take back"))
-
-	// A wrong answer can be taken back while the session is still asking, and the
-	// question is put again.
-	wrong = startSession(family + [], [],
-		["parent-of(walter, susan)", "aunt-of(?p, susan)", "/undo", "nina"])
-	h.check("a wrong fact is taken back from inside a question",
-		printed(wrong.answers.lines, "  took back parent-of(walter, susan)") and
-			wrong.answers.asked[2] == "  ?p = " and wrong.answers.asked[3] == "  ?p = ")
-	h.check("the question is asked again and answered",
-		printed(wrong.answers.lines, "  added aunt-of(nina, susan)") and
-			wrong.session.facts.len == 3)
-
-	// ── Painting is the same style table, so it is opt-in the same way ──────
-
-	mark = {"prompt": "<p>", "added": "<a>", "answer": "<n>", "warning": "<w>", "normal": "</>"}
-	painted = startSession(family + [], [], ["parent-of(?p, susan)", "walter", "quit"], mark)
-	h.check("a painted prompt opens and closes", painted.answers.asked[0] == "<p>? </>")
-	h.check("a painted gap warning closes its line",
-		printed(painted.answers.lines, "<w>  no solution found at depth 8</>"))
-	h.check("a painted added fact is marked as such",
-		printed(painted.answers.lines, "<a>  added parent-of(walter, susan)</>"))
-	h.check("a painted answer wraps the whole line",
-		printed(painted.answers.lines, "<n>  parent-of(walter, susan)</>"))
-
-	// ── Numbers, and the schema a typed fact is held against ─────────────────
-
-	// An age is stored as a number, so a number typed in a question has to meet one:
-	// the prompt reads a field with the same term parser the loaders use.
-	aged = startSession([spo("bill", "has-age", 54)], [], ["has-age(?p, 54)"])
-	h.check("a number typed in a question meets the fact it was stored as",
-		printed(aged.answers.lines, "  has-age(bill, 54)"))
-
-	ageTypes = {"has-age": ["text", "number"]}
-	missed = startSession([spo("bill", "has-age", 54)], [], ["has-age(bill, twenty)"],
-		null, 0, ageTypes)
-	h.check("a fact that misses the schema is refused",
-		printed(missed.answers.lines,
-			"  refused: has-age(bill, twenty): the object should be a number"))
-	h.check("and a refused fact is not stored", missed.session.facts.len == 1)
-	fitted = startSession([], [], ["has-gender(walter, boy)"], null, 0,
-		{"has-gender": ["text", "male|female"]})
-	h.check("a value outside the schema's list is refused",
-		printed(fitted.answers.lines, "  refused: has-gender(walter, boy): the object should be one of: male, female"))
-	h.check("a fact that fits the schema is added",
-		startSession([], [], ["has-age(tim, 24)"], null, 0, ageTypes).session.facts.len == 1)
-
-	// A question is held against the schema before it is searched, so a field already given
-	// as a value that no fact could ever carry is refused at once: the search would find
-	// nothing, and asking the question's own variable would only set up a fact the same
-	// check refuses.
-	asked = startSession([spo("bill", "has-age", 54)], [], ["has-age(?a, twenty)"],
-		null, 0, ageTypes)
-	h.check("a question whose value misses the schema is refused",
-		printed(asked.answers.lines,
-			"  refused: has-age(?a, twenty): the object should be a number"))
-	h.check("and a refused question asks for nothing",
-		asked.answers.asked.len == 2 and asked.answers.asked[1] == "? " and
-			not holds(asked.answers.lines, "no solution"))
-
-	// A value that completes a fact the schema refuses changes nothing, so the question
-	// stops there rather than asking the same variable again.
-	refused = startSession([], [], ["has-age(tim, ?n)", "twenty"], null, 0, ageTypes)
-	h.check("a value that makes a refused fact is refused",
-		printed(refused.answers.lines,
-			"  refused: has-age(tim, twenty): the object should be a number"))
-	h.check("and the question ends instead of asking again",
-		refused.answers.asked.len == 3 and refused.answers.asked[2] == "? ")
-
-	// A question may name its predicate with a variable, which no schema can type, so that
-	// question is searched as it always was.
-	open = startSession([], [], ["?p(?a, ?b)"], null, 0, ageTypes)
-	h.check("a question with a variable predicate is not refused",
-		not holds(open.answers.lines, "refused"))
-
-	// A comparison's name is a shape a rule body checks, not a predicate a fact stores, so
-	// typing one as a fact is refused rather than filed away as something the solver proves.
-	stored = startSession([], [], ["less-than-or-equal(5, 3)"])
-	h.check("a constraint cannot be stored as a fact",
-		printed(stored.answers.lines,
-			"  refused: less-than-or-equal(5, 3): the predicate is a constraint, checked in a rule body rather than stored or asked") and
-			stored.session.facts.len == 0)
-	// A comparison asked as a question is refused the same way, before the search: no fact
-	// could ever carry it, so the report and its prompts would only be asking for nonsense.
-	question = startSession([], [], ["less-than-or-equal(?n, 18)"])
-	h.check("a constraint cannot be asked as a question",
-		printed(question.answers.lines,
-			"  refused: less-than-or-equal(?n, 18): the predicate is a constraint, checked in a rule body rather than stored or asked") and
-			question.answers.asked.len == 2 and not holds(question.answers.lines, "no solution"))
-
-	// ── Saving and loading the domain's components ──────────────────────────
-	// The commands write what the session holds in the format the loaders read, so these
-	// cases write real files under the temp folder and read them back.
+	// ── Components ───────────────────────────────────────────────────────────
+	// A component is a description, and the library builds the commands from it: no name is
+	// written anywhere else, and one save serves every component.
 
 	temp = "."
 	if env.hasIndex("TEMP") then temp = env["TEMP"]
 	if env.hasIndex("TMP") then temp = env["TMP"]
 	scratch = function(name)
-		"Where a case's file goes: the temp folder, under a name only this suite uses."
-		return file.child(temp, "micro-expert-test-" + name)
-	end function
-	writeFile = function(path, lines)
-		handle = file.open(path, "w")
-		if handle isa error then return handle
-		for line in lines
-			handle.writeLine(line)
-		end for
-		handle.close
-		return null
-	end function
-	readBack = function(path)
-		lines = file.readLines(path)
-		if lines isa error then return []
-		return lines
+		return file.child(temp, "micro-expert-repl-" + name)
 	end function
 
-	// A save with no name writes to the file the component came from.
-	factsPath = scratch("facts.kb")
-	savedFacts = startSession(family + [], [], ["/save-facts"], null, 0, null,
-		{"facts": factsPath})
-	written = readBack(factsPath)
-	file.delete(factsPath)
-	h.check("/save-facts writes the facts to their file", written.len == 2 and
-		written[0] == "parent-of(bill, tim)" and written[1] == "parent-of(tim, anna)")
-	h.check("and says how many it wrote",
-		holds(savedFacts.answers.lines, "  wrote 2 facts to " + factsPath))
+	thingsPath = scratch("things.kb")
+	leftover = file.delete(thingsPath)
+	saved = scripted(library, ["/save-things " + thingsPath, "q"], {"components": 1})
+	back = file.readLines(thingsPath)
+	leftover = file.delete(thingsPath)
+	h.check("a save writes the lines the component gives", back == ["alpha", "beta"])
+	h.check("a save says how many it wrote", said(saved.lines, "  wrote 2 things to " + thingsPath))
 
-	// A name given at the prompt is used, with .kb added when it has no extension, and
-	// becomes the file the next save writes.
-	namedPath = scratch("named")
-	named = startSession(family + [], [], ["/save-facts " + namedPath], null, 0, null, {})
-	namedFile = namedPath + ".kb"
-	namedLines = readBack(namedFile)
-	file.delete(namedFile)
-	h.check("a name with no extension gets .kb", namedLines.len == 2)
-	h.check("and becomes the facts file the session saves to",
-		named.session.paths.facts == namedFile)
+	// The name typed at the prompt is the host's to read, so .kb is added by its rule, not
+	// the library's, and the path reported back is the one that was written.
+	bare = scratch("bare")
+	bareFile = bare + ".kb"
+	leftover = file.delete(bareFile)
+	namedSave = scripted(library, ["/save-things " + bare, "q"], {"components": 1})
+	named = file.exists(bareFile)
+	leftover = file.delete(bareFile)
+	h.check("a bare name is left to the session's own path rule", named == 1)
+	h.check("and the path it was written to is the one reported",
+		said(namedSave.lines, "  wrote 2 things to " + bareFile))
 
-	// Loading replaces what the session holds, and what was loaded is the base /undo can
-	// no longer reach past.
-	loadedPath = scratch("loaded-facts.kb")
-	writeFile(loadedPath, ["has-gender(walter, male)", "parent-of(walter, bill)"])
-	loaded = startSession([], [], ["/load-facts " + loadedPath, "/undo"], null, 0, null, {})
-	file.delete(loadedPath)
-	h.check("/load-facts replaces the facts with the file's", loaded.session.facts.len == 2 and
-		loaded.session.facts[1].text == "parent-of(walter, bill)")
-	h.check("the loaded facts are the base /undo cannot reach past",
-		printed(loaded.answers.lines, "  nothing to take back"))
-	h.check("and it says what it read", holds(loaded.answers.lines, "  loaded 2 facts from "))
+	thingsPath = scratch("again.kb")
+	leftover = file.delete(thingsPath)
+	remembered = scripted(library, ["/save-things " + thingsPath, "/save-things", "q"],
+		{"components": 1})
+	leftover = file.delete(thingsPath)
+	h.check("a save remembers its file, so a bare save goes there again",
+		remembered.lines.len == 2 and remembered.lines[1] == "  wrote 2 things to " + thingsPath)
 
-	// Rules are written as the data file spells them, with => between head and body.
-	uncle = "uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)"
-	unclePieces = t.parseRule(uncle)
-	rulePath = scratch("rules.kb")
-	savedRules = startSession(family + [], [rules.Rule.make(unclePieces.head, unclePieces.body)],
-		["/save-rules"], null, 0, null, {"rules": rulePath})
-	writtenRule = readBack(rulePath)
-	file.delete(rulePath)
-	h.check("/save-rules writes the rule as 'head => conditions'", writtenRule.len == 1 and
-		writtenRule[0] == "uncle-of(?x, ?y) => parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)")
-	h.check("and says how many rules it wrote",
-		holds(savedRules.answers.lines, "  wrote 1 rule to "))
+	// A file the session started with is a path it already holds, not a name typed at the
+	// prompt: an extensionless one is written where it is, rather than gaining .kb and
+	// landing beside itself. This session says nothing about finding a path either.
+	extensionless = scratch("named-without-extension")
+	leftover = file.delete(extensionless)
+	leftover = file.delete(extensionless + ".kb")
+	plainSave = scripted(library, ["/save-things", "q"], {"components": 1, "path": extensionless})
+	inPlace = file.exists(extensionless)
+	beside = file.exists(extensionless + ".kb")
+	leftover = file.delete(extensionless)
+	leftover = file.delete(extensionless + ".kb")
+	h.check("a component's own file is used as it is, with no extension added",
+		inPlace == 1 and beside == 0)
+	h.check("and the save says it wrote there",
+		said(plainSave.lines, "  wrote 2 things to " + extensionless))
 
-	// A loaded rule joins the search, which is the point of keeping the format writeable.
-	rulePath = scratch("loaded-rules.kb")
-	writeFile(rulePath, ["grandparent(?x, ?y) => parent-of(?x, ?p), parent-of(?p, ?y)"])
-	loadedRules = startSession(family + [], [],
-		["/load-rules " + rulePath, "grandparent(bill, ?who)"], null, 0, null, {})
-	file.delete(rulePath)
-	h.check("/load-rules replaces the rules with the file's", loadedRules.session.rules.len == 1 and
-		loadedRules.session.rules[0].text ==
-			"grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)")
-	h.check("and the loaded rule answers a question",
-		printed(loadedRules.answers.lines, "  grandparent(bill, anna)"))
+	unnamed = scripted(library, ["/save-things", "q"], {"components": 1})
+	h.check("a component with no file to fall back on says how to name one",
+		said(unnamed.lines, "  no things file to use: name one, as /save-things FILE"))
+	emptySave = scripted(library, ["/save-empties " + scratch("empties.kb"), "q"], {"components": 1})
+	h.check("a component that says it has nothing to save says so in its own words",
+		said(emptySave.lines, "  no empties to save"))
 
-	// The schema is written and read the same way, and a loaded one is used at once.
-	schemaPath = scratch("schema.kb")
-	savedSchema = startSession([], [], ["/save-schema"], null, 0,
-		{"has-age": ["text", "number"]}, {"schema": schemaPath})
-	writtenSchema = readBack(schemaPath)
-	file.delete(schemaPath)
-	h.check("/save-schema writes one predicate per line", writtenSchema.len == 1 and
-		writtenSchema[0] == "has-age(text, number)")
+	// An empty list is not "nothing to save": it is a file with no lines in it, which is how a
+	// session empties a file it no longer holds anything for.
+	blankPath = scratch("blank.kb")
+	leftover = file.delete(blankPath)
+	blankSave = scripted(library, ["/save-blanks " + blankPath, "q"], {"components": 1})
+	blankLines = file.readLines(blankPath)
+	leftover = file.delete(blankPath)
+	h.check("a component that answers no lines writes an empty file",
+		blankLines.len == 0 and said(blankSave.lines, "  wrote 0 blanks to " + blankPath))
 
-	schemaPath = scratch("loaded-schema.kb")
-	writeFile(schemaPath, ["has-age(text, number)"])
-	loadedSchema = startSession([], [],
-		["/load-schema " + schemaPath, "has-age(tim, twenty)"], null, 0, null, {})
-	file.delete(schemaPath)
-	h.check("/load-schema replaces the schema", loadedSchema.session.types.hasIndex("has-age") == 1)
-	h.check("and the loaded schema refuses a fact that misses it",
-		printed(loadedSchema.answers.lines,
-			"  refused: has-age(tim, twenty): the object should be a number"))
+	thingsPath = scratch("load.kb")
+	leftover = file.delete(thingsPath)
+	loadedThing = scripted(library, ["/load-things " + thingsPath, "/save-things", "q"],
+		{"components": 1})
+	leftover = file.delete(thingsPath)
+	h.check("a load hands the file to the component's read and says how many",
+		said(loadedThing.lines, "  loaded 3 things from " + thingsPath))
+	h.check("and what it loaded is what the next save writes",
+		loadedThing.lines.len == 2 and
+			loadedThing.lines[1] == "  wrote 3 things to " + thingsPath)
 
-	// What cannot be saved says why, and the session carries on.
-	noSchema = startSession([], [], ["/save-schema"], null, 0, null,
-		{"schema": scratch("empty.kb")})
-	h.check("a session with no schema has nothing to save",
-		printed(noSchema.answers.lines, "  no schema to save"))
-	unset = startSession([], [], ["/save-facts"], null, 0, null, {})
-	h.check("with no file set and none named, a save says how to name one",
-		printed(unset.answers.lines, "  no facts file to use: name one, as /save-facts FILE"))
-	missing = startSession([], [], ["/load-facts " + scratch("absent")], null, 0, null, {})
-	h.check("a missing file is reported and the session carries on",
-		holds(missing.answers.lines, "  could not read ") and missing.answers.asked.len == 2)
+	// A save is about a file rather than an addition, and arrives in the role that says so:
+	// the vocabulary is the library's, and the colors are the host's own.
+	paintedPath = scratch("painted.kb")
+	leftover = file.delete(paintedPath)
+	paintedSave = scripted(library, ["/save-things " + paintedPath, "q"],
+		{"components": 1, "paint": 1})
+	leftover = file.delete(paintedPath)
+	h.check("a save is painted as a file, not as an addition",
+		said(paintedSave.lines, "file:  wrote 2 things to " + paintedPath))
 
-	// A save builds its file under another name and swaps it in, so a write that fails
-	// leaves the file that was already there whole. A folder where the temp file goes is
-	// a write that cannot start.
-	keptPath = scratch("kept-facts.kb")
-	writeFile(keptPath, ["parent-of(bill, tim)"])
-	blocked = keptPath + ".tmp"
-	made = file.makedir(blocked)
-	blockedSave = startSession(family + [], [], ["/save-facts"], null, 0, null, {"facts": keptPath})
-	kept = readBack(keptPath)
-	stillThere = file.info(blocked).isDirectory
-	removed = file.delete(blocked)
-	file.delete(keptPath)
-	h.check("a failed save says so and leaves the old file whole",
-		holds(blockedSave.answers.lines, "  could not write ") and kept.len == 1 and
-			kept[0] == "parent-of(bill, tim)")
-	h.check("and the folder that stood where the temp file goes is still there", stillThere == 1)
+	// ── The example ──────────────────────────────────────────────────────────
+	// examples/notes.ms is a whole program written on this module, so it is what proves the
+	// module stands alone in the repository rather than only in an argument. A second import
+	// in it would be that claim failing quietly.
 
-	// The name the old file is moved aside to is cleared for a file an interrupted swap
-	// left there, but a folder at that name is nobody's leftover: the save cannot swap its
-	// file in, says so, and leaves the folder and the old file where they are.
-	oldPath = scratch("kept-old-facts.kb")
-	writeFile(oldPath, ["parent-of(bill, tim)"])
-	made = file.makedir(oldPath + ".old")
-	oldBlocked = startSession(family + [], [], ["/save-facts"], null, 0, null, {"facts": oldPath})
-	keptOld = readBack(oldPath)
-	oldStillThere = file.info(oldPath + ".old").isDirectory
-	removed = file.delete(oldPath + ".old")
-	file.delete(oldPath)
-	h.check("a folder where the old copy is moved aside to stays, and the save says why",
-		holds(oldBlocked.answers.lines, "  could not write ") and oldStillThere == 1 and
-			keptOld.len == 1 and keptOld[0] == "parent-of(bill, tim)")
+	example = file.readLines(file.child("examples", "notes.ms"))
+	imports = []
+	for line in example
+		if line.indexOf("import ") == 0 then imports.push(line)
+	end for
+	h.check("the notes example imports the repl library and nothing else",
+		example.len > 0 and imports.len == 1 and 			imports[0].indexOf("src/repl/repl") != null)
 
-	// A swap that cannot put its temp file in place puts the old one back: the session's
-	// file is where it was, and no copy of it is left beside it. A temp file that is not
-	// there is a swap that cannot finish.
-	restorePath = scratch("restore-facts.kb")
-	writeFile(restorePath, ["parent-of(bill, tim)"])
-	putBack = files.swapIn(scratch("vanished"), restorePath)
-	restored = readBack(restorePath)
-	oldLeft = file.exists(restorePath + ".old")
-	file.delete(restorePath)
-	h.check("a swap that cannot finish puts the old file back", putBack isa error and
-		restored.len == 1 and restored[0] == "parent-of(bill, tim)" and oldLeft == 0)
+	helpedComponents = scripted(library, ["/help", "q"], {"components": 1})
+	h.check("/help lists a save and a load per component, after the host's own",
+		said(helpedComponents.lines, "  /save-things  write the things to their file, or to one named") and
+			said(helpedComponents.lines, "  /save-empties  write the empties to its file, or to one named") and
+			said(helpedComponents.lines, "  /load-empties  replace the empties with a file's"))
 
-	// A save that works leaves neither the temp file nor the copy of the one it replaced.
-	cleanPath = scratch("clean-facts.kb")
-	startSession(family + [], [], ["/save-facts"], null, 0, null, {"facts": cleanPath})
-	leftovers = file.exists(cleanPath + ".tmp") + file.exists(cleanPath + ".old")
-	file.delete(cleanPath)
-	h.check("a finished save leaves nothing else behind", leftovers == 0)
+	// The whole block, to the character and in the order the table is assembled: this is the
+	// transcript the module printed before it moved into src/repl, so it is what says the move
+	// changed nothing a reader sees. Every line is either a note a host supplied or one the
+	// library builds from a component's description, and the pin holds all ten of them.
+	captured = scripted(library, ["/help", "q"], {"commands": 1, "components": 1})
+	h.check("/help prints the whole block exactly as it always has", captured.lines == [
+		"  /exit  leave the session",
+		"  /help  list these commands",
+		"  /echo  say the line back",
+		"  /stop",
+		"  /save-things  write the things to their file, or to one named",
+		"  /load-things  replace the things with a file's",
+		"  /save-empties  write the empties to its file, or to one named",
+		"  /load-empties  replace the empties with a file's",
+		"  /save-blanks  write the blanks to their file, or to one named",
+		"  /load-blanks  replace the blanks with a file's",
+	])
 end function
