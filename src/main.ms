@@ -163,6 +163,7 @@ reportStyle = function
 		"note": vt.dim,
 		"prompt": vt.bold,
 		"added": vt.textColor(vt.color.olive),
+		"file": vt.textColor(vt.color.olive),
 		"answer": vt.textColor(vt.color.green),
 		"normal": vt.normal,
 	}

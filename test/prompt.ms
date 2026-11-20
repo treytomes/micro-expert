@@ -226,6 +226,16 @@ run = function(prompt, h)
 		loadedThing.lines.len == 2 and
 			loadedThing.lines[1] == "  wrote 3 things to " + thingsPath)
 
+	// A save is about a file rather than an addition, and arrives in the role that says so:
+	// the vocabulary is the library's, and the colors are the host's own.
+	paintedPath = scratch("painted.kb")
+	leftover = file.delete(paintedPath)
+	paintedSave = scripted(prompt, ["/save-things " + paintedPath, "q"],
+		{"components": 1, "paint": 1})
+	leftover = file.delete(paintedPath)
+	h.check("a save is painted as a file, not as an addition",
+		said(paintedSave.lines, "file:  wrote 2 things to " + paintedPath))
+
 	helpedComponents = scripted(prompt, ["/help", "q"], {"components": 1})
 	h.check("/help lists a save and a load per component, after the host's own",
 		said(helpedComponents.lines, "  /save-things  write the things to their file, or to one named") and

@@ -63,6 +63,16 @@ paint = function(session, role, text)
 	return session.paint(session, role, text)
 end function
 
+// What a painter is asked for, and all of it: a line from this module is doing one of four
+// things, so there are four roles. A host may have more of its own - repl.ms colors the facts
+// and answers it says itself - but these are the ones that arrive from here, and a palette that
+// does not know a role is expected to print it as it stands rather than take it for a fault.
+//
+//   prompt    the text the loop waits at, while a line is being typed
+//   note      a line it lists: the commands /help prints
+//   warning   what it could not do, or will not
+//   file      a data file it wrote or read
+
 // ── Commands ─────────────────────────────────────────────────────────────────
 // A line that starts with / is aimed at the prompt rather than at the program. The table is
 // what knows the commands: a name, the note /help prints, and the function to call. The
@@ -174,7 +184,7 @@ saveCommand = function(session, command, argument)
 		return false
 	end if
 	session.paths[component.name] = path
-	say(session, "added", "  wrote " + countText(lines.len, component.singular) + " to " + path)
+	say(session, "file", "  wrote " + countText(lines.len, component.singular) + " to " + path)
 	return false
 end function
 
@@ -190,7 +200,7 @@ loadCommand = function(session, command, argument)
 	end if
 	// The file that answered becomes the one a bare command uses next.
 	session.paths[component.name] = path
-	say(session, "added", "  loaded " + countText(loaded.len, component.singular) + " from " + path)
+	say(session, "file", "  loaded " + countText(loaded.len, component.singular) + " from " + path)
 	return false
 end function
 
