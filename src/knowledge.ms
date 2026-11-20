@@ -29,13 +29,21 @@
 //
 // data/schema.kb is the third file, and it is a table rather than knowledge:
 //
-//   has-age(text, number)
+//   has-age(text, unique(number))
 //
 // one line per predicate, stored or derived, giving the type of each field in the order
 // a fact writes them. A type is number, text, boolean, or a '|' list of the values allowed. The
 // prompt checks what is typed, and what is asked, against it, so a fact no rule could
 // ever reach is refused at the door; the solver never reads it, and a predicate it does
 // not name is accepted as written.
+//
+// unique(...) around one field's type says that field holds at most one value for each
+// of the other: has-age(text, unique(number)) is one age per person, not a list of them.
+// It is a property of the pair rather than of the value - 24 fits an age wherever it
+// stands - so it is checked against the facts already held, by the prompt before it
+// stores one and by the facts loader over the whole file. A predicate a rule concludes
+// has no place where a fact is added, so unique(...) on a derived predicate is refused
+// when the program starts instead of loaded and quietly left unenforced.
 //
 // The same file format is written back by the prompt's /save-* commands, through
 // factsLines, rulesLines and schemaLines, so a file a session saves is one it can load.
@@ -66,17 +74,22 @@ parseFacts = function(triples, lines)
 	return facts
 end function
 
-loadFacts = function(triples, source, relative)
+loadFacts = function(triples, source, relative, types=null)
 	"Reads the facts file at relative from the module at source and returns its triples, or an error."
-	return loadFactsAt(triples, resolvePath(relative, source))
+	return loadFactsAt(triples, resolvePath(relative, source), types)
 end function
 
-loadFactsAt = function(triples, path)
-	"Reads the facts file at path and returns its triples, or an error."
+loadFactsAt = function(triples, path, types=null)
+	"Reads the facts file at path and returns its triples, or an error; types, when given, refuses a file that stores one pair twice."
 	lines = readLines(path)
 	if lines isa error then return lines
 	facts = parseFacts(triples, lines)
 	if facts isa error then return err(file.name(path) + " " + facts.message)
+	// Two lines can each fit the schema and still be one too many for a unique(...) field,
+	// since what that field limits is the pair, not the value, so the file is read as a
+	// whole rather than line by line.
+	repeated = uniqueRepeats(types, facts)
+	if repeated isa error then return err(file.name(path) + " " + repeated.message)
 	return facts
 end function
 
@@ -116,9 +129,46 @@ parseSchemaEntry = function(text)
 	for arg in called.args
 		type = trimSpace(arg)
 		if type == "" then return err("a field type cannot be empty: " + trimSpace(text))
+		// The field is kept as it is written, unique(...) and all, so schemaLines writes back
+		// the line this read; what the wrapper means is read off it where it is used.
+		checked = checkedFieldType(type)
+		if checked isa error then return err(checked.message + ": " + trimSpace(text))
 		types.push(type)
 	end for
 	return {"predicate": called.name, "types": types}
+end function
+
+// ── One field's type ─────────────────────────────────────────────────────────
+// A field type is a type, or unique(...) around one. The wrapped form is kept as text
+// rather than taken apart into a record, because the file is the form it has to be
+// written back in and every reader but two wants the type alone.
+
+isUniqueField = function(type)
+	"Says whether a field type is written unique(...), so the field holds at most one value per subject."
+	if type == null then return false
+	if type.len <= 8 then return false
+	return type[:7] == "unique(" and type[-1:] == ")"
+end function
+
+plainType = function(type)
+	"The type a field is checked against, with a unique(...) wrapper taken off."
+	if not isUniqueField(type) then return type
+	return trimSpace(type[7:-1])
+end function
+
+checkedFieldType = function(type)
+	"Says a field type is a whole one, or what is wrong with a unique(...) that wraps too much."
+	if type[:7] != "unique(" then return true
+	if type[-1:] != ")" then return err("unique(...) needs a closing ')'")
+	inner = trimSpace(type[7:-1])
+	if inner == "" then return err("unique(...) needs one field type")
+	// One field, so nothing nests inside it: unique(unique(number)) asks the same question
+	// twice and a call in its place asks a different one.
+	if inner.indexOf("(") != null or inner.indexOf(")") != null then
+		return err("unique(...) wraps one field type, not another call")
+	end if
+	if inner.indexOf(",") != null then return err("unique(...) wraps one field type")
+	return true
 end function
 
 schemaMisfit = function(types, triple)
@@ -140,6 +190,8 @@ end function
 fieldFits = function(term, type)
 	"Says whether one field fits one type; a variable fits any, since it is not a value yet."
 	if not (term isa number) and not (term isa string) then return true
+	// unique(...) says how many, not what, so it is not part of what a value has to be.
+	type = plainType(type)
 	if type == "number" then return term isa number
 	if type == "text" then return term isa string
 	// A boolean is the word true or the word false, since that is how one is written in
@@ -151,10 +203,83 @@ end function
 
 typeText = function(type)
 	"How one type reads in a message: 'a number', 'text', 'true or false' or 'one of: male, female'."
+	type = plainType(type)
 	if type == "number" then return "a number"
 	if type == "text" then return "text"
 	if type == "boolean" then return "true or false"
 	return "one of: " + type.split("|").join(", ")
+end function
+
+// ── One value per subject ────────────────────────────────────────────────────
+// unique(...) is the schema's one statement about how many values a pair may take, and it
+// is the one check that a single term cannot answer: a value that fits its type can still
+// be the second one for this subject. So it is checked against the facts already held,
+// not by fieldFits, and the subject slot is read first, the way schemaMisfit reads it, so
+// a fact that breaks both names the first.
+
+sameValue = function(a, b)
+	"Says whether two fields hold the same value; a variable is not a value, so it matches nothing."
+	if a isa number then return (b isa number) and a == b
+	if a isa string then return (b isa string) and a == b
+	return false
+end function
+
+uniqueClash = function(types, facts, triple)
+	"How a fact would give a unique(...) field a second value, naming the fact that holds the first, or null when it would not."
+	if types == null then return null
+	if not (triple.predicate isa string) then return null
+	if types.hasIndex(triple.predicate) == 0 then return null
+	fields = types[triple.predicate]
+	for slot in [0, 1]
+		if not isUniqueField(fields[slot]) then continue
+		for known in facts
+			// Only another fact of the same predicate can make this one a second value, and the
+			// two have to agree in the field that is not the unique one: the subject limits a
+			// unique object, and the object limits a unique subject.
+			if not (known.predicate isa string) then continue
+			if known.predicate != triple.predicate then continue
+			if slot == 1 then
+				if not sameValue(known.subject, triple.subject) then continue
+				// The same value again is a fact the caller already knows how to report, not a
+				// second one, so it is left to that.
+				if sameValue(known.object, triple.object) then continue
+				return "the object is already taken: " + known.text
+			end if
+			if not sameValue(known.object, triple.object) then continue
+			if sameValue(known.subject, triple.subject) then continue
+			return "the subject is already taken: " + known.text
+		end for
+	end for
+	return null
+end function
+
+uniqueRepeats = function(types, facts)
+	"Reads a whole file for a unique(...) field that two facts fill, as an error naming the second, or null when no pair repeats."
+	if types == null then return null
+	// Each fact is held against the ones before it, so it is never compared with itself,
+	// and the error names the line a reader would delete.
+	for at in range(0, facts.len - 1)
+		clash = uniqueClash(types, facts[:at], facts[at])
+		if clash != null then return err(facts[at].text + ": " + clash)
+	end for
+	return null
+end function
+
+derivedUniques = function(types, rules)
+	"Says which unique(...) a rule's head leaves unenforceable, as an error naming it, or null when every one is on a stored predicate."
+	if types == null then return null
+	for rule in rules
+		name = rule.head.predicate
+		if not (name isa string) then continue
+		if types.hasIndex(name) == 0 then continue
+		for slot in [0, 1]
+			if isUniqueField(types[name][slot]) then
+				return err(name + " is concluded by a rule, so a second value is never added to be refused: " +
+					"take unique(...) off its schema line")
+			end if
+		end for
+	end for
+	return null
 end function
 
 loadRules = function(triples, source, relative)

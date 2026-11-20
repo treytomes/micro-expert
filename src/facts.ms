@@ -18,8 +18,8 @@
 
 import "knowledge"
 
-build = function(triples, path=null)
-	"Reads the facts file at path - data/facts.kb when none is named - and returns its triples, or an error."
+build = function(triples, path=null, types=null)
+	"Reads the facts file at path - data/facts.kb when none is named - and returns its triples, or an error; types, when given, refuses a file that stores one pair twice."
 	if path == null then path = "../data/facts.kb"
-	return knowledge.loadFacts(triples, info(@build).sourceLoc, path)
+	return knowledge.loadFacts(triples, info(@build).sourceLoc, path, types)
 end function

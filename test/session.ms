@@ -432,6 +432,34 @@ run = function(t, rules, host, h, schema, knowledge, library)
 			numeric.session.facts[0].object isa number and
 			numeric.session.facts[0].object == 24)
 
+	// ── unique(...): one value per subject ──────────────────────────────────
+	// The schema's one statement about how many values a pair takes, and the one check a
+	// single term cannot answer: 17 fits an age and is still a second one for zed.
+
+	uniqueAge = {"has-age": ["text", "unique(number)"]}
+	again = startSession([spo("zed", "has-age", 24)], [], ["has-age(zed, 17)"], null, 0, uniqueAge)
+	h.check("a second value for a unique field is refused",
+		printed(again.answers.lines,
+			"  refused: has-age(zed, 17): the object is already taken: has-age(zed, 24)"))
+	h.check("and it is not stored", again.session.facts.len == 1)
+	// The same value again is the fact already held, which the session says in its own
+	// words, so the pair is never reported as a second one when it is the first one twice.
+	same = startSession([spo("zed", "has-age", 24)], [], ["has-age(zed, 24)"], null, 0, uniqueAge)
+	h.check("the same value again is already known, not a second one",
+		printed(same.answers.lines, "  already known: has-age(zed, 24)") and
+			same.session.facts.len == 1)
+	other = startSession([spo("zed", "has-age", 24)], [], ["has-age(tim, 17)"], null, 0, uniqueAge)
+	h.check("another subject is another pair", other.session.facts.len == 2)
+
+	// The wrapper says how many, not what, so a wrapped list is still the list the prompt
+	// offers: unique(...) does not turn a choice back into a word to remember.
+	wrapped = startSession([], [], ["has-gender(zed, ?g)", "2"], null, 0,
+		{"has-gender": ["text", "unique(male|female)"]})
+	h.check("a wrapped list is still offered as a list",
+		printed(wrapped.answers.lines, "  1) male") and
+			printed(wrapped.answers.lines, "  2) female"))
+	h.check("and the choice is stored", wrapped.session.facts[0].text == "has-gender(zed, female)")
+
 	// A question is held against the schema before it is searched, so a field already given
 	// as a value that no fact could ever carry is refused at once: the search would find
 	// nothing, and asking the question's own variable would only set up a fact the same

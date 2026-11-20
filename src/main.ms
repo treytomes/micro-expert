@@ -188,11 +188,22 @@ domainPaths = globals["domain"].pathsFor(options.values)
 // imports it gets a copy of its own, and the solver does not recognize another copy's
 // classes. So both are handed this file's copy.
 
+// The schema is read first, because a unique(...) field is a property of the whole facts
+// file rather than of one line: two facts that each fit can still be one too many for a
+// pair, so the loader has to know the types to say so.
+import "schema"
+types = globals["schema"].build(domainPaths.schema)
+if types isa error then
+	print "error: " + types.message
+	finish 1
+end if
+
 import "facts"
 import "rules"
 
-// The arrays themselves, not the module maps that hold them.
-facts = globals["facts"].build(triples, domainPaths.facts)
+// The arrays themselves, not the module maps that hold them. The facts loader is handed
+// the types, so a file that stores one pair twice is refused as the prompt would refuse it.
+facts = globals["facts"].build(triples, domainPaths.facts, types)
 if facts isa error then
 	print "error: " + facts.message
 	finish 1
@@ -203,14 +214,12 @@ if rules isa error then
 	finish 1
 end if
 
-// The field types the prompt checks a typed fact or question against, from
-// data/schema.kb. The solver never reads it: it is there for the moment something is
-// written down or asked, so a value no rule could ever reach is refused instead of
-// stored, and a question about one is refused instead of searched.
-import "schema"
-types = globals["schema"].build(domainPaths.schema)
-if types isa error then
-	print "error: " + types.message
+// A unique(...) field is enforced where a fact is added, and a predicate a rule concludes
+// is never added: it is derived. So a unique(...) on one is a promise the program has no
+// place to keep, and the schema is refused rather than loaded and left unenforced.
+unenforceable = globals["knowledge"].derivedUniques(types, rules)
+if unenforceable isa error then
+	print "error: " + unenforceable.message
 	finish 1
 end if
 

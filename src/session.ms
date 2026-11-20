@@ -171,7 +171,11 @@ end function
 
 factsRead = function(session, path)
 	"Replaces the session's facts with the file at path, answering them, or an error."
-	loaded = session.knowledge.loadFactsAt(session.triples, path)
+	// The types the session holds are handed to the reader, so a file that gives one pair
+	// two values of a unique(...) field is refused here as it would be at the prompt.
+	held = null
+	if session.hasIndex("types") then held = session.types
+	loaded = session.knowledge.loadFactsAt(session.triples, path, held)
 	if loaded isa error then return loaded
 	session.facts = loaded
 	// What was loaded is the knowledge base now, so /undo no longer reaches back past it.
@@ -269,6 +273,7 @@ addFact = function(session, triple)
 		repl.say(session, "note", "  already known: " + triple.text)
 		return false
 	end if
+	if not fitsUnique(session, triple) then return false
 	session.facts.push(triple)
 	repl.say(session, "added", "  added " + triple.text)
 	return true
@@ -287,6 +292,16 @@ fitsSchema = function(session, triple)
 	if not session.hasIndex("types") then return true
 	if session.types == null then return true
 	problem = session.schema.misfit(session.types, triple)
+	if problem == null then return true
+	repl.say(session, "warning", "  refused: " + triple.text + ": " + problem)
+	return false
+end function
+
+fitsUnique = function(session, triple)
+	"Says whether the fact takes no second value for a field the schema marks unique(...), saying which fact holds the first when it does."
+	if not session.hasIndex("types") then return true
+	if session.types == null then return true
+	problem = session.schema.uniqueClash(session.types, session.facts, triple)
 	if problem == null then return true
 	repl.say(session, "warning", "  refused: " + triple.text + ": " + problem)
 	return false
@@ -468,8 +483,10 @@ fillMissing = function(session, options, goal, given)
 		end if
 		// A completed fact the schema refuses adds nothing, so the question stops where it
 		// is: asking for the same value again would only collect the same refusal, and the
-		// report is left standing the way an empty value leaves it.
+		// report is left standing the way an empty value leaves it. A second value for a
+		// unique(...) field is refused the same way and for the same reason.
 		if not fitsSchema(session, filled) then return "stopped"
+		if not fitsUnique(session, filled) then return "stopped"
 		if addFact(session, filled) then changed = true
 	end for
 	if changed then return "changed"
@@ -539,15 +556,17 @@ end function
 // as text it would complete has-age(zed, "24"), which the schema then refuses as an age.
 
 fieldType = function(session, triple, variable)
-	"The schema's type for the field a variable stands in, or null when the schema does not type it."
+	"The schema's type for the field a variable stands in, or null when the schema does not type it; unique(...) is not part of it."
 	if not session.hasIndex("types") then return null
 	if session.types == null then return null
 	// A variable predicate names no schema line, so there is nothing to look up.
 	if not (triple.predicate isa string) then return null
 	if session.types.hasIndex(triple.predicate) == 0 then return null
 	fields = session.types[triple.predicate]
-	if standsIn(session, triple.subject, variable) then return fields[0]
-	if standsIn(session, triple.object, variable) then return fields[1]
+	// unique(...) says how many values the field takes, not which, so the prompt asks for
+	// the type inside it and a wrapped enum is still the list it wraps.
+	if standsIn(session, triple.subject, variable) then return session.schema.plainType(fields[0])
+	if standsIn(session, triple.object, variable) then return session.schema.plainType(fields[1])
 	return null
 end function
 

@@ -17,6 +17,32 @@ run = function(t, parser, schemaLoader, h)
 	h.check("a schema document parses", not (types isa error) and types.len == 3)
 	h.check("a field type is kept as written", types["has-age"][1] == "number")
 	h.check("a list of values is one type", types["has-gender"][1] == "male|female")
+
+	// unique(...) wraps one field's type, and the type inside it is what a value meets. The
+	// wrapper is kept as it was written, so the line a session saves is the line it read.
+	wrapped = parser.parseSchema([
+		"has-age(text, unique(number))",
+		"has-gender(text, unique(male|female))",
+	])
+	h.check("unique(...) is kept as written", wrapped["has-age"][1] == "unique(number)")
+	h.check("a wrapped value is checked against the type inside",
+		parser.schemaMisfit(wrapped, spo("tim", "has-age", 24)) == null)
+	h.check("and a refusal names that type, not the wrapper",
+		parser.schemaMisfit(wrapped, spo("tim", "has-age", "twenty")) == "the object should be a number")
+	h.check("a wrapped list is still a list",
+		parser.schemaMisfit(wrapped, spo("tim", "has-gender", "boy")) ==
+			"the object should be one of: male, female")
+
+	// unique(...) wraps exactly one type: nothing nests inside it, and a comma asks for a
+	// second field where a type stood. A bare unique is an ordinary word, so a domain that
+	// allows the value unique still writes it as it always did.
+	h.check("unique() needs a type", parser.parseSchema(["has-age(text, unique())"]) isa error)
+	h.check("unique(...) wraps one type, not two",
+		parser.parseSchema(["has-age(text, unique(number, number))"]) isa error)
+	h.check("unique(...) does not nest",
+		parser.parseSchema(["has-age(text, unique(unique(number)))"]) isa error)
+	h.check("a bare unique is an ordinary value",
+		not (parser.parseSchema(["has-favourite(text, unique)"]) isa error))
 	h.check("comments and blank lines are skipped",
 		parser.parseSchema(["// a note", "", "has-age(text, number)"]).len == 1)
 
@@ -60,14 +86,37 @@ run = function(t, parser, schemaLoader, h)
 	h.check("a variable fits any type, being no value yet",
 		parser.schemaMisfit(types, spo(t.var("x"), "has-age", t.var("n"))) == null)
 
+	// unique(...) is the one check a single term cannot answer: a value that fits its type
+	// can still be the second one for that subject, so it is held against the facts.
+	ages = {"has-age": ["text", "unique(number)"]}
+	h.check("a second value for a unique field is a clash",
+		parser.uniqueClash(ages, [spo("zed", "has-age", 24)], spo("zed", "has-age", 17)) ==
+			"the object is already taken: has-age(zed, 24)")
+	h.check("another subject is another pair",
+		parser.uniqueClash(ages, [spo("zed", "has-age", 24)], spo("tim", "has-age", 17)) == null)
+	// A unique subject limits the other direction: one subject per object, not one object
+	// per subject. Which slot the wrapper sits on is what says which way round it reads.
+	capitals = {"has-capital": ["unique(text)", "text"]}
+	h.check("a unique subject is one per object",
+		parser.uniqueClash(capitals, [spo("paris", "has-capital", "france")],
+			spo("london", "has-capital", "france")) ==
+			"the subject is already taken: has-capital(paris, france)")
+	likes = {"likes": ["text", "text"]}
+	h.check("a field that is not unique takes a second value",
+		parser.uniqueClash(likes, [spo("zed", "likes", "tea")], spo("zed", "likes", "coffee")) == null)
+
 	// ── The file the program ships ───────────────────────────────────────────
 
 	shipped = schemaLoader.build()
 	h.check("data/schema.kb loads", not (shipped isa error))
 	if shipped isa error then return
 	h.check("data/schema.kb names sixteen predicates", shipped.len == 16)
-	h.check("an age's object is a number", shipped["has-age"][1] == "number")
-	h.check("a gender is one of two names", shipped["has-gender"][1] == "male|female")
+	h.check("an age's object is a number, and one per person",
+		shipped["has-age"][1] == "unique(number)")
+	h.check("a gender is one of two names, and one per person",
+		shipped["has-gender"][1] == "unique(male|female)")
+	h.check("a spouse is not marked unique, so the rule that reverses it can run",
+		shipped["married-to"][1] == "text")
 	h.check("a parent is text either way", shipped["parent-of"].join("|") == "text|text")
 	// A derived predicate is typed by the rules that conclude it: sibling-of links the two
 	// people parent-of links, and age-group's second field is one of the two words written.

@@ -8,11 +8,18 @@
 //   text      any text, which is what a person or a word is here
 //   boolean   the word true or the word false
 //   a|b|c     one of these words, exactly
+//   unique(t) t, and at most one such value per subject: unique(number)
 //
 // The prompt holds a typed fact against this before storing it, so has-age(tim, twenty)
 // is refused rather than filed away where no rule could ever reach it. A question is held
 // to it too, before it is searched, so has-age(?a, twenty) is refused where it is typed. A
 // predicate the file does not name is accepted as it is written.
+//
+// unique(...) around a field's type is about the pair rather than the value: has-age's
+// number is one per person, so a second age for tim is refused by the prompt and by the
+// loader, which is why this file is read before the facts are. A stored predicate is the
+// only kind that can carry it, since a fact a rule concludes is never added, and a
+// schema line that puts one on a derived predicate is refused when the program starts.
 //
 // Both stored and derived predicates are listed, because both can be written and asked at
 // the prompt. A stored predicate's line comes from the facts that use it; a derived one's
@@ -27,8 +34,8 @@
 
 parent-of(text, text)
 married-to(text, text)
-has-gender(text, male|female)
-has-age(text, number)
+has-gender(text, unique(male|female))
+has-age(text, unique(number))
 
 // ── Derived by rules ─────────────────────────────────────────────────────────
 

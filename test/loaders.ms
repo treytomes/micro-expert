@@ -131,6 +131,15 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 		print "      " + problem
 	end for
 
+	// A unique(...) field is enforced where a fact is added, and a fact a rule concludes is
+	// never added, so the shipped schema may not put one on a derived predicate: the file
+	// would read as a promise the program cannot keep.
+	unenforceable = null
+	if not (types isa error) then unenforceable = schemaLoader.derivedUniques(types, loadedRules)
+	h.check("data/schema.kb marks no derived predicate unique",
+		not (types isa error) and unenforceable == null)
+	if unenforceable isa error then print "      " + unenforceable.message
+
 	// ── A file named instead of the shipped one ─────────────────────────────
 	// --facts, --rules and --schema hand each loader a path, so a loader given one has to
 	// read that file rather than the data folder's. The schema is the exception: it has no
@@ -177,4 +186,22 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 	file.delete(schemaPath)
 	h.check("a loader reads the schema file it is named", not (namedSchema isa error) and
 		namedSchema.hasIndex("has-age") == 1)
+
+	// A unique(...) field limits the pair, not the value, so the facts loader is handed the
+	// types and reads the whole file: two lines that each fit can still be one too many.
+	uniqueTypes = {"has-age": ["text", "unique(number)"]}
+	repeatedPath = scratch("repeated.kb")
+	writeFile(repeatedPath, ["has-age(zed, 24)", "has-age(zed, 17)"])
+	repeated = factsLoader.build(t, repeatedPath, uniqueTypes)
+	file.delete(repeatedPath)
+	h.check("a facts file that gives one pair two values is refused",
+		repeated isa error and
+			repeated.message.indexOf("has-age(zed, 17): the object is already taken: has-age(zed, 24)") != null)
+	if repeated isa error then print "      " + repeated.message
+	pairPath = scratch("pair.kb")
+	writeFile(pairPath, ["has-age(zed, 24)", "has-age(tim, 17)"])
+	oneEach = factsLoader.build(t, pairPath, uniqueTypes)
+	file.delete(pairPath)
+	h.check("one value each is what the field asks for",
+		not (oneEach isa error) and oneEach.len == 2)
 end function
