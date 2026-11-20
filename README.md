@@ -396,8 +396,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 463 skipped
-##END {"passed":1,"failed":0,"skipped":463}
+1 passed, 0 failed, 464 skipped
+##END {"passed":1,"failed":0,"skipped":464}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
