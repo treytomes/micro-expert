@@ -288,6 +288,26 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		printed(commandLines, "  /save-facts  write the facts to their file, or to one named") and
 			printed(commandLines, "  /load-facts  replace the facts with a file's") and
 			printed(commandLines, "  /save-schema  write the schema to its file, or to one named"))
+
+	// The block as the program itself prints it, pinned line for line: the first line is the
+	// greeting the session gives before the loop, the eleven after it are /help. The labels are
+	// the library's and the notes are this host's, so this is where the two meet - a change to
+	// either shows up here, rather than only in a run someone happens to be watching.
+	pinned = startSession([], [], ["/help", "q"])
+	h.check("the program's /help block is exactly these twelve lines", pinned.answers.lines == [
+		"Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.",
+		"  /exit  leave the session",
+		"  /help  list these commands",
+		"  /undo  take back the last fact added",
+		"  /facts  list the facts",
+		"  /rules  list the rules",
+		"  /save-facts  write the facts to their file, or to one named",
+		"  /load-facts  replace the facts with a file's",
+		"  /save-rules  write the rules to their file, or to one named",
+		"  /load-rules  replace the rules with a file's",
+		"  /save-schema  write the schema to its file, or to one named",
+		"  /load-schema  replace the schema with a file's",
+	])
 	h.check("/facts lists the facts it holds",
 		printed(commandLines, "  2 facts") and printed(commandLines, "    parent-of(bill, tim)"))
 	h.check("/rules lists the rules it holds",
