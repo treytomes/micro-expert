@@ -592,4 +592,30 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	leftovers = file.exists(cleanPath + ".tmp") + file.exists(cleanPath + ".old")
 	file.delete(cleanPath)
 	h.check("a finished save leaves nothing else behind", leftovers == 0)
+
+	// ── The entry's import order ─────────────────────────────────────────────
+	// The library is bound to nothing inside this module: it is read out of the entry's globals
+	// when this file loads, so a program that imports this module first hands it null and every
+	// call through it fails - which is what the header above says, and why a host imports
+	// "repl/repl" before it imports this module. No case can see that short of launching the
+	// program, so main.ms's two lines are pinned as text, in order.
+
+	entry = file.readLines(file.child("src", "main.ms"))
+	// A string literal holds no escapes here, so the quote an import line ends in is char(34).
+	quoteMark = char(34)
+	libraryLine = "import " + quoteMark + "repl/repl" + quoteMark
+	sessionLine = "import " + quoteMark + "session" + quoteMark
+	libraryAt = null
+	sessionAt = null
+	for i in range(0, entry.len - 1)
+		if entry[i].indexOf(libraryLine) == 0 and libraryAt == null then libraryAt = i
+		if entry[i].indexOf(sessionLine) == 0 and sessionAt == null then sessionAt = i
+	end for
+	// Found and in order, so a missing import and a flipped one fail the same check and the name
+	// still says what broke: the order.
+	ordered = 0
+	if libraryAt != null and sessionAt != null then
+		if libraryAt < sessionAt then ordered = 1
+	end if
+	h.check("the main entry imports the repl library before the session module", ordered)
 end function

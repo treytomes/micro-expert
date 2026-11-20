@@ -410,8 +410,8 @@ beside it.
 The parser and the logger are their own repositories with their own suites (32 checks and 56 respectively), and the 465 here cover the program itself: display and parsing (22), the
 knowledge data format (78), the predicate schema (25), the loaders (16), proofs and
 explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations
-including the family rules (89), the session at the prompt (103), the repl library itself
-(54), and the domain (10).
+including the family rules (89), the session at the prompt (104), the repl library itself
+(53), and the domain (10).
 
 ## Repository layout
 

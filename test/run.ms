@@ -81,7 +81,7 @@ domainModule = globals["../src/domain"]
 // rules.ms and facts.ms name their neighbours by bare import, which the interpreter resolves
 // against the entry folder, so src/ goes on the import path for those loads; session.ms reaches
 // the repl library the same way, since a two-segment import inside a module binds no name. The
-// library is imported before the session module, which reads it from globals. The path is put
+// library loads first, as src/session.ms requires; its header says why. The path is put
 // back afterwards, so the suite leaves the environment as it found it.
 savedImportPath = env["MS_IMPORT_PATH"]
 env["MS_IMPORT_PATH"] = "src"

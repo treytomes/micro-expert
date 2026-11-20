@@ -280,7 +280,7 @@ The session paints from the same style table as the report, so `NO_COLOR` turns 
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it for the session or paste the path in its place.
 
-The 465 checks are split by area: display and parsing (22), the knowledge data format (78), the predicate schema (25), the loaders (16), proofs and explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (89), the session at the prompt (103), the repl library itself (54), and the domain (10). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
+The 465 checks are split by area: display and parsing (22), the knowledge data format (78), the predicate schema (25), the loaders (16), proofs and explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (89), the session at the prompt (104), the repl library itself (53), and the domain (10). One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
 
 ## Where an LLM fits
 
