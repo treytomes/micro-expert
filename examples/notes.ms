@@ -60,7 +60,7 @@ end function
 
 // ── What a line means ────────────────────────────────────────────────────────
 
-handle = function(session, line)
+fallback = function(session, line)
 	"A line that is not a command is one more note."
 	session.notes.push(line)
 	repl.say(session, "added", "  noted: " + line)
@@ -81,7 +81,7 @@ session = {
 	},
 }
 
-session.handle = @handle
+session.fallback = @fallback
 session.commands = [
 	{"name": "/count", "note": "say how many notes there are", "run": @countCommand},
 	{"name": "/clear", "note": "forget the notes", "run": @clearCommand},

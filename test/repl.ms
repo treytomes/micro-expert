@@ -10,7 +10,7 @@ run = function(library, h)
 	end function
 
 	// A session over a script of typed lines, recording what it printed, asked, and what the
-	// host's handle was given. options say whether this session has commands of its own and
+	// host's fallback was given. options say whether this session has commands of its own and
 	// whether it paints at all; the library has to work with neither.
 	scripted = function(module, script, options)
 		seen = {"lines": [], "asked": [], "handled": [], "at": 0}
@@ -83,8 +83,8 @@ run = function(library, h)
 			]
 		end if
 		// The one thing the host must supply: what to do with a line that is not a command.
-		if not options.hasIndex("nohandle") then
-			session.handle = function(given, line)
+		if not options.hasIndex("nofallback") then
+			session.fallback = function(given, line)
 				seen.handled.push(line)
 			end function
 		end if
@@ -97,7 +97,7 @@ run = function(library, h)
 	// ── A line that is not a command ─────────────────────────────────────────
 
 	plain = scripted(library, ["hello", "  spaced  ", "", "q"], {})
-	h.check("a line that is not a command goes to the host's handle",
+	h.check("a line that is not a command goes to the host's fallback",
 		plain.handled == ["hello", "spaced"])
 	h.check("the host is given the line trimmed, not as typed", plain.handled[1] == "spaced")
 	h.check("a blank line is skipped rather than handed over",
@@ -146,10 +146,11 @@ run = function(library, h)
 	h.check("a host chooses the words that leave, so q is then just a line",
 		mine.handled == ["q"] and mine.asked.len == 2)
 
-	seamless = scripted(library, ["a line"], {"nohandle": 1})
-	h.check("a session with no handle says so and does not start",
-		seamless.lines.len == 1 and seamless.asked.len == 0 and
-			said(seamless.lines, "  the session cannot start without a handle, which every line that is not a command is given to"))
+	unheard = scripted(library, ["a line", "another"], {"nofallback": 1})
+	h.check("a session with no fallback still starts, and the loop carries on",
+		unheard.asked.len == 3 and unheard.handled.len == 0)
+	h.check("and the library says it has nothing to do with the line",
+		unheard.lines == ["  nothing to do with: a line", "  nothing to do with: another"])
 	pathless = scripted(library, ["a line"], {"components": 1, "nopaths": 1})
 	h.check("a session with components and no paths says which piece is missing",
 		said(pathless.lines, "  the session cannot start without a paths map, which is where each component's file is kept"))

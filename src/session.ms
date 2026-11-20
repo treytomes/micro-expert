@@ -42,7 +42,7 @@
 // prompt is repl/repl.ms, the prompt itself: the loop, the talk with the reader, the slash
 // commands, and the saving and loading of the components described below, none of which knows
 // what a fact is. It is handed in like triples and Rule, and what this module gives it back is
-// the reading of a line of knowledge - session.handle - the commands the session answers
+// the reading of a line of knowledge - session.fallback - the commands the session answers
 // itself, and the three components, so the library dispatches a table it was handed rather
 // than names it knows.
 //
@@ -52,7 +52,7 @@
 
 // ── What the prompt library is handed ────────────────────────────────────────
 // The library knows the loop and nothing about a fact, so the session gives it the three
-// pointers it asks for: paint, handle, and the command table. They are module-level
+// pointers it asks for: paint, fallback, and the command table. They are module-level
 // functions, never closures - a function defined inside another cannot see this module's
 // own functions in this interpreter, only the one it sits in.
 
@@ -219,7 +219,7 @@ run = function(session)
 	session.baseFacts = session.facts.len
 	// What the library needs from this module: how to read a line that is not a command,
 	// and the commands the session answers itself. The loop is the repl library's.
-	session.handle = @handleLine
+	session.fallback = @handleLine
 	session.commands = commandTable()
 	session.components = components()
 	session.pathFor = @componentPath

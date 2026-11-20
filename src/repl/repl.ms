@@ -8,7 +8,7 @@
 //   import "repl/repl"
 //   session = {"prompt": globals["repl/repl"],
 //       "io": {"read": @readLine, "say": @printLine},
-//       "handle": @readOneLine,
+//       "fallback": @readOneLine,
 //       "paint": @paintOneLine,                    // may be left out
 //       "commands": [{"name": "/facts", "note": "list the facts", "run": @listFacts}],
 //       "components": [{"name": "facts", "singular": "fact",
@@ -20,10 +20,12 @@
 //       "exitWords": ["done"]}                    // may be left out: q and quit
 //   session.prompt.run(session)
 //
-// Everything the prompt calls is a pointer, never a name it would have to know: handle takes
+// Everything the prompt calls is a pointer, never a name it would have to know: fallback takes
 // the session and every line that is not a command, so parsing stays with the host; paint takes
 // the session, a role and a piece of text; commands is the host's own table; and a component's
-// write and read are what put its data in a file and take it back out.
+// write and read are what put its data in a file and take it back out. A session that gives no
+// fallback still runs: the library answers those lines itself, saying it has nothing to do with
+// one, so the piece can be left out rather than the session being refused for it.
 //
 // A command is a record of the name typed at the prompt, the note /help prints beside it, and
 // run, the function the prompt calls with the session, the record itself, and whatever followed
@@ -231,7 +233,7 @@ end function
 
 // ── The loop ─────────────────────────────────────────────────────────────────
 // One line has one meaning: a command if it starts with /, otherwise whatever the host's
-// handle makes of it. q and quit leave as /exit does, since a session is closed by the same
+// fallback makes of it. q and quit leave as /exit does, since a session is closed by the same
 // keystrokes whatever program it belongs to - and a host with other words for it, or another
 // prompt, says so on the session and the loop uses those instead.
 
@@ -247,9 +249,20 @@ exitWordsOf = function(session)
 	return ["q", "quit"]
 end function
 
+// A session that gives no fallback is not a broken one. The library answers a line it was given
+// no use for with a warning of its own, so the loop carries on and the gap is visible rather
+// than fatal; a host with its own reading of the text overrides it by naming a fallback.
+
+defaultFallback = function(session, line)
+	"Says the session has no use for a line it was given no fallback for."
+	say(session, "warning", "  nothing to do with: " + line)
+end function
+
 // A session is a record the host fills in, so a piece left out would surface as a failure
 // inside this module, on a line the host has never seen. The loop asks first, says what is
-// missing one line at a time, and leaves the session unstarted.
+// missing one line at a time, and leaves the session unstarted. Only the pieces nothing here
+// can stand in for are asked about: how to talk, and where a component's file is. A fallback
+// is not one of them, since a session without one can still say what it makes of a line.
 
 ioHas = function(session, name)
 	"Says whether the session can read or say: its io record holds the function named."
@@ -265,9 +278,6 @@ seamProblems = function(session)
 	if not ioHas(session, "read") then
 		problems.push("something to read through (io.read)")
 	end if
-	if not session.hasIndex("handle") then
-		problems.push("a handle, which every line that is not a command is given to")
-	end if
 	if componentsOf(session).len > 0 then
 		if not session.hasIndex("paths") then
 			problems.push("a paths map, which is where each component's file is kept")
@@ -280,7 +290,7 @@ seamProblems = function(session)
 end function
 
 run = function(session)
-	"Reads lines until the session ends: commands here, every other line to the session's handle."
+	"Reads lines until the session ends: commands here, every other line to the session's fallback."
 	problems = seamProblems(session)
 	if problems.len > 0 then
 		// One line through io when there is io to say it with, and print when there is
@@ -305,7 +315,14 @@ run = function(session)
 			if runCommand(session, line) then break
 			continue
 		end if
-		session.handle(session, line)
+		// A function held in a map is invoked the moment it is read as a value in this
+		// interpreter, so the session's own fallback is called by name here rather than
+		// fetched into a variable first: fetching it would call it with no line at all.
+		if session.hasIndex("fallback") then
+			session.fallback(session, line)
+		else
+			defaultFallback(session, line)
+		end if
 	end while
 end function
 
