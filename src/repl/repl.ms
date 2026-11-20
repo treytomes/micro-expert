@@ -43,11 +43,13 @@
 // its slash at the prompt.
 //
 // A command may declare the parameters it takes, as {"name": "file", "optional": 1} records, and
-// /help renders the declaration as usage: /save-facts [FILE], or /greet WHO [MOOD]. A name is
-// written in capitals because that is how a placeholder reads, and an entry carrying optional is
-// bracketed because it may be left out. A command that declares nothing is its name and nothing
-// else, and the rest of the line reaches a command unchanged either way: the declaration changes
-// the help, not the call.
+// that one record does two things. /help renders it as usage - /save-facts [FILE], or
+// /greet WHO [MOOD] - and the loop hands the command the line split into words. A name is written
+// in capitals because that is how a placeholder reads, and an entry carrying optional is bracketed
+// because it may be left out. A line with fewer words than the declaration requires, or more than
+// it takes, is refused with the usage rather than run. A command that declares nothing is its name
+// and nothing else, and it is handed the rest of the line as it stands: the declaration is what
+// decides which of the two a command gets.
 //
 // The loop asks the session for the pieces it needs before it reads anything, so a host that
 // has left one out is told which one in a sentence, rather than meeting a failure inside this
@@ -102,11 +104,11 @@ leaveCommand = function(session, command, argument)
 	return true
 end function
 
-helpCommand = function(session, command, argument)
+helpCommand = function(session, command, parameters)
 	"Prints one command's line, or every command the session answers, in the order the table holds them."
-	if argument != "" then
+	if parameters.len > 0 then
 		// A name is typed with its slash at the prompt, so /help takes it with or without one.
-		name = argument.split(" ")[0].lower
+		name = parameters[0].lower
 		if name[0] != "/" then name = "/" + name
 		named = commandNamed(session, name)
 		if named == null then
@@ -169,9 +171,6 @@ commandNamed = function(session, name)
 	return null
 end function
 
-// What a command takes is only what its record says it takes. usage renders that, and nothing
-// else reads it: dispatch hands every command the rest of the line as it stands.
-
 usage = function(command)
 	"The command's name with the parameters it declares, as /help prints it."
 	line = command.name
@@ -192,6 +191,51 @@ commandLine = function(command)
 	return line
 end function
 
+// The rest of the line is split only for a command that declared something. A word is what a space
+// or a tab separates, and a run inside '...' or "..." is one word whatever it holds, which is how
+// a path with a space in it is typed. A quote is not escaped, since this interpreter has no escape
+// to write one with.
+
+words = function(text)
+	"Splits a line into words on spaces and tabs, keeping a quoted run together."
+	pieces = []
+	current = ""
+	quote = ""
+	at = 0
+	while at < text.len
+		c = text[at]
+		if quote != "" then
+			if c == quote then
+				quote = ""
+			else
+				current = current + c
+			end if
+		else if isSpace(c) then
+			if current != "" then
+				pieces.push(current)
+				current = ""
+			end if
+		else if c == "'" or c == char(34) then
+			quote = c
+		else
+			current = current + c
+		end if
+		at = at + 1
+	end while
+	// An unterminated quote takes the rest of the line, so what it holds is still one word.
+	if current != "" then pieces.push(current)
+	return pieces
+end function
+
+fitsParameters = function(command, parsed)
+	"Says whether the words given fit what a command declared: none missing that it requires, and none beyond what it takes."
+	required = 0
+	for parameter in command.parameters
+		if not parameter.hasIndex("optional") then required = required + 1
+	end for
+	return parsed.len >= required and parsed.len <= command.parameters.len
+end function
+
 runCommand = function(session, line)
 	"Runs the command this line names, answering whether the session should end."
 	name = line.split(" ")[0].lower
@@ -199,7 +243,18 @@ runCommand = function(session, line)
 	argument = trimSpace(line[name.len:])
 	for command in allCommands(session)
 		if command.name == name then
-			// A command answers whether the session should end, and only /exit says so.
+			// What follows the name reaches a command in one of two shapes: words for a command
+			// that declared parameters, and the trimmed rest of the line for one that did not.
+			if command.hasIndex("parameters") then
+				parsed = words(argument)
+				if not fitsParameters(command, parsed) then
+					say(session, "warning", "  usage: " + usage(command))
+					return false
+				end if
+				// A command answers whether the session should end, and only /exit says so.
+				if command.run(session, command, parsed) then return true
+				return false
+			end if
 			if command.run(session, command, argument) then return true
 			return false
 		end if
@@ -262,7 +317,7 @@ componentCommands = function(session)
 	return commands
 end function
 
-saveCommand = function(session, command, argument)
+saveCommand = function(session, command, parameters)
 	"Writes the component this command names, keeping the file it replaces whole."
 	component = command.component
 	lines = component.write(session)
@@ -271,7 +326,7 @@ saveCommand = function(session, command, argument)
 		say(session, "warning", "  " + lines)
 		return false
 	end if
-	path = componentTarget(session, component, argument, command.name)
+	path = componentTarget(session, component, parameters, command.name)
 	if path == null then return false
 	problem = writeLines(path, lines)
 	if problem isa error then
@@ -283,10 +338,10 @@ saveCommand = function(session, command, argument)
 	return false
 end function
 
-loadCommand = function(session, command, argument)
+loadCommand = function(session, command, parameters)
 	"Replaces the component this command names with the file it names, or with its own."
 	component = command.component
-	path = componentTarget(session, component, argument, command.name)
+	path = componentTarget(session, component, parameters, command.name)
 	if path == null then return false
 	loaded = component.read(session, path)
 	if loaded isa error then
@@ -299,11 +354,11 @@ loadCommand = function(session, command, argument)
 	return false
 end function
 
-componentTarget = function(session, component, argument, command)
+componentTarget = function(session, component, parameters, command)
 	"Where a save or load goes: the file the line named, or the one this component came from."
 	// A name typed at the prompt is the host's to complete; the path the session started with
 	// is not a name, and is used as it is unless the session says how to find one.
-	if argument != "" then return session.pathFor(session, argument)
+	if parameters.len > 0 then return session.pathFor(session, parameters[0])
 	path = null
 	if session.paths.hasIndex(component.name) then path = session.paths[component.name]
 	if path == null or path == "" then

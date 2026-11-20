@@ -31,8 +31,14 @@ run = function(library, h)
 			// A command takes the session, its own record and the rest of the line, and
 			// answers whether the session should end. Which command it is, it reads from
 			// the record, so one function could serve several.
+			// A declared command is given words and an undeclared one the rest of the line, so the
+			// transcript says which shape arrived: [a|b] for words, the text itself otherwise.
 			echo = function(given, command, argument)
-				seen.lines.push("  " + command.name + " " + argument)
+				if argument isa list then
+					seen.lines.push("  " + command.name + " [" + argument.join("|") + "]")
+				else
+					seen.lines.push("  " + command.name + " " + argument)
+				end if
 				return false
 			end function
 			stop = function(given, command, argument)
@@ -200,8 +206,20 @@ run = function(library, h)
 	declared = scripted(library, ["/help /greet", "/greet ann", "q"], {"commands": 1, "usage": 1})
 	h.check("/help renders a declaration as the command's usage",
 		declared.lines[0] == "  /greet WHO [MOOD]  greet someone")
-	h.check("and the command is still given the rest of the line as it stands",
-		declared.lines[1] == "  /greet ann")
+	h.check("and the command is given the line as words, not as text",
+		declared.lines[1] == "  /greet [ann]")
+
+	// A quoted run is one word, because a file name with a space in it has to be one parameter.
+	// Both quote marks work, since a reader will reach for either.
+	spoken = scripted(library, ["/greet 'ann lee' happy",
+		"/greet " + char(34) + "ann lee" + char(34) + " happy", "/greet", "/greet a b c", "q"],
+		{"commands": 1, "usage": 1})
+	h.check("a quoted run is one word", spoken.lines[0] == "  /greet [ann lee|happy]")
+	h.check("and the other quote mark does the same", spoken.lines[1] == "  /greet [ann lee|happy]")
+	h.check("a required word the line does not give is refused with the usage",
+		spoken.lines[2] == "  usage: /greet WHO [MOOD]")
+	h.check("and a line with more words than the declaration takes is refused too",
+		spoken.lines[3] == "  usage: /greet WHO [MOOD]")
 
 	// ── What a host may change, and what it must supply ──────────────────────
 	// The loop asks for the pieces it needs before it reads a line, so a forgotten one is
@@ -332,6 +350,17 @@ run = function(library, h)
 	for line in example
 		if line.indexOf("import ") == 0 then imports.push(line)
 	end for
+	// A path with a space in it is one parameter because it is quoted, which is what the words a
+	// declared command is given have to hold together for.
+	spacedPath = file.child(temp, "micro-expert repl spaced.kb")
+	leftover = file.delete(spacedPath)
+	spacedSave = scripted(library, ["/save-things '" + spacedPath + "'", "q"], {"components": 1})
+	spacedLines = file.readLines(spacedPath)
+	leftover = file.delete(spacedPath)
+	h.check("a quoted path with a space in it is one parameter",
+		spacedLines == ["alpha", "beta"] and
+			said(spacedSave.lines, "  wrote 2 things to " + spacedPath))
+
 	h.check("the notes example imports the repl library and nothing else",
 		example.len > 0 and imports.len == 1 and 			imports[0].indexOf("src/repl/repl") != null)
 
