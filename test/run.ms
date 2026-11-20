@@ -20,8 +20,6 @@
 
 import "../src/triples"
 import "../src/rule"
-import "../src/session"
-import "../src/repl/repl"
 import "../src/knowledge"
 import "../src/domain"
 import "harness"
@@ -69,15 +67,10 @@ harness.options.files = wanted.files
 triples = globals["../src/triples"]
 // rule.ms holds the Rule class; the cases build the rules they test with it.
 rules = globals["../src/rule"]
-// session.ms holds no classes, but it is handed over all the same, so every case works
-// with the one copy of everything. It is aliased to `sessionModule`, leaving `session` to
-// this suite's own case module for it and to the record a case builds.
+// `session` and `repl` are this suite's own case modules for the two files under test, so the
+// modules themselves are aliased to `sessionModule` and `replLibrary` once they are loaded below.
 sessionCases = globals["session"]
-sessionModule = globals["../src/session"]
-// The prompt library at src/repl/repl.ms is aliased to `replLibrary`, since `repl` is the
-// name of this suite's own case module for it.
 replCases = globals["repl"]
-replLibrary = globals["../src/repl/repl"]
 // knowledge.ms is the parser behind the data files, aliased away for the same reason:
 // `knowledge` is this suite's own case module for it.
 parser = globals["../src/knowledge"]
@@ -85,15 +78,23 @@ parser = globals["../src/knowledge"]
 // module below, which is named domain.ms too.
 domainModule = globals["../src/domain"]
 
-// rules.ms and facts.ms name their neighbours by bare import, which the interpreter
-// resolves against the entry folder, so src/ goes on the import path for these two
-// loads. It is put back afterwards, so the suite leaves the environment as it found it.
+// rules.ms and facts.ms name their neighbours by bare import, which the interpreter resolves
+// against the entry folder, so src/ goes on the import path for those loads; session.ms reaches
+// the repl library the same way, since a two-segment import inside a module binds no name. The
+// library is imported before the session module, which reads it from globals. The path is put
+// back afterwards, so the suite leaves the environment as it found it.
 savedImportPath = env["MS_IMPORT_PATH"]
 env["MS_IMPORT_PATH"] = "src"
+import "repl/repl"
+import "../src/session"
 import "../src/rules"
 import "../src/facts"
 import "../src/schema"
 env["MS_IMPORT_PATH"] = savedImportPath
+
+// The library and the session module, both loaded by the block above.
+replLibrary = globals["repl/repl"]
+sessionModule = globals["../src/session"]
 
 // The loaders themselves, so the cases can read the data files the program ships.
 rulesLoader = globals["../src/rules"]

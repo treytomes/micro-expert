@@ -6,8 +6,7 @@
 // through a swap that keeps the old copy whole. Nothing here knows what a fact is.
 //
 //   import "repl/repl"
-//   session = {"prompt": globals["repl/repl"],
-//       "io": {"read": @readLine, "say": @printLine},
+//   session = {"io": {"read": @readLine, "say": @printLine},
 //       "fallback": @readOneLine,                  // may be left out: the library says it has none
 //       "paint": @paintOneLine,                    // may be left out
 //       "commands": [{"name": "/facts", "note": "list the facts", "run": @listFacts}],
@@ -18,7 +17,7 @@
 //       "resolvePath": @findPath,                  // may be left out: for one that needs finding
 //       "promptText": "notes> ",                   // may be left out: '? '
 //       "exitWords": ["done"]}                    // may be left out: q and quit
-//   session.prompt.run(session)
+//   repl.run(session)
 //
 // Everything the prompt calls is a pointer, never a name it would have to know: fallback takes
 // the session and every line that is not a command, so parsing stays with the host; paint takes
@@ -56,11 +55,9 @@
 // module on a line it has never seen. promptText and exitWords are the two it may change: the
 // text the prompt shows, and the words that leave besides /exit.
 //
-// Like triples.ms and rule.ms, this module is handed to the session rather than imported by
-// session.ms, for the reason the rest of the engine is: a bare import resolves against the entry
-// script's folder, so session.ms would find the suite's own case module of the same name instead
-// of the one in this folder. Nothing here holds a class, so it could be imported twice safely,
-// but a session that hands in one copy is what every host here already does.
+// session.ms imports this module rather than being handed it: nothing here holds a class, so the
+// one-copy rule the solver needs does not apply, and the loop is the same loop whoever loaded it.
+// A host of its own imports it the same way - examples/notes.ms does - and calls run(session).
 
 // ── Talking to the reader ────────────────────────────────────────────────────
 // The session holds how to read and how to write; this module decides only what to say, and

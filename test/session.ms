@@ -82,7 +82,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		end function
 		session = {"triples": t, "Rule": rules.Rule, "facts": facts, "rules": ruleList,
 			"depth": 8, "verbose": verbose, "style": style, "schema": schema, "types": types,
-			"paths": paths, "knowledge": knowledge, "prompt": library,
+			"paths": paths, "knowledge": knowledge,
 			"io": {"read": @reader, "say": @writer}}
 		host.run(session)
 		return {"session": session, "answers": answers}

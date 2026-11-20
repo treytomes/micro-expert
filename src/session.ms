@@ -16,7 +16,7 @@
 //
 //   session = {"triples": triples, "Rule": Rule, "facts": facts, "rules": rules,
 //       "depth": 8, "verbose": 0, "style": style, "schema": schema, "types": types,
-//       "paths": paths, "knowledge": knowledge, "prompt": prompt,
+//       "paths": paths, "knowledge": knowledge,
 //       "io": {"read": reader, "say": writer}}
 //
 // schema is schema.ms, the module that knows the field-type format, and types is what it
@@ -39,18 +39,26 @@
 // a line with <- is a rule, a line with a variable in it is a question, and a ground
 // line is a fact.
 //
-// prompt is repl/repl.ms, the prompt itself: the loop, the talk with the reader, the slash
-// commands, and the saving and loading of the components described below, none of which knows
-// what a fact is. It is handed in like triples and Rule, and what this module gives it back is
-// the reading of a line of knowledge - session.fallback - the commands the session answers
-// itself, and the three components, so the library dispatches a table it was handed rather
-// than names it knows.
+// The loop, the talk with the reader, the slash commands and the saving and loading of the
+// components described below come from repl/repl.ms, none of which knows what a fact is. It is
+// imported rather than handed in - a fallback is a function, not a class, so a second copy would
+// still agree with this one - and what this module gives it back is the reading of a line of
+// knowledge (session.fallback), the commands the session answers itself, and the three
+// components, so the library dispatches a table it was handed rather than names it knows.
 //
 // Nothing here knows what a color is either: paint comes from triples.ms, and the one
 // style map main.ms builds carries the report's roles and the session's alike, so a
 // single NO_COLOR leaves the whole run plain.
 
-// ── What the prompt library is handed ────────────────────────────────────────
+// The library is a path rather than a name: a two-segment import binds no name of its own inside
+// a module in this interpreter, so the map is read from the globals the entry script shares. The
+// entry therefore imports "repl/repl" before it imports this module - main.ms and the suite both
+// do - and `repl` below is that same map.
+import "repl/repl"
+
+repl = globals["repl/repl"]
+
+// ── What the prompt library is given ────────────────────────────────────────
 // The library knows the loop and nothing about a fact, so the session gives it the two
 // pointers it asks for - paint and fallback - and the command table it dispatches. They are
 // module-level functions, never closures - a function defined inside another cannot see this
@@ -59,18 +67,6 @@
 paint = function(session, role, text)
 	"One piece of text in a role's color: the style map and the painter both come from the session."
 	return session.triples.paint(session.style, role, text)
-end function
-
-// The library says and asks; these two keep the session's own calls short.
-
-say = function(session, role, text)
-	"Prints one line in a role's color, through the prompt library."
-	return session.prompt.say(session, role, text)
-end function
-
-ask = function(session, question)
-	"Shows a prompt and reads what is typed after it, through the prompt library."
-	return session.prompt.ask(session, question)
 end function
 
 // What askValue answers when the user changes the knowledge base rather than giving a
@@ -102,17 +98,17 @@ end function
 undo = function(session)
 	"Takes back the last fact the session added; says so, or that there is none."
 	if session.facts.len <= session.baseFacts then
-		say(session, "warning", "  nothing to take back")
+		repl.say(session, "warning", "  nothing to take back")
 		return false
 	end if
 	removed = session.facts.pop
-	say(session, "added", "  took back " + removed.text)
+	repl.say(session, "added", "  took back " + removed.text)
 	return true
 end function
 
 listFacts = function(session, command, argument)
 	"Prints every fact the session holds, in the order search tries them."
-	say(session, "note", "  " + session.prompt.countText(session.facts.len, "fact"))
+	repl.say(session, "note", "  " + repl.countText(session.facts.len, "fact"))
 	for known in session.facts
 		session.io.say("    " + session.triples.paint(session.style, "fact", known.text))
 	end for
@@ -121,13 +117,13 @@ end function
 
 depthCommand = function(session, command, argument)
 	"Says how deep the search goes, which --depth set before the loop started."
-	say(session, "note", "  searching to depth " + session.depth)
+	repl.say(session, "note", "  searching to depth " + session.depth)
 	return false
 end function
 
 listRules = function(session, command, argument)
 	"Prints every rule the session holds, in the order search tries them."
-	say(session, "note", "  " + session.prompt.countText(session.rules.len, "rule"))
+	repl.say(session, "note", "  " + repl.countText(session.rules.len, "rule"))
 	for candidate in session.rules
 		session.io.say("    " + session.triples.paint(session.style, "rule", candidate.text))
 	end for
@@ -233,11 +229,11 @@ run = function(session)
 	session.paint = @paint
 	// Registered rather than seeded: this is the program's own use of the call a session makes
 	// while it is running, and it lands after the component commands the table was built from.
-	registered = session.prompt.addCommand(session, {"name": "/depth",
+	registered = repl.addCommand(session, {"name": "/depth",
 		"note": "say how deep the search goes", "run": @depthCommand})
-	say(session, "note",
+	repl.say(session, "note",
 		"Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.")
-	session.prompt.run(session)
+	repl.run(session)
 end function
 
 handleLine = function(session, line)
@@ -248,7 +244,7 @@ handleLine = function(session, line)
 	end if
 	triple = session.triples.SpoTriple.parse(line)
 	if triple isa error then
-		say(session, "warning", "  " + triple.message)
+		repl.say(session, "warning", "  " + triple.message)
 		return
 	end if
 	// A constraint's name is a shape, not a predicate: a line that names one is refused
@@ -270,18 +266,18 @@ addFact = function(session, triple)
 	if refuseConstraint(session, triple) then return false
 	if not fitsSchema(session, triple) then return false
 	if alreadyKnown(session, triple) then
-		say(session, "note", "  already known: " + triple.text)
+		repl.say(session, "note", "  already known: " + triple.text)
 		return false
 	end if
 	session.facts.push(triple)
-	say(session, "added", "  added " + triple.text)
+	repl.say(session, "added", "  added " + triple.text)
 	return true
 end function
 
 refuseConstraint = function(session, triple)
 	"Says a constraint's name is not a predicate a line stores or asks about, and whether it was one."
 	if not session.triples.isConstraint(triple.predicate) then return false
-	say(session, "warning", "  refused: " + triple.text +
+	repl.say(session, "warning", "  refused: " + triple.text +
 		": the predicate is a constraint, checked in a rule body rather than stored or asked")
 	return true
 end function
@@ -292,7 +288,7 @@ fitsSchema = function(session, triple)
 	if session.types == null then return true
 	problem = session.schema.misfit(session.types, triple)
 	if problem == null then return true
-	say(session, "warning", "  refused: " + triple.text + ": " + problem)
+	repl.say(session, "warning", "  refused: " + triple.text + ": " + problem)
 	return false
 end function
 
@@ -308,12 +304,12 @@ addRule = function(session, line)
 	"Adds the rule a line spells out, or says why the line is not one."
 	pieces = session.triples.parseRule(line)
 	if pieces isa error then
-		say(session, "warning", "  " + pieces.message)
+		repl.say(session, "warning", "  " + pieces.message)
 		return
 	end if
 	added = session.Rule.make(pieces.head, pieces.body)
 	session.rules.push(added)
-	say(session, "added", "  added rule " + added.text)
+	repl.say(session, "added", "  added rule " + added.text)
 end function
 
 askGoal = function(session, goal)
@@ -338,7 +334,7 @@ askGoal = function(session, goal)
 		// The report changes as facts are added and as values are given, so it is
 		// repeated only when it has something new to say.
 		if report.join("\n") != printed then
-			say(session, "warning", "  no solution found at depth " + session.depth)
+			repl.say(session, "warning", "  no solution found at depth " + session.depth)
 			for line in report
 				session.io.say(line)
 			end for
@@ -363,7 +359,7 @@ showProofs = function(session, goal, proofs)
 				session.io.say(line)
 			end for
 		else
-			say(session, "answer", "  " + session.triples.substitute(goal, proof.binds).text)
+			repl.say(session, "answer", "  " + session.triples.substitute(goal, proof.binds).text)
 		end if
 	end for
 end function
@@ -519,7 +515,7 @@ end function
 confirmFact = function(session, triple)
 	"Offers to add a missing fact that has no variables to fill in; says whether that changed the knowledge base."
 	session.io.say("  " + session.triples.paint(session.style, "fact", triple.text))
-	answer = ask(session, "  add it? [y/N] ")
+	answer = repl.ask(session, "  add it? [y/N] ")
 	if answer == null then return "stopped"
 	answer = session.triples.trimSpace(answer).lower
 	if answer == "/undo" then
@@ -534,7 +530,7 @@ end function
 askValue = function(session, variable, labels)
 	"Asks for one value; null when the user leaves it, changedMark when they change the knowledge base instead."
 	while true
-		value = ask(session, "  ?" + labels[variable.name] + " = ")
+		value = repl.ask(session, "  ?" + labels[variable.name] + " = ")
 		if value == null then return null
 		value = session.triples.trimSpace(value)
 		if value == "" then return null
@@ -552,10 +548,10 @@ askValue = function(session, variable, labels)
 		// A value is a name, so a fact that still holds a variable - or a variable itself -
 		// is neither a fact nor a value: it is refused and the question is put again.
 		if not (triple isa error) then
-			say(session, "warning", "  " + value + " still holds a variable: type a value, or a fact without one")
+			repl.say(session, "warning", "  " + value + " still holds a variable: type a value, or a fact without one")
 			continue
 		end if
 		if value[0] != "?" then return value
-		say(session, "warning", "  ?" + labels[variable.name] + " takes a value, not a variable")
+		repl.say(session, "warning", "  ?" + labels[variable.name] + " takes a value, not a variable")
 	end while
 end function
