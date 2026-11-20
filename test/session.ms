@@ -285,9 +285,9 @@ run = function(t, rules, host, h, schema, knowledge, library)
 			printed(commandLines, "  /undo  take back the last fact added") and
 			printed(commandLines, "  /rules  list the rules"))
 	h.check("/help lists the save and load commands",
-		printed(commandLines, "  /save-facts  write the facts to their file, or to one named") and
-			printed(commandLines, "  /load-facts  replace the facts with a file's") and
-			printed(commandLines, "  /save-schema  write the schema to its file, or to one named"))
+		printed(commandLines, "  /save-facts [FILE]  write the facts to their file, or to one named") and
+			printed(commandLines, "  /load-facts [FILE]  replace the facts with a file's") and
+			printed(commandLines, "  /save-schema [FILE]  write the schema to its file, or to one named"))
 
 	// The block as the program itself prints it, pinned line for line: the first line is the
 	// greeting the session gives before the loop, the twelve after it are /help. The labels are
@@ -298,16 +298,16 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		pinned.answers.lines == [
 		"Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.",
 		"  /exit  leave the session",
-		"  /help  list these commands",
+		"  /help [NAME]  list these commands",
 		"  /undo  take back the last fact added",
 		"  /facts  list the facts",
 		"  /rules  list the rules",
-		"  /save-facts  write the facts to their file, or to one named",
-		"  /load-facts  replace the facts with a file's",
-		"  /save-rules  write the rules to their file, or to one named",
-		"  /load-rules  replace the rules with a file's",
-		"  /save-schema  write the schema to its file, or to one named",
-		"  /load-schema  replace the schema with a file's",
+		"  /save-facts [FILE]  write the facts to their file, or to one named",
+		"  /load-facts [FILE]  replace the facts with a file's",
+		"  /save-rules [FILE]  write the rules to their file, or to one named",
+		"  /load-rules [FILE]  replace the rules with a file's",
+		"  /save-schema [FILE]  write the schema to its file, or to one named",
+		"  /load-schema [FILE]  replace the schema with a file's",
 		"  /depth  say how deep the search goes",
 	])
 

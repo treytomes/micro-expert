@@ -42,6 +42,13 @@
 // one command's line when it is named - /help /facts, or /help facts, since a name is typed with
 // its slash at the prompt.
 //
+// A command may declare the parameters it takes, as {"name": "file", "optional": 1} records, and
+// /help renders the declaration as usage: /save-facts [FILE], or /greet WHO [MOOD]. A name is
+// written in capitals because that is how a placeholder reads, and an entry carrying optional is
+// bracketed because it may be left out. A command that declares nothing is its name and nothing
+// else, and the rest of the line reaches a command unchanged either way: the declaration changes
+// the help, not the call.
+//
 // The loop asks the session for the pieces it needs before it reads anything, so a host that
 // has left one out is told which one in a sentence, rather than meeting a failure inside this
 // module on a line it has never seen. promptText and exitWords are the two it may change: the
@@ -118,7 +125,8 @@ end function
 
 ownCommands = [
 	{"name": "/exit", "note": "leave the session", "run": @leaveCommand},
-	{"name": "/help", "note": "list these commands", "run": @helpCommand},
+	{"name": "/help", "note": "list these commands",
+		"parameters": [{"name": "name", "optional": 1}], "run": @helpCommand},
 ]
 
 // The table is built once, because it can be added to while the loop is running: a session
@@ -161,9 +169,25 @@ commandNamed = function(session, name)
 	return null
 end function
 
+// What a command takes is only what its record says it takes. usage renders that, and nothing
+// else reads it: dispatch hands every command the rest of the line as it stands.
+
+usage = function(command)
+	"The command's name with the parameters it declares, as /help prints it."
+	line = command.name
+	if not command.hasIndex("parameters") then return line
+	for parameter in command.parameters
+		shown = parameter.name.upper
+		// An entry marked optional is the part a reader may leave out, so it is bracketed.
+		if parameter.hasIndex("optional") then shown = "[" + shown + "]"
+		line = line + " " + shown
+	end for
+	return line
+end function
+
 commandLine = function(command)
-	"The line /help prints for one command: its name, and its note when the host gave one."
-	line = "  " + command.name
+	"The line /help prints for one command: its usage, and its note when the host gave one."
+	line = "  " + usage(command)
 	if command.hasIndex("note") then line = line + "  " + command.note
 	return line
 end function
@@ -228,9 +252,11 @@ componentCommands = function(session)
 		if component.hasIndex("possessive") then whose = component.possessive
 		commands.push({"name": "/save-" + component.name,
 			"note": "write the " + component.name + " to " + whose + " file, or to one named",
+			"parameters": [{"name": "file", "optional": 1}],
 			"component": component, "run": @saveCommand})
 		commands.push({"name": "/load-" + component.name,
 			"note": "replace the " + component.name + " with a file's",
+			"parameters": [{"name": "file", "optional": 1}],
 			"component": component, "run": @loadCommand})
 	end for
 	return commands

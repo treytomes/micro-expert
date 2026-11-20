@@ -63,6 +63,12 @@ run = function(library, h)
 				session.commands.push({"name": "/grow", "note": "add a command while running",
 					"run": @grow})
 			end if
+			// One required parameter and one optional, so /help has a declaration to render.
+			if options.hasIndex("usage") then
+				session.commands.push({"name": "/greet", "note": "greet someone",
+					"parameters": [{"name": "who"}, {"name": "mood", "optional": 1}],
+					"run": @echo})
+			end if
 		end if
 		if options.hasIndex("paint") then
 			session.paint = function(given, role, text)
@@ -142,7 +148,7 @@ run = function(library, h)
 	helped = scripted(library, ["/help", "q"], {"commands": 1})
 	h.check("/help lists the library's commands first",
 		helped.lines[0] == "  /exit  leave the session" and
-			helped.lines[1] == "  /help  list these commands")
+			helped.lines[1] == "  /help [NAME]  list these commands")
 	h.check("/help lists the host's commands after them, in the table's order",
 		helped.lines[2] == "  /echo  say the line back" and helped.lines[3] == "  /stop")
 	h.check("/help says nothing else", helped.lines.len == 4)
@@ -185,6 +191,17 @@ run = function(library, h)
 	h.check("a name the table already answers is replaced where it sits",
 		replacing.lines.len == 6 and replacing.lines[2] == "  /echo  the echo, replaced")
 	h.check("and the loop runs the command that replaced it", replacing.lines[5] == "  shout hi")
+
+	// ── Parameters a command declares ──────────────────────────────────────
+	// A declaration is what /help renders: capitals for the placeholder, brackets for the
+	// optional one. It changes the help and not the call, so the rest of the line still reaches
+	// the command as it was typed.
+
+	declared = scripted(library, ["/help /greet", "/greet ann", "q"], {"commands": 1, "usage": 1})
+	h.check("/help renders a declaration as the command's usage",
+		declared.lines[0] == "  /greet WHO [MOOD]  greet someone")
+	h.check("and the command is still given the rest of the line as it stands",
+		declared.lines[1] == "  /greet ann")
 
 	// ── What a host may change, and what it must supply ──────────────────────
 	// The loop asks for the pieces it needs before it reads a line, so a forgotten one is
@@ -320,9 +337,9 @@ run = function(library, h)
 
 	helpedComponents = scripted(library, ["/help", "q"], {"components": 1})
 	h.check("/help lists a save and a load per component, after the host's own",
-		said(helpedComponents.lines, "  /save-things  write the things to their file, or to one named") and
-			said(helpedComponents.lines, "  /save-empties  write the empties to its file, or to one named") and
-			said(helpedComponents.lines, "  /load-empties  replace the empties with a file's"))
+		said(helpedComponents.lines, "  /save-things [FILE]  write the things to their file, or to one named") and
+			said(helpedComponents.lines, "  /save-empties [FILE]  write the empties to its file, or to one named") and
+			said(helpedComponents.lines, "  /load-empties [FILE]  replace the empties with a file's"))
 
 	// The whole block, to the character and in the order the table is assembled: this is the
 	// transcript the module printed before it moved into src/repl, so it is what says the move
@@ -331,14 +348,14 @@ run = function(library, h)
 	captured = scripted(library, ["/help", "q"], {"commands": 1, "components": 1})
 	h.check("/help prints the whole block exactly as it always has", captured.lines == [
 		"  /exit  leave the session",
-		"  /help  list these commands",
+		"  /help [NAME]  list these commands",
 		"  /echo  say the line back",
 		"  /stop",
-		"  /save-things  write the things to their file, or to one named",
-		"  /load-things  replace the things with a file's",
-		"  /save-empties  write the empties to its file, or to one named",
-		"  /load-empties  replace the empties with a file's",
-		"  /save-blanks  write the blanks to their file, or to one named",
-		"  /load-blanks  replace the blanks with a file's",
+		"  /save-things [FILE]  write the things to their file, or to one named",
+		"  /load-things [FILE]  replace the things with a file's",
+		"  /save-empties [FILE]  write the empties to its file, or to one named",
+		"  /load-empties [FILE]  replace the empties with a file's",
+		"  /save-blanks [FILE]  write the blanks to their file, or to one named",
+		"  /load-blanks [FILE]  replace the blanks with a file's",
 	])
 end function
