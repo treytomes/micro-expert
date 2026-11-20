@@ -10,7 +10,7 @@ import "cli/cli"
 import "triples"
 import "logging/logging"
 import "vt"
-import "repl"
+import "session"
 import "prompt"
 import "rule"
 import "domain"
@@ -261,6 +261,6 @@ replSession = function()
 	}
 end function
 
-repl.run(replSession())
+session.run(replSession())
 
 finish 0

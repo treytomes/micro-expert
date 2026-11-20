@@ -20,7 +20,7 @@
 
 import "../src/triples"
 import "../src/rule"
-import "../src/repl"
+import "../src/session"
 import "../src/prompt"
 import "../src/knowledge"
 import "../src/domain"
@@ -69,13 +69,11 @@ harness.options.files = wanted.files
 triples = globals["../src/triples"]
 // rule.ms holds the Rule class; the cases build the rules they test with it.
 rules = globals["../src/rule"]
-// repl.ms holds no classes, but it is handed over all the same, so every case works
-// with the one copy of everything. It is aliased away from `repl`, because that name
-// belongs to this suite's own repl.ms case module.
-// This suite's own prompt.ms case module is claimed first: the alias below reuses the name
-// `prompt` for the session module itself, and an alias is only a variable.
+// session.ms holds no classes, but it is handed over all the same, so every case works
+// with the one copy of everything. It is aliased to `sessionModule`, leaving `session`
+// free for the record a case builds.
 promptCases = globals["prompt"]
-prompt = globals["../src/repl"]
+sessionModule = globals["../src/session"]
 // prompt.ms is the generic part of the prompt, and is aliased to `files` because the name
 // `prompt` above belongs to the session module itself.
 files = globals["../src/prompt"]
@@ -139,7 +137,7 @@ proofs.run(triples, rules, harness)
 absence.run(triples, rules, harness)
 recursion.run(triples, rules, harness)
 relations.run(triples, rules, harness)
-repl.run(triples, rules, prompt, harness, schemaLoader, parser, files)
+repl.run(triples, rules, sessionModule, harness, schemaLoader, parser, files)
 promptCases.run(files, harness)
 schema.run(triples, parser, schemaLoader, harness)
 loaders.run(triples, rulesLoader, factsLoader, schemaLoader, harness)

@@ -1,11 +1,11 @@
-// repl.ms — a prompt that takes facts and rules, and asks for what is missing.
+// session.ms — a prompt that takes facts and rules, and asks for what is missing.
 //
 // The session starts from the arrays main.ms already builds and adds to them in
 // memory, so a fact or a rule typed at the prompt is searchable straight away, and
 // nothing is written back to source unless a /save-* command asks:
 //
-//   import "repl"
-//   repl.run(session)
+//   import "session"
+//   session.run(session)
 //
 // Like facts.ms and rules.ms, this module is handed the host's copies of triples.ms
 // and rule.ms rather than importing them, for the same reason: a module that imports

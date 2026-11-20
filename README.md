@@ -414,7 +414,7 @@ including the family rules (89), the session at the prompt (101), the prompt lib
 ```
 src/main.ms          options, logging, and the session at the prompt
 src/prompt.ms        the loop, the commands and the component save, with no domain in them
-src/repl.ms          the session's knowledge side: facts, rules, questions
+src/session.ms       the session's knowledge side: facts, rules, questions
 src/triples.ms       the solver: terms, unification, search, proofs
 src/rule.ms          the Rule class
 src/knowledge.ms     the reader and writer for the facts, rules and schema data
