@@ -36,10 +36,11 @@ run = function(prompt, h)
 			stop = function(given, command, argument)
 				return true
 			end function
-			session.commands = [
-				{"name": "/echo", "note": "say the line back", "run": @echo},
-				{"name": "/stop", "note": "leave quietly", "run": @stop},
-			]
+			// A note is the host's to add, so this one can be left off entirely.
+			echoEntry = {"name": "/echo", "run": @echo}
+			if not options.hasIndex("nonote") then echoEntry.note = "say the line back"
+			session.commands = [echoEntry,
+				{"name": "/stop", "note": "leave quietly", "run": @stop}]
 		end if
 		if options.hasIndex("paint") then
 			session.paint = function(given, role, text)
@@ -51,7 +52,7 @@ run = function(prompt, h)
 			// holds nothing and so has nothing to save. Their lines are plain words, since
 			// the library is meant not to know a format.
 			session.things = ["alpha", "beta"]
-			session.paths = {}
+			if not options.hasIndex("nopaths") then session.paths = {}
 			if options.hasIndex("path") then session.paths["things"] = options.path
 			session.pathFor = function(given, name)
 				// The host's own rule, kept tiny: a name without a dot gets .kb.
@@ -79,9 +80,13 @@ run = function(prompt, h)
 			]
 		end if
 		// The one thing the host must supply: what to do with a line that is not a command.
-		session.handle = function(given, line)
-			seen.handled.push(line)
-		end function
+		if not options.hasIndex("nohandle") then
+			session.handle = function(given, line)
+				seen.handled.push(line)
+			end function
+		end if
+		if options.hasIndex("promptText") then session.promptText = options.promptText
+		if options.hasIndex("exitWords") then session.exitWords = options.exitWords
 		module.run(session)
 		return seen
 	end function
@@ -128,6 +133,26 @@ run = function(prompt, h)
 	h.check("an unknown command is refused", unknown.lines ==
 		["  no such command: /nope (/help lists them)"])
 	h.check("and the loop carries on with the next line", unknown.handled == ["after"])
+	noteless = scripted(prompt, ["/help", "q"], {"commands": 1, "nonote": 1})
+	h.check("a command without a note is listed by its name alone", noteless.lines[2] == "  /echo")
+
+	// ── What a host may change, and what it must supply ──────────────────────
+	// The loop asks for the pieces it needs before it reads a line, so a forgotten one is
+	// a sentence rather than a failure on a line the host has never seen.
+
+	askedText = scripted(prompt, ["/help", "q"], {"promptText": "notes> "})
+	h.check("a host chooses the text its prompt shows", askedText.asked[0] == "notes> ")
+	mine = scripted(prompt, ["q", "done"], {"exitWords": ["done"]})
+	h.check("a host chooses the words that leave, so q is then just a line",
+		mine.handled == ["q"] and mine.asked.len == 2)
+
+	seamless = scripted(prompt, ["a line"], {"nohandle": 1})
+	h.check("a session with no handle says so and does not start",
+		seamless.lines.len == 1 and seamless.asked.len == 0 and
+			said(seamless.lines, "  the session cannot start without a handle, which every line that is not a command is given to"))
+	pathless = scripted(prompt, ["a line"], {"components": 1, "nopaths": 1})
+	h.check("a session with components and no paths says which piece is missing",
+		said(pathless.lines, "  the session cannot start without a paths map, which is where each component's file is kept"))
 
 	// ── Painting, once the host says how ─────────────────────────────────────
 

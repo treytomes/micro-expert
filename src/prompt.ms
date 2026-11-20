@@ -15,7 +15,9 @@
 //           "write": @factsLines, "read": @factsRead}],    // may be left out
 //       "paths": {"facts": "data/facts.kb"},       // where each component's file is
 //       "pathFor": @pathOf,                        // a name typed at the prompt, as a path
-//       "resolvePath": @findPath}                  // a path already held, found the same way
+//       "resolvePath": @findPath,                  // a path already held, found the same way
+//       "promptText": "notes> ",                   // may be left out: '? '
+//       "exitWords": ["done"]}                    // may be left out: q and quit
 //   session.prompt.run(session)
 //
 // Everything the prompt calls is a pointer, never a name it would have to know: handle takes
@@ -27,7 +29,13 @@
 // run, the function the prompt calls with the session, the record itself, and whatever followed
 // the name. The record comes along so one function can serve several commands - every save is
 // the same function, reading the component off its own command. run answers whether the session
-// should end, so /exit returns true and every other command returns false.
+// should end, so /exit returns true and every other command returns false. A note is the host's
+// to supply and is not required: a command without one is listed by its name alone.
+//
+// The loop asks the session for the pieces it needs before it reads anything, so a host that
+// has left one out is told which one in a sentence, rather than meeting a failure inside this
+// module on a line it has never seen. promptText and exitWords are the two it may change: the
+// text the prompt shows, and the words that leave besides /exit.
 //
 // Like triples.ms and rule.ms, this module is handed to the session rather than imported by
 // repl.ms, for the reason the rest of the engine is: a bare import resolves against the entry
@@ -69,7 +77,10 @@ end function
 helpCommand = function(session, command, argument)
 	"Prints every command the session answers, in the order the table holds them."
 	for command in allCommands(session)
-		say(session, "note", "  " + command.name + "  " + command.note)
+		line = "  " + command.name
+		// The note is the host's to add, so a command without one is its name and nothing else.
+		if command.hasIndex("note") then line = line + "  " + command.note
+		say(session, "note", line)
 	end for
 	return false
 end function
@@ -112,7 +123,8 @@ end function
 //   singular    one of them, for the message: 54 facts, 1 fact
 //   possessive  whose file it is, for the help: their, unless the entry says its
 //   write       function(session) -> [line], or null when there is nothing to save
-//   read        function(session, path) -> what the session now holds, or an error
+//   read        function(session, path) -> the collection the session now holds, whose len is
+//               the count a load reports, or an error
 //
 // Where each file is stays in the session's paths map, keyed by the component's name: a save or
 // a load moves it, so a bare /save-facts writes where the last one went.
@@ -198,16 +210,83 @@ end function
 // ── The loop ─────────────────────────────────────────────────────────────────
 // One line has one meaning: a command if it starts with /, otherwise whatever the host's
 // handle makes of it. q and quit leave as /exit does, since a session is closed by the same
-// keystrokes whatever program it belongs to.
+// keystrokes whatever program it belongs to - and a host with other words for it, or another
+// prompt, says so on the session and the loop uses those instead.
+
+defaultExitWords = ["q", "quit"]
+
+promptTextOf = function(session)
+	"The text the loop shows while it waits: the session's own, or '? '."
+	if session.hasIndex("promptText") then return session.promptText
+	return "? "
+end function
+
+exitWordsOf = function(session)
+	"The words that leave besides /exit: the session's own, or q and quit."
+	if session.hasIndex("exitWords") then return session.exitWords
+	return defaultExitWords
+end function
+
+// A session is a record the host fills in, so a piece left out would surface as a failure
+// inside this module, on a line the host has never seen. The loop asks first, says what is
+// missing one line at a time, and leaves the session unstarted.
+
+ioHas = function(session, name)
+	"Says whether the session can read or say: its io record holds the function named."
+	return session.hasIndex("io") and session.io.hasIndex(name)
+end function
+
+seamProblems = function(session)
+	"What a session is missing before the loop can start, as the phrases that follow 'cannot start without'; empty when it has everything."
+	problems = []
+	if not ioHas(session, "say") then
+		problems.push("something to say through (io.say)")
+	end if
+	if not ioHas(session, "read") then
+		problems.push("something to read through (io.read)")
+	end if
+	if not session.hasIndex("handle") then
+		problems.push("a handle, which every line that is not a command is given to")
+	end if
+	if componentsOf(session).len > 0 then
+		if not session.hasIndex("paths") then
+			problems.push("a paths map, which is where each component's file is kept")
+		end if
+		if not session.hasIndex("pathFor") then
+			problems.push("pathFor, which turns a name typed at the prompt into a path")
+		end if
+		if not session.hasIndex("resolvePath") then
+			problems.push("resolvePath, which finds a path the session already holds")
+		end if
+	end if
+	return problems
+end function
+
+report = function(session, problem)
+	"Says the session cannot start, through io when there is one to say it with."
+	line = "  the session cannot start without " + problem
+	if ioHas(session, "say") then
+		session.io.say(line)
+	else
+		print line
+	end if
+end function
 
 run = function(session)
 	"Reads lines until the session ends: commands here, every other line to the session's handle."
+	problems = seamProblems(session)
+	if problems.len > 0 then
+		for problem in problems
+			report(session, problem)
+		end for
+		return
+	end if
 	while true
-		line = ask(session, "? ")
+		line = ask(session, promptTextOf(session))
 		if line == null then break
 		line = trimSpace(line)
 		if line == "" then continue
-		if line == "q" or line == "quit" then break
+		if exitWordsOf(session).indexOf(line) != null then break
 		if line[0] == "/" then
 			if runCommand(session, line) then break
 			continue
