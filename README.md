@@ -241,6 +241,28 @@ where it is typed: no fact could store a text age, and searching for one would o
 a fact the same check refuses. A value that completes a refused fact ends the question
 there rather than being asked for again.
 
+A boolean and a list of values are a choice rather than a word to remember. When the schema
+types a field `boolean`, or names the values it takes - `male|female` - the prompt lists
+them numbered, and takes either the number or the value itself:
+
+```
+? has-gender(zed, ?g)
+  no solution found at depth 8
+  A solution would need one of these:
+    a fact like has-gender(zed, ?g)
+  1) male
+  2) female
+  ?g = 2
+  added has-gender(zed, female)
+  has-gender(zed, female)
+```
+
+The list is the schema's, so it follows the domain: another domain's `a|b|c` field is
+offered with its three words. A word outside the list is refused at the prompt and asked
+for again, rather than completing a fact the schema would refuse and ending the question
+with it. A text or number field keeps the plain prompt, since there is nothing to choose
+from.
+
 A fact that needs no variable at all is offered with `add it? [y/N]` rather than assumed, and
 a value left empty stops the asking with the report standing. `/undo` takes back the last
 fact the session added - at the prompt, or in the middle of a question, which puts the
@@ -380,7 +402,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-413 passed, 0 failed
+422 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -412,10 +434,10 @@ The parser, the logger and the repl library are their own repositories with thei
 by the same interpreter, and this suite imports none of them. It keeps one check about the
 repl library, and that one is about this repository rather than the library: `examples/notes.ms`
 is a whole program written on the library and nothing else, and `test/repl.ms` is what says so.
-The 413 cover the program itself: display and parsing (22), the knowledge data format (78), the
+The 422 cover the program itself: display and parsing (22), the knowledge data format (78), the
 predicate schema (25), the loaders (16), proofs and explanations (21), the missing-fact report
 (34), recursion and cycle handling (13), relations including the family rules (89), the session
-at the prompt (104), the notes example on the repl library (1), and the domain (10).
+at the prompt (113), the notes example on the repl library (1), and the domain (10).
 
 ## Repository layout
 
@@ -436,7 +458,7 @@ examples/notes.ms    a whole host for the repl library that is not a knowledge b
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
 src/repl/            submodule: micro-repl, the loop and its commands
-test/                the 413 checks and their runner
+test/                the 422 checks and their runner
 docs/articles/       the long-form write-up
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env

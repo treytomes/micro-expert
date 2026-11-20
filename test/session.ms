@@ -379,6 +379,51 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("a fact that fits the schema is added",
 		startSession([], [], ["has-age(tim, 24)"], null, 0, ageTypes).session.facts.len == 1)
 
+	// ── A boolean or a list of values is chosen, not typed ──────────────────
+	// The schema's type names the set, so the prompt lists it numbered and takes the
+	// number beside the value itself. Text and numbers keep the prompt they always had.
+
+	genderTypes = {"has-gender": ["text", "male|female"]}
+	chosen = startSession([], [], ["has-gender(zed, ?g)", "2"], null, 0, genderTypes)
+	chosenLines = chosen.answers.lines
+	h.check("an enum field is shown as a numbered list",
+		printed(chosenLines, "  1) male") and printed(chosenLines, "  2) female"))
+	h.check("typing a number picks that value",
+		printed(chosenLines, "  added has-gender(zed, female)") and
+			chosen.session.facts[0].text == "has-gender(zed, female)")
+	h.check("and the chosen value answers the question",
+		chosenLines[chosenLines.len - 1] == "  has-gender(zed, female)")
+
+	// The value itself is still accepted, so the list is a shortcut rather than a gate.
+	spoken = startSession([], [], ["has-gender(zed, ?g)", "female"], null, 0, genderTypes)
+	h.check("the value itself can still be typed",
+		printed(spoken.answers.lines, "  added has-gender(zed, female)"))
+
+	// A word outside the list is refused at the prompt and asked for again, rather than
+	// completing a fact the schema would refuse and ending the question with it.
+	typo = startSession([], [], ["has-gender(zed, ?g)", "boy", "1"], null, 0, genderTypes)
+	h.check("a value outside the list is refused where it is typed",
+		printed(typo.answers.lines, "  boy is not one of: male, female"))
+	h.check("and the question is put again until one of them is given",
+		typo.answers.asked.len == 4 and typo.answers.asked[2] == "  ?g = " and
+			printed(typo.answers.lines, "  added has-gender(zed, male)"))
+
+	// A boolean is the same set of two words, in the order the schema names them.
+	booleanTypes = {"is-adult": ["text", "boolean"]}
+	boolean = startSession([], [], ["is-adult(tim, ?a)", "true"], null, 0, booleanTypes)
+	h.check("a boolean field is offered true and false",
+		printed(boolean.answers.lines, "  1) true") and
+			printed(boolean.answers.lines, "  2) false"))
+	h.check("typing the word picks it",
+		printed(boolean.answers.lines, "  added is-adult(tim, true)"))
+
+	// A text field is chosen from nothing, so it keeps the plain prompt.
+	free = startSession([], [], ["parent-of(bill, ?c)", "tim"], null, 0,
+		{"parent-of": ["text", "text"]})
+	h.check("a text field is asked for without a list",
+		not holds(free.answers.lines, "1) ") and
+			printed(free.answers.lines, "  added parent-of(bill, tim)"))
+
 	// A question is held against the schema before it is searched, so a field already given
 	// as a value that no fact could ever carry is refused at once: the search would find
 	// nothing, and asking the question's own variable would only set up a fact the same

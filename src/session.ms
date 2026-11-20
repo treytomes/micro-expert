@@ -450,7 +450,7 @@ fillMissing = function(session, options, goal, given)
 				{"triple": triple, "settled": need.settled}, labels, style))
 		end if
 		for variable in askedVars(session, triple, goal)
-			value = askValue(session, variable, labels)
+			value = askValue(session, triple, variable, labels)
 			if value == null then return "stopped"
 			if value == changedMark then return "changed"
 			binds[variable.name] = value
@@ -527,9 +527,68 @@ confirmFact = function(session, triple)
 	return "stopped"
 end function
 
-askValue = function(session, variable, labels)
-	"Asks for one value; null when the user leaves it, changedMark when they change the knowledge base instead."
+// ── Choosing a value ────────────────────────────────────────────────────────
+// Text is typed and a number is typed, but a boolean or a list of values is a small set
+// the schema already names. For those fields the prompt lists the values, numbered, and
+// takes either a number or the value itself. The set comes from the schema line of the
+// predicate the variable stands in, so a predicate the schema does not name - and a field
+// it types text or number - is asked for exactly as before.
+
+fieldType = function(session, triple, variable)
+	"The schema's type for the field a variable stands in, or null when the schema does not type it."
+	if not session.hasIndex("types") then return null
+	if session.types == null then return null
+	// A variable predicate names no schema line, so there is nothing to look up.
+	if not (triple.predicate isa string) then return null
+	if session.types.hasIndex(triple.predicate) == 0 then return null
+	fields = session.types[triple.predicate]
+	if standsIn(session, triple.subject, variable) then return fields[0]
+	if standsIn(session, triple.object, variable) then return fields[1]
+	return null
+end function
+
+standsIn = function(session, term, variable)
+	"Says whether a field is the variable being asked about, rather than a value already given."
+	if not (term isa session.triples.Var) then return false
+	return term.name == variable.name
+end function
+
+choiceValues = function(session, triple, variable)
+	"The values a field is chosen from when its type is boolean or a '|' list; null when it is typed."
+	type = fieldType(session, triple, variable)
+	if type == null then return null
+	if type == "boolean" then return ["true", "false"]
+	if type.indexOf("|") == null then return null
+	return type.split("|")
+end function
+
+showChoices = function(session, choices)
+	"Lists the values a field is chosen from, numbered, so one can be typed by its number."
+	if choices == null then return
+	for at in range(0, choices.len - 1)
+		session.io.say("  " + str(at + 1) + ") " + choices[at])
+	end for
+end function
+
+chosenValue = function(session, value, choices)
+	"The choice a typed line names, by the value itself or by its number; null when it names none."
+	lowered = value.lower
+	for at in range(0, choices.len - 1)
+		if choices[at].lower == lowered then return choices[at]
+	end for
+	// A local called 'number' would shadow the type name the isa check wants.
+	at = session.triples.termOf(value)
+	if not (at isa number) then return null
+	if at != floor(at) then return null
+	if at < 1 or at > choices.len then return null
+	return choices[at - 1]
+end function
+
+askValue = function(session, triple, variable, labels)
+	"Asks for one value, from a numbered list when its field is a boolean or a list; null when the user leaves it, changedMark when they change the knowledge base instead."
 	while true
+		choices = choiceValues(session, triple, variable)
+		showChoices(session, choices)
 		value = repl.ask(session, "  ?" + labels[variable.name] + " = ")
 		if value == null then return null
 		value = session.triples.trimSpace(value)
@@ -538,20 +597,28 @@ askValue = function(session, variable, labels)
 			if undo(session) then return changedMark
 			continue
 		end if
-		triple = session.triples.SpoTriple.parse(value)
+		typed = session.triples.SpoTriple.parse(value)
 		// A whole fact is a fact wherever it is typed, so asserting one here is how to
 		// answer by fiat: it is added, and the question starts again from it.
-		if not (triple isa error) and not session.triples.hasUnknowns(triple) then
-			addFact(session, triple)
+		if not (typed isa error) and not session.triples.hasUnknowns(typed) then
+			addFact(session, typed)
 			return changedMark
 		end if
 		// A value is a name, so a fact that still holds a variable - or a variable itself -
 		// is neither a fact nor a value: it is refused and the question is put again.
-		if not (triple isa error) then
+		if not (typed isa error) then
 			repl.say(session, "warning", "  " + value + " still holds a variable: type a value, or a fact without one")
 			continue
 		end if
-		if value[0] != "?" then return value
-		repl.say(session, "warning", "  ?" + labels[variable.name] + " takes a value, not a variable")
+		if value[0] == "?" then
+			repl.say(session, "warning", "  ?" + labels[variable.name] + " takes a value, not a variable")
+			continue
+		end if
+		if choices == null then return value
+		picked = chosenValue(session, value, choices)
+		if picked != null then return picked
+		// The schema named the values, so a word that is none of them is refused here
+		// rather than stored and refused as a completed fact, which would end the question.
+		repl.say(session, "warning", "  " + value + " is not one of: " + choices.join(", "))
 	end while
 end function
