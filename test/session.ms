@@ -424,6 +424,14 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		not holds(free.answers.lines, "1) ") and
 			printed(free.answers.lines, "  added parent-of(bill, tim)"))
 
+	// A number field takes the digits typed at it as the number they spell, so the fact the
+	// value completes is one the schema accepts, rather than "24" text it would refuse.
+	numeric = startSession([], [], ["has-age(zed, ?n)", "24"], null, 0, ageTypes)
+	h.check("a number field takes the digits as a number",
+		printed(numeric.answers.lines, "  added has-age(zed, 24)") and
+			numeric.session.facts[0].object isa number and
+			numeric.session.facts[0].object == 24)
+
 	// A question is held against the schema before it is searched, so a field already given
 	// as a value that no fact could ever carry is refused at once: the search would find
 	// nothing, and asking the question's own variable would only set up a fact the same

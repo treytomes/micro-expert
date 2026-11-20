@@ -532,7 +532,11 @@ end function
 // the schema already names. For those fields the prompt lists the values, numbered, and
 // takes either a number or the value itself. The set comes from the schema line of the
 // predicate the variable stands in, so a predicate the schema does not name - and a field
-// it types text or number - is asked for exactly as before.
+// it types text - is asked for exactly as it always was.
+//
+// A number field keeps that plain prompt, but the digits typed at it become the number they
+// spell. A value arrives as the text of a line, and "24" is not the 24 a fact stores: left
+// as text it would complete has-age(zed, "24"), which the schema then refuses as an age.
 
 fieldType = function(session, triple, variable)
 	"The schema's type for the field a variable stands in, or null when the schema does not type it."
@@ -553,9 +557,8 @@ standsIn = function(session, term, variable)
 	return term.name == variable.name
 end function
 
-choiceValues = function(session, triple, variable)
-	"The values a field is chosen from when its type is boolean or a '|' list; null when it is typed."
-	type = fieldType(session, triple, variable)
+choiceValues = function(type)
+	"The values a field of this type is chosen from when it is boolean or a '|' list; null when it is typed."
 	if type == null then return null
 	if type == "boolean" then return ["true", "false"]
 	if type.indexOf("|") == null then return null
@@ -584,10 +587,22 @@ chosenValue = function(session, value, choices)
 	return choices[at - 1]
 end function
 
+fieldValue = function(session, value, type)
+	"The value a field takes as it is typed: the number a number field's digits spell, else the text."
+	if type != "number" then return value
+	// The same reading a typed fact gets, so a value and a fact agree about what 24 is. Digits
+	// that spell no number are left as typed: the schema, not this, is what refuses twenty,
+	// and it says so when the fact the value completes is held to it.
+	term = session.triples.termOf(value)
+	if term isa number then return term
+	return value
+end function
+
 askValue = function(session, triple, variable, labels)
 	"Asks for one value, from a numbered list when its field is a boolean or a list; null when the user leaves it, changedMark when they change the knowledge base instead."
 	while true
-		choices = choiceValues(session, triple, variable)
+		type = fieldType(session, triple, variable)
+		choices = choiceValues(type)
 		showChoices(session, choices)
 		value = repl.ask(session, "  ?" + labels[variable.name] + " = ")
 		if value == null then return null
@@ -614,7 +629,7 @@ askValue = function(session, triple, variable, labels)
 			repl.say(session, "warning", "  ?" + labels[variable.name] + " takes a value, not a variable")
 			continue
 		end if
-		if choices == null then return value
+		if choices == null then return fieldValue(session, value, type)
 		picked = chosenValue(session, value, choices)
 		if picked != null then return picked
 		// The schema named the values, so a word that is none of them is refused here
