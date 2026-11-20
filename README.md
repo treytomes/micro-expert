@@ -408,12 +408,13 @@ arguments, so its tree and its runs come from the suite rather than from a list 
 beside it.
 
 The parser and the logger are their own repositories with their own suites (32 checks and
-56 respectively); the repl library is one too, but its 53 checks stay here. The 465 cover
-the program itself: display and parsing (22), the
-knowledge data format (78), the predicate schema (25), the loaders (16), proofs and
+56 respectively). The repl library is one too, and its 52 cases moved with it: this suite
+imports them from `src/repl/test` and keeps one check of its own about `examples/notes.ms`,
+so the repl area still counts 53. The 465 cover the program itself: display and parsing (22),
+the knowledge data format (78), the predicate schema (25), the loaders (16), proofs and
 explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations
-including the family rules (89), the session at the prompt (104), the repl library itself
-(53), and the domain (10).
+including the family rules (89), the session at the prompt (104), the repl library (53), and
+the domain (10).
 
 ## Repository layout
 

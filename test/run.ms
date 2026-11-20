@@ -15,8 +15,9 @@
 // module is handed this same copy rather than importing it itself; the import
 // binds its path as the global name, so it is aliased below.
 //
-// The command-line parser and the logger are their own repositories now, and each carries
-// its own suite; this one covers what the demo itself contains.
+// The command-line parser, the logger and the repl library are their own repositories now, and
+// each carries its own suite. This one covers what the demo itself contains, and imports the
+// repl library's cases from the submodule that holds them, so they still run here.
 
 import "../src/triples"
 import "../src/rule"
@@ -31,6 +32,8 @@ import "relations"
 import "session"
 import "knowledge"
 import "repl"
+// The library's own cases, which live in the submodule beside the module they test.
+import "../src/repl/test/repl"
 import "schema"
 import "loaders"
 import "domain"
@@ -67,10 +70,12 @@ harness.options.files = wanted.files
 triples = globals["../src/triples"]
 // rule.ms holds the Rule class; the cases build the rules they test with it.
 rules = globals["../src/rule"]
-// `session` and `repl` are this suite's own case modules for the two files under test, so the
-// modules themselves are aliased to `sessionModule` and `replLibrary` once they are loaded below.
+// `session` is this suite's own case module for the file under test, so the module itself is
+// aliased to `sessionModule` once it is loaded below. `repl` keeps the one check about this
+// repository's notes example, and the library's own cases arrive from the submodule.
 sessionCases = globals["session"]
 replCases = globals["repl"]
+replLibraryCases = globals["../src/repl/test/repl"]
 // knowledge.ms is the parser behind the data files, aliased away for the same reason:
 // `knowledge` is this suite's own case module for it.
 parser = globals["../src/knowledge"]
@@ -140,7 +145,8 @@ absence.run(triples, rules, harness)
 recursion.run(triples, rules, harness)
 relations.run(triples, rules, harness)
 sessionCases.run(triples, rules, sessionModule, harness, schemaLoader, parser, replLibrary)
-replCases.run(replLibrary, harness)
+replLibraryCases.run(replLibrary, harness)
+replCases.run(harness)
 schema.run(triples, parser, schemaLoader, harness)
 loaders.run(triples, rulesLoader, factsLoader, schemaLoader, harness)
 globals["domain"].run(domainModule, harness)
