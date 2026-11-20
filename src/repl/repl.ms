@@ -34,6 +34,12 @@
 // should end, so /exit returns true and every other command returns false. A note is the host's
 // to supply and is not required: a command without one is listed by its name alone.
 //
+// The table is assembled once, from the library's two, the host's own and one save and load per
+// component, and addCommand grows it while the session runs: a command handed the session can
+// register another, and the loop dispatches it from the next line on. /help prints the table, or
+// one command's line when it is named - /help /facts, or /help facts, since a name is typed with
+// its slash at the prompt.
+//
 // The loop asks the session for the pieces it needs before it reads anything, so a host that
 // has left one out is told which one in a sentence, rather than meeting a failure inside this
 // module on a line it has never seen. promptText and exitWords are the two it may change: the
@@ -88,12 +94,22 @@ leaveCommand = function(session, command, argument)
 end function
 
 helpCommand = function(session, command, argument)
-	"Prints every command the session answers, in the order the table holds them."
+	"Prints one command's line, or every command the session answers, in the order the table holds them."
+	if argument != "" then
+		// A name is typed with its slash at the prompt, so /help takes it with or without one.
+		name = argument.split(" ")[0].lower
+		if name[0] != "/" then name = "/" + name
+		named = commandNamed(session, name)
+		if named == null then
+			say(session, "warning", "  no such command: " + name + " (/help lists them)")
+			return false
+		end if
+		say(session, "note", commandLine(named))
+		return false
+	end if
 	for command in allCommands(session)
-		line = "  " + command.name
 		// The note is the host's to add, so a command without one is its name and nothing else.
-		if command.hasIndex("note") then line = line + "  " + command.note
-		say(session, "note", line)
+		say(session, "note", commandLine(command))
 	end for
 	return false
 end function
@@ -103,11 +119,44 @@ ownCommands = [
 	{"name": "/help", "note": "list these commands", "run": @helpCommand},
 ]
 
-allCommands = function(session)
-	"Every command a session answers: the library's two, the host's, then one save and load per component."
+// The table is built once, because it can be added to while the loop is running: a session
+// that registered a command from inside one line would lose it if every dispatch rebuilt the
+// list from the seeds the host set before the loop started.
+
+prepare = function(session)
+	"Builds a session's command table from what it describes, or answers the one it already has."
+	if session.hasIndex("table") then return session.table
 	commands = ownCommands
 	if session.hasIndex("commands") then commands = commands + session.commands
-	return commands + componentCommands(session)
+	session.table = commands + componentCommands(session)
+	return session.table
+end function
+
+allCommands = function(session)
+	"Every command a session answers: the library's two, the host's, then one save and load per component."
+	return prepare(session)
+end function
+
+addCommand = function(session, command)
+	"Adds one command to a session already running, so the next line can name it; answers the table."
+	table = prepare(session)
+	table.push(command)
+	return table
+end function
+
+commandNamed = function(session, name)
+	"The command a session answers by this name, or null when it answers none."
+	for command in allCommands(session)
+		if command.name == name then return command
+	end for
+	return null
+end function
+
+commandLine = function(command)
+	"The line /help prints for one command: its name, and its note when the host gave one."
+	line = "  " + command.name
+	if command.hasIndex("note") then line = line + "  " + command.note
+	return line
 end function
 
 runCommand = function(session, line)
@@ -305,6 +354,9 @@ run = function(session)
 		end for
 		return
 	end if
+	// The table is built here, from the seeds the host had finished setting, and addCommand
+	// grows it from there.
+	prepare(session)
 	while true
 		line = ask(session, promptTextOf(session))
 		if line == null then break

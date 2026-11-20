@@ -42,6 +42,17 @@ run = function(library, h)
 			session.commands = [
 				{"name": "/echo", "note": "say the line back", "run": @echo},
 				{"name": "/stop", "run": @stop}]
+			// A command that adds one while the loop is running: registration is an ordinary
+			// call on the session the command was handed, so the next line can name it.
+			grow = function(given, command, argument)
+				module.addCommand(given, {"name": "/grown", "note": "added while running",
+					"run": @echo})
+				return false
+			end function
+			if options.hasIndex("grow") then
+				session.commands.push({"name": "/grow", "note": "add a command while running",
+					"run": @grow})
+			end if
 		end if
 		if options.hasIndex("paint") then
 			session.paint = function(given, role, text)
@@ -135,6 +146,27 @@ run = function(library, h)
 	h.check("an unknown command is refused", unknown.lines ==
 		["  no such command: /nope (/help lists them)"])
 	h.check("and the loop carries on with the next line", unknown.handled == ["after"])
+
+	// ── One command's line, and a table that grows ──────────────────────────
+	// /help with a name prints the line it would print in the whole list, and a session can add
+	// to its table from inside a line it is already running.
+
+	named = scripted(library, ["/help /echo", "/help echo", "/help /stop", "/help /nope", "q"],
+		{"commands": 1})
+	h.check("/help with a name prints that command's line",
+		named.lines[0] == "  /echo  say the line back")
+	h.check("the name may be typed without its slash",
+		named.lines[1] == "  /echo  say the line back")
+	h.check("a command with no note is its name alone", named.lines[2] == "  /stop")
+	h.check("a name no command has is refused",
+		named.lines[3] == "  no such command: /nope (/help lists them)")
+
+	growing = scripted(library, ["/grow", "/grown now", "/help", "q"],
+		{"commands": 1, "grow": 1})
+	h.check("a command may add a command while the loop is running",
+		growing.lines[0] == "  /grown now")
+	h.check("and /help lists the one just added",
+		said(growing.lines, "  /grown  added while running"))
 
 	// ── What a host may change, and what it must supply ──────────────────────
 	// The loop asks for the pieces it needs before it reads a line, so a forgotten one is
