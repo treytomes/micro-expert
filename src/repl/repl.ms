@@ -8,7 +8,7 @@
 //   import "repl/repl"
 //   session = {"prompt": globals["repl/repl"],
 //       "io": {"read": @readLine, "say": @printLine},
-//       "fallback": @readOneLine,
+//       "fallback": @readOneLine,                  // may be left out: the library says it has none
 //       "paint": @paintOneLine,                    // may be left out
 //       "commands": [{"name": "/facts", "note": "list the facts", "run": @listFacts}],
 //       "components": [{"name": "facts", "singular": "fact",

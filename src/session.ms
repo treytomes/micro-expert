@@ -51,10 +51,10 @@
 // single NO_COLOR leaves the whole run plain.
 
 // ── What the prompt library is handed ────────────────────────────────────────
-// The library knows the loop and nothing about a fact, so the session gives it the three
-// pointers it asks for: paint, fallback, and the command table. They are module-level
-// functions, never closures - a function defined inside another cannot see this module's
-// own functions in this interpreter, only the one it sits in.
+// The library knows the loop and nothing about a fact, so the session gives it the two
+// pointers it asks for - paint and fallback - and the command table it dispatches. They are
+// module-level functions, never closures - a function defined inside another cannot see this
+// module's own functions in this interpreter, only the one it sits in.
 
 paint = function(session, role, text)
 	"One piece of text in a role's color: the style map and the painter both come from the session."

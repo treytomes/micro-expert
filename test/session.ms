@@ -294,7 +294,8 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// the library's and the notes are this host's, so this is where the two meet - a change to
 	// either shows up here, rather than only in a run someone happens to be watching.
 	pinned = startSession([], [], ["/help", "q"])
-	h.check("the program's /help block is exactly these twelve lines", pinned.answers.lines == [
+	h.check("the program's greeting and /help block are exactly these twelve lines",
+		pinned.answers.lines == [
 		"Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.",
 		"  /exit  leave the session",
 		"  /help  list these commands",
