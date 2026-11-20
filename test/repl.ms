@@ -1,6 +1,7 @@
 // The library's cases moved with it into the micro-repl submodule, where they sit beside the
-// module they test and run on their own (src/repl/test/run.ms). This suite imports them from
-// there, so it still runs every one of them.
+// module they test and run on their own (src/repl/test/run.ms). This suite does not import
+// them, just as it does not import the parser's or the logger's: each submodule carries its
+// own suite and is run from its own folder.
 //
 // What stays here is the single check that is about this repository rather than the library:
 // examples/notes.ms is a whole program written on the library and nothing else, so it is what
