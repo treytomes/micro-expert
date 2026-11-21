@@ -114,29 +114,27 @@ end function
 
 predicateProblem = function(name)
 	"Says what is wrong with a predicate name, as 'a predicate starts with a letter', or null when it is one."
-	if name == "" then return "a predicate cannot be empty"
+	// A variable is not a name: ?p(susan, tim) asks what relates the two.
 	if name[:1] == "?" then return null
-	// Every dash separates two sections, so each one has to be there.
 	sections = name.split("-")
 	for at in range(0, sections.len - 1)
 		section = sections[at]
+		// Every dash separates two sections, so each one has to be there.
 		if section == "" then return "a predicate is sections joined by '-', and none is empty"
 		for c in section
-			if LETTERS.indexOf(c) == null and DIGITS.indexOf(c) == null then
+			// A name is lower case, so the letters stop at z: an upper-case one is refused here.
+			if not ((c >= "a" and c <= "z") or (c >= "0" and c <= "9")) then
 				return "a predicate is lower-case letters and digits, joined by '-'"
 			end if
 		end for
 		// A leading digit would read as a number, so the name starts with a letter and
 		// only the sections after it may open with one.
-		if at == 0 and DIGITS.indexOf(section[0]) != null then
+		if at == 0 and section[0] >= "0" and section[0] <= "9" then
 			return "a predicate starts with a letter"
 		end if
 	end for
 	return null
 end function
-
-LETTERS = "abcdefghijklmnopqrstuvwxyz"
-DIGITS = "0123456789"
 
 // ── Unification ───────────────────────────────────────────────────────────────
 

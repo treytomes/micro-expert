@@ -100,43 +100,37 @@ loadFactsAt = function(triples, path, types=null)
 	return facts
 end function
 
-loadSchema = function(source, relative, triples=null)
-	"Reads the schema file at relative from the module at source and returns its field types, or an error; triples, when given, holds each name to the predicate's shape."
-	return loadSchemaAt(resolvePath(relative, source), triples)
+loadSchema = function(source, relative)
+	"Reads the schema file at relative from the module at source and returns its field types, or an error."
+	return loadSchemaAt(resolvePath(relative, source))
 end function
 
-loadSchemaAt = function(path, triples=null)
-	"Reads the schema file at path and returns its field types, or an error; triples, when given, holds each name to the predicate's shape."
+loadSchemaAt = function(path)
+	"Reads the schema file at path and returns its field types, or an error."
 	lines = readLines(path)
 	if lines isa error then return lines
-	types = parseSchema(lines, triples)
+	types = parseSchema(lines)
 	if types isa error then return err(file.name(path) + " " + types.message)
 	return types
 end function
 
-parseSchema = function(lines, triples=null)
-	"Reads the lines of a schema document into {predicate: [field type, field type]}, or an error naming the line; triples, when given, holds each name to the predicate's shape."
+parseSchema = function(lines)
+	"Reads the lines of a schema document into {predicate: [field type, field type]}, or an error naming the line."
 	types = {}
 	for entry in entries(lines)
-		parsed = parseSchemaEntry(entry.text, triples)
+		parsed = parseSchemaEntry(entry.text)
 		if parsed isa error then return err("line " + entry.line + ": " + parsed.message)
 		types[parsed.predicate] = parsed.types
 	end for
 	return types
 end function
 
-parseSchemaEntry = function(text, triples=null)
-	"Reads 'predicate(field type, field type)' into {predicate, types}, or an error; triples, when given, holds the name to the predicate's shape."
+parseSchemaEntry = function(text)
+	"Reads 'predicate(field type, field type)' into {predicate, types}, or an error."
 	called = parseCall(text)
 	if called isa error then return called
 	if called.args.len != 2 then
 		return err("expected 'predicate(field type, field type)': " + trimSpace(text))
-	end if
-	// A schema line names the same predicates a fact is written with, so it is held to the
-	// same shape: a typed line the prompt could never match a fact to is refused here.
-	if triples != null then
-		problem = triples.predicateProblem(called.name)
-		if problem != null then return err(problem + ": " + trimSpace(text))
 	end if
 	types = []
 	for arg in called.args

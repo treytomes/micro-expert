@@ -192,9 +192,17 @@ domainPaths = globals["domain"].pathsFor(options.values)
 // file rather than of one line: two facts that each fit can still be one too many for a
 // pair, so the loader has to know the types to say so.
 import "schema"
-types = globals["schema"].build(triples, domainPaths.schema)
+types = globals["schema"].build(domainPaths.schema)
 if types isa error then
 	print "error: " + types.message
+	finish 1
+end if
+
+// The schema names predicates, so its names are held to the shape a result can say: a line
+// naming one another way is refused rather than loaded and never matched to a fact.
+misnamed = globals["schema"].misnamed(triples, types)
+if misnamed isa error then
+	print "error: " + misnamed.message
 	finish 1
 end if
 

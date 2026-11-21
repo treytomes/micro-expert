@@ -336,8 +336,12 @@ end function
 
 schemaRead = function(session, path)
 	"Replaces the session's field types with the file at path, answering them, or an error."
-	loaded = session.knowledge.loadSchemaAt(path, session.triples)
+	loaded = session.knowledge.loadSchemaAt(path)
 	if loaded isa error then return loaded
+	// A schema names predicates, so its names are held to the shape before it is held: the
+	// same check startup makes of the file it read.
+	problem = session.schema.misnamed(session.triples, loaded)
+	if problem isa error then return problem
 	problem = unenforceable(session, loaded, session.rules)
 	if problem isa error then return problem
 	// A schema is about the facts already held as much as the ones to come: a pair this file

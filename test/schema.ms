@@ -46,12 +46,14 @@ run = function(t, parser, schemaLoader, h)
 	h.check("comments and blank lines are skipped",
 		parser.parseSchema(["// a note", "", "has-age(text, number)"]).len == 1)
 
-	// A schema line names a predicate, so it is held to the same shape a fact's is - when the
-	// solver is handed in, which is how the program and the prompt read the file.
-	shapedName = parser.parseSchema(["has-1-child(text, boolean)"], t)
-	h.check("a schema line may name a predicate with a digit section", not (shapedName isa error))
-	oddName = parser.parseSchema(["Has_Age(text, number)"], t)
-	h.check("a schema line's predicate is held to its shape", oddName isa error)
+	// A schema line names a predicate, so the map is held to the shape a fact's name has where
+	// a schema is admitted - which is all misnamed does, with the solver handed in.
+	shapedName = parser.parseSchema(["has-1-child(text, boolean)"])
+	h.check("a schema may name a predicate with a digit section",
+		schemaLoader.misnamed(t, shapedName) == null)
+	oddName = parser.parseSchema(["Has_Age(text, number)"])
+	h.check("a schema is refused when one of its names is not one",
+		schemaLoader.misnamed(t, oddName) isa error)
 
 	broken = parser.parseSchema([
 		"has-age(text, number)",
@@ -114,7 +116,7 @@ run = function(t, parser, schemaLoader, h)
 
 	// ── The file the program ships ───────────────────────────────────────────
 
-	shipped = schemaLoader.build(t)
+	shipped = schemaLoader.build()
 	h.check("data/schema.kb loads", not (shipped isa error))
 	if shipped isa error then return
 	h.check("data/schema.kb names sixteen predicates", shipped.len == 16)

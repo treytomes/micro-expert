@@ -17,22 +17,31 @@
 // the map back, so the prompt can refuse a fact that does not fit before storing it:
 //
 //   import "schema"
-//   types = globals["schema"].build(triples)
+//   types = globals["schema"].build()
 //   problem = schema.misfit(types, triple)   // null, or "the object should be a number"
 //
-// The solver is handed in for one reason only: a predicate name has a shape, and the
-// schema names predicates, so the file is held to it here as a fact is. Handed none, the
-// names are taken as written.
+// A schema line names a predicate, and a name has a shape, so the map is held to it where a
+// schema is admitted - at startup and in /load-schema - by misnamed, which is handed the
+// caller's copy of the solver since the shape is the solver's to know.
 //
 // A predicate the file does not name is taken as it is written, so the schema grows
 // with the family rather than standing in its way.
 
 import "knowledge"
 
-build = function(triples=null, path=null)
-	"Reads the schema file at path - data/schema.kb when none is named - and returns {predicate: [field type, field type]}, or an error; triples, when given, holds each name to the predicate's shape."
+build = function(path=null)
+	"Reads the schema file at path - data/schema.kb when none is named - and returns {predicate: [field type, field type]}, or an error."
 	if path == null then path = "../data/schema.kb"
-	return knowledge.loadSchema(info(@build).sourceLoc, path, triples)
+	return knowledge.loadSchema(info(@build).sourceLoc, path)
+end function
+
+misnamed = function(triples, types)
+	"Says a schema line names a predicate that is not a name, as an error naming it, or null when every name is one."
+	for predicate in types.indexes
+		problem = triples.predicateProblem(predicate)
+		if problem != null then return err(problem + ": " + predicate)
+	end for
+	return null
 end function
 
 misfit = function(types, triple)

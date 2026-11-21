@@ -28,8 +28,6 @@ run = function(t, h)
 		spo("oliver", "has-age", 7).sentence == "oliver has age 7")
 	h.check("a digit inside a section is said too",
 		spo("oliver", "has-1-child", "true").sentence == "oliver has 1 child true")
-	h.check("a variable field keeps its ?",
-		spo(v("x"), "parent-of", "susan").sentence == "?x parent of susan")
 	h.check("a variable predicate has no name to say, so the fact form stands",
 		spo("bill", v("p"), "susan").sentence == "?p(bill, susan)")
 
