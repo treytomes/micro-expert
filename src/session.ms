@@ -534,11 +534,7 @@ showProofs = function(session, goal, proofs)
 		// session prints without the flag stay as they are, since each of them is something to
 		// write back or read as data.
 		answer = session.triples.substitute(goal, proof.binds)
-		if session.nlp then
-			repl.say(session, "answer", "  " + answer.sentence)
-		else
-			repl.say(session, "answer", "  " + answer.text)
-		end if
+		repl.say(session, "answer", "  " + session.triples.speak(answer, session.nlp))
 		// --verbose hangs the tree under the answer rather than putting it in the answer's
 		// place, and the tree is said the same way the answer was: --nlp on, facts and rules
 		// alike read as sentences.

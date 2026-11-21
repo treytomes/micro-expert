@@ -688,6 +688,12 @@ mergeAnswer = function(results, goal, binds, reason)
 	results.byText[key].reasons.push(reason)
 end function
 
+speak = function(triple, nlp=0)
+	"Says a triple in the form a run asked for: the sentence it reads as when nlp is on, and the fact it is otherwise."
+	if nlp then return triple.sentence
+	return triple.text
+end function
+
 reasonText = function(reason, nlp=0)
 	"Where one derivation came from: a fact, or the rule that concluded it - said as sentences when nlp asks for them."
 	if reason.rule == null then return "fact"
@@ -696,19 +702,17 @@ reasonText = function(reason, nlp=0)
 end function
 
 nlRuleText = function(rule)
-	"Says a rule the way its parts answer: the head as a sentence, and so the triples of its body, since a constraint has no sentence to be said in."
+	"Says a rule the way its parts answer: the head as a sentence, and so each triple of its body - a constraint has no sentence, so it keeps the form it is written in."
 	conditions = []
 	for condition in rule.body
-		conditions.push(nlConditionText(condition))
+		if condition isa SpoTriple then
+			conditions.push(condition.sentence)
+		else
+			conditions.push(condition.text)
+		end if
 	end for
 	if conditions.len == 0 then return rule.head.sentence + " <- (no conditions)"
 	return rule.head.sentence + " <- " + conditions.join(", ")
-end function
-
-nlConditionText = function(condition)
-	"Says one condition of a rule body: a triple becomes its sentence, and a constraint or a grouping keeps the form it is written in."
-	if condition isa SpoTriple then return condition.sentence
-	return condition.text
 end function
 
 proofLines = function(answer, indent="", nlp=0)
@@ -721,13 +725,7 @@ end function
 appendDerivations = function(goal, binds, reasons, indent, lines, nlp=0)
 	"Appends each derivation's line, then the block behind each of its conditions."
 	for reason in reasons
-		line = substitute(goal, binds)
-		if nlp then
-			line = line.sentence
-		else
-			line = line.text
-		end if
-		lines.push(indent + line + "  <- " + reasonText(reason, nlp))
+		lines.push(indent + speak(substitute(goal, binds), nlp) + "  <- " + reasonText(reason, nlp))
 		appendConditions(reason.conditions, indent + "  ", lines, nlp)
 	end for
 end function

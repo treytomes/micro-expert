@@ -3,8 +3,8 @@
 // The program is a session at the prompt; the fixed questions it used to ask are
 // worked examples now, in sample.ms.
 //
-// The options are declared here - a number, a flag and a string - and the cli library
-// parses the arguments and generates --help and --version from those declarations.
+// The options are declared in options.ms and the cli library parses the arguments and
+// generates --help and --version from that table; it lives apart so the suite can pin it.
 
 import "cli/cli"
 import "triples"
@@ -17,6 +17,7 @@ import "session"
 import "rule"
 import "domain"
 import "knowledge"
+import "options"
 
 // src/cli and src/logging are submodules, so their modules live at <folder>/<file>:
 // import names the resulting map after the path it was given, so each is aliased back
@@ -40,57 +41,7 @@ finish = function(code=0)
 	exit code
 end function
 
-cli.add(cmd, {
-	"name": "depth",
-	"aliases": ["--depth"],
-	"type": "number",
-	"default": 8,
-	"description": "Maximum backward-chaining depth.",
-})
-cli.add(cmd, {
-	"name": "verbose",
-	"aliases": ["--verbose"],
-	"type": "flag",
-	"default": 0,
-	"description": "Print the proof tree under each answer.",
-})
-cli.add(cmd, {
-	"name": "nlp",
-	"aliases": ["--nlp"],
-	"type": "flag",
-	"description": "Say answers, and the proof tree under them, as sentences.",
-})
-cli.add(cmd, {
-	"name": "domain",
-	"aliases": ["--domain"],
-	"type": "string",
-	"description": "Folder holding facts.kb, rules.kb and schema.kb (default: data).",
-})
-cli.add(cmd, {
-	"name": "facts",
-	"aliases": ["--facts"],
-	"type": "string",
-	"description": "Facts file, in place of the domain's facts.kb.",
-})
-cli.add(cmd, {
-	"name": "rules",
-	"aliases": ["--rules"],
-	"type": "string",
-	"description": "Rules file, in place of the domain's rules.kb.",
-})
-cli.add(cmd, {
-	"name": "schema",
-	"aliases": ["--schema"],
-	"type": "string",
-	"description": "Schema file, in place of the domain's schema.kb.",
-})
-cli.add(cmd, {
-	"name": "log-level",
-	"aliases": ["--log-level"],
-	"type": "string",
-	"default": "information",
-	"description": "Lowest level to log: debug, information, warning, error, fatal.",
-})
+globals["options"].declare(cli, cmd)
 
 options = cli.parse(cmd, shellArgs)
 

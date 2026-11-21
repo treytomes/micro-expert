@@ -25,6 +25,7 @@ import "../src/triples"
 import "../src/rule"
 import "../src/knowledge"
 import "../src/domain"
+import "../src/options"
 import "harness"
 import "display"
 import "proofs"
@@ -37,6 +38,7 @@ import "repl"
 import "schema"
 import "loaders"
 import "domain"
+import "options"
 
 // shellArgs[0] is this script, so the options start at index 1.
 wanted = {"json": 0, "filters": [], "files": []}
@@ -81,6 +83,8 @@ parser = globals["../src/knowledge"]
 // domain.ms places the three data files a run reads; it is aliased away from the case
 // module below, which is named domain.ms too.
 domainModule = globals["../src/domain"]
+// options.ms is the program's option table; `options` is this suite's case module for it.
+optionsModule = globals["../src/options"]
 
 // rules.ms and facts.ms name their neighbours by bare import, which the interpreter resolves
 // against the entry folder, so src/ goes on the import path for those loads; session.ms reaches
@@ -89,6 +93,7 @@ domainModule = globals["../src/domain"]
 // back afterwards, so the suite leaves the environment as it found it.
 savedImportPath = env["MS_IMPORT_PATH"]
 env["MS_IMPORT_PATH"] = "src"
+import "cli/cli"
 import "repl/repl"
 import "../src/session"
 import "../src/rules"
@@ -98,6 +103,8 @@ env["MS_IMPORT_PATH"] = savedImportPath
 
 // The library and the session module, both loaded by the block above.
 replLibrary = globals["repl/repl"]
+// The argument parser, for the checks that read the program's option table back.
+cliLibrary = globals["cli/cli"]
 sessionModule = globals["../src/session"]
 
 // The loaders themselves, so the cases can read the data files the program ships.
@@ -112,6 +119,10 @@ if triples == null or rules == null or parser == null or replLibrary == null the
 end if
 if rulesLoader == null or factsLoader == null or schemaLoader == null then
 	print "error: could not import ../src/rules, ../src/facts and ../src/schema"
+	exit 1
+end if
+if cliLibrary == null or optionsModule == null or optionsModule.hasIndex("declare") == 0 then
+	print "error: could not import cli/cli and ../src/options"
 	exit 1
 end if
 
@@ -148,5 +159,6 @@ replCases.run(harness)
 schema.run(triples, parser, schemaLoader, harness)
 loaders.run(triples, rulesLoader, factsLoader, schemaLoader, harness)
 globals["domain"].run(domainModule, harness)
+globals["options"].run(cliLibrary, optionsModule, harness)
 
 harness.summary()

@@ -135,12 +135,7 @@ runQuery = function(query)
 	for proof in proofs
 		// --nlp says the answer rather than showing it: the predicate's dashes are the spaces
 		// of the sentence, so the query prints a line of English under its own aim.
-		answer = triples.substitute(query, proof.binds)
-		if nlp then
-			print "  " + answer.sentence
-		else
-			print "  " + answer.text
-		end if
+		print "  " + triples.speak(triples.substitute(query, proof.binds), nlp)
 		// --verbose hangs the proof tree under the answer, said the same way the answer was.
 		if verbose then
 			for line in triples.proofLines(proof, "  ", nlp)
