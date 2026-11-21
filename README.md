@@ -493,6 +493,7 @@ src/logging/         submodule: micro-logging, the logger
 src/repl/            submodule: micro-repl, the loop and its commands
 test/                the 470 checks and their runner
 docs/articles/       the long-form write-up
+docs/kb-grammar.md   the .kb grammar, its constraints and its schema
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env
 bootstrap.sh         the same for Linux
