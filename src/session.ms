@@ -74,6 +74,12 @@ end function
 // mistaken for it, and both mean the same thing to the fill: start the round again.
 changedMark = {"changed": 1}
 
+// What a question's prompt answers when it was given one of the commands a question honours
+// but the command could not do what it asked - nothing to take back, or no such fact. It is
+// a second mark rather than changedMark because the two prompts treat it differently: a
+// value prompt asks again, while an add-it prompt leaves the question where it stands.
+unmovedMark = {"unmoved": 1}
+
 // ── Slash commands ───────────────────────────────────────────────────────────
 // One line that starts with / is aimed at the session rather than the knowledge base, and
 // the repl library dispatches it: the table below is what this session answers, and /help prints it
@@ -182,6 +188,26 @@ retract = function(session, argument)
 	noteChange(session, {"kind": "retract", "at": at, "held": removed})
 	repl.say(session, "added", "  retracted " + removed.text)
 	return true
+end function
+
+// ── Commands a question answers ─────────────────────────────────────────────
+// A question puts two kinds of prompt - one for a value, and 'add it? [y/N]' for a fact with
+// nothing left to fill in - and both honour the same two commands, because both are ways of
+// changing what the session holds rather than of answering it. They are read here once, so
+// the two prompts cannot drift into honouring different things: whatever one of them answers,
+// the other answers, in the same words, with the same effect on the knowledge base.
+
+questionCommand = function(session, line)
+	"Says what a line typed at a question's prompt did: changedMark when it changed the knowledge base, unmovedMark when it was a command the session could not carry out, and null when it is not one of the commands a question answers."
+	if line == "/undo" then
+		if undo(session) then return changedMark
+		return unmovedMark
+	end if
+	if line[:8] == "/retract" then
+		if retract(session, line[8:]) then return changedMark
+		return unmovedMark
+	end if
+	return null
 end function
 
 listFacts = function(session, command, argument)
@@ -660,11 +686,14 @@ confirmFact = function(session, triple)
 	session.io.say("  " + session.triples.paint(session.style, "fact", triple.text))
 	answer = repl.ask(session, "  add it? [y/N] ")
 	if answer == null then return "stopped"
-	answer = session.triples.trimSpace(answer).lower
-	if answer == "/undo" then
-		if undo(session) then return "changed"
-		return "stopped"
-	end if
+	answer = session.triples.trimSpace(answer)
+	// The commands a question honours are read before the answer is lowered, since a fact's
+	// name keeps its capitals, and a command the session cannot carry out leaves the question
+	// where it stands, as it did before there were two of them.
+	moved = questionCommand(session, answer)
+	if moved == changedMark then return "changed"
+	if moved == unmovedMark then return "stopped"
+	answer = answer.lower
 	if answer != "y" and answer != "yes" then return "stopped"
 	if addFact(session, triple) then return "changed"
 	return "stopped"
@@ -753,10 +782,13 @@ askValue = function(session, triple, variable, labels)
 		if value == null then return null
 		value = session.triples.trimSpace(value)
 		if value == "" then return null
-		if value == "/undo" then
-			if undo(session) then return changedMark
-			continue
-		end if
+		// A command changes the knowledge base instead of answering, and the question starts
+		// again from what it left. One the session cannot carry out - nothing to take back,
+		// or no such fact - says so and puts the prompt again rather than ending the question
+		// over it.
+		moved = questionCommand(session, value)
+		if moved == changedMark then return changedMark
+		if moved == unmovedMark then continue
 		typed = session.triples.SpoTriple.parse(value)
 		// A whole fact is a fact wherever it is typed, so asserting one here is how to
 		// answer by fiat: it is added, and the question starts again from it.

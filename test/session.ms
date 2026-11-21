@@ -363,6 +363,37 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		restored.session.facts[0].text == "parent-of(bill, tim)")
 	h.check("and says so", printed(restored.answers.lines, "  put parent-of(bill, tim) back"))
 
+	// A fact can be taken out while a question is still asking, the way /undo can be used
+	// there: the question is put again from the knowledge base the retraction left.
+	midQuestion = startSession(family + [], [],
+		["parent-of(?p, susan)", "/retract parent-of(tim, anna)", "walter"])
+	h.check("a fact is retracted from inside a question",
+		printed(midQuestion.answers.lines, "  retracted parent-of(tim, anna)"))
+	h.check("and the question is put again", midQuestion.answers.asked.len == 4 and
+		midQuestion.answers.asked[1] == "  ?p = " and midQuestion.answers.asked[2] == "  ?p = ")
+	h.check("and the answer it is given completes it", midQuestion.session.facts.len == 2 and
+		printed(midQuestion.answers.lines, "  added parent-of(walter, susan)"))
+	// A name the session does not hold says so at the prompt and leaves the question where it
+	// stands, rather than ending it over a typo.
+	mistyped = startSession(family + [], [],
+		["parent-of(?p, susan)", "/retract parent-of(bill, anna)", "bob"])
+	h.check("a retraction the session cannot make leaves the question asking",
+		printed(mistyped.answers.lines, "  no such fact: parent-of(bill, anna)") and
+			mistyped.answers.asked.len == 4 and mistyped.answers.asked[2] == "  ?p = ")
+
+	// The other prompt a question puts is the 'add it?' offer, and it answers the same two
+	// commands - one helper, so a command cannot be honoured at one prompt and not the other.
+	forty = t.parseRule("forty(?x, 40) <- has-age(?x, 40)")
+	addPrompt = startSession([spo("tim", "has-age", 24)], [rules.Rule.make(forty.head, forty.body)],
+		["forty(tim, ?n)", "/retract has-age(tim, 24)", "y"])
+	h.check("a fact is retracted from the add-it prompt too",
+		printed(addPrompt.answers.lines, "  retracted has-age(tim, 24)"))
+	h.check("and the offer is made again from what is left",
+		addPrompt.answers.asked.len == 4 and
+			addPrompt.answers.asked[1] == "  add it? [y/N] " and
+			addPrompt.answers.asked[2] == "  add it? [y/N] " and
+			printed(addPrompt.answers.lines, "  added has-age(tim, 40)"))
+
 	// A wrong answer can be taken back while the session is still asking, and the
 	// question is put again.
 	wrong = startSession(family + [], [],
