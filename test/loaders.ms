@@ -20,6 +20,7 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 		"is-grandma-of(?x, ?y) <- is-parent-of(?p, ?y), is-parent-of(?x, ?p), has-gender(?x, female)",
 		"is-in-law-of(?x, ?y) <- or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(is-sibling-of(?x, ?p), married-to(?p, ?y)))",
 		"is-only-child-of(?x, ?y) <- is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))",
+		"has-age(?x, ?n) <- has-birthdate(?x, ?b), age(?b, ?n)",
 		"belongs-to-age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)",
 		"belongs-to-age-group(?x, adult) <- has-age(?x, ?n), not(belongs-to-age-group(?x, child))",
 		"shares-age-group-with(?x, ?y) <- belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h), not-equal(?x, ?y)",
@@ -28,7 +29,7 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 	for rule in loadedRules
 		texts.push(rule.text)
 	end for
-	h.check("data/rules.kb holds fourteen rules", loadedRules.len == 14)
+	h.check("data/rules.kb holds fifteen rules", loadedRules.len == 15)
 	h.check("the rules load in order", texts.join("|") == expected.join("|"))
 
 	loadedFacts = factsLoader.build(t)
@@ -37,8 +38,8 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 	h.check("data/facts.kb holds 54 facts", loadedFacts.len == 54)
 	if loadedFacts.len == 54 then
 		h.check("the first fact is the first line", loadedFacts[0].text == "has-gender(walter, male)")
-		h.check("the last fact is the last line", loadedFacts[53].text == "has-age(oliver, 7)")
-		h.check("ages load as numbers", loadedFacts[1].object + 1 == 79)
+		h.check("the last fact is the last line", loadedFacts[53].text == "has-birthdate(oliver, 2019-01-25)")
+		h.check("a birthdate loads as the text it was written as", loadedFacts[1].object == "1948-03-14")
 	end if
 
 	// ── The schema the shipped facts have to fit ─────────────────────────────

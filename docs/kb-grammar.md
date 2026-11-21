@@ -52,6 +52,7 @@ a character that is not a space or a tab.
 
 <constraint-name>  ::= "not-equal"
                      | "equal"
+                     | "age"
                      | "less-than"
                      | "less-than-or-equal"
                      | "greater-than"
@@ -181,7 +182,7 @@ its parentheses or a field with no text in it. Text after the closing `)` is ref
 than read as a second call.
 
 ```prolog
-has-age(walter, 78)
+has-birthdate(walter, 1948-03-14)
 married-to(walter, doris)
 ```
 
@@ -223,7 +224,7 @@ is-only-child-of(?x, ?y) => and(is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))
 
 ```bnf
 <constraint>       ::= <constraint-name> <field-list>
-<constraint-name>  ::= "not-equal" | "equal"
+<constraint-name>  ::= "not-equal" | "equal" | "age"
                      | "less-than" | "less-than-or-equal"
                      | "greater-than" | "greater-than-or-equal"
 ```
@@ -233,7 +234,8 @@ search, and it is written as a call so that a body keeps one shape. It takes exa
 fields, both non-empty: `not-equal(?x)` and `equal(?n)` are refused.
 
 `not-equal` and `equal` read their fields as they are, whatever type they hold; `equal` can
-also bind a field that is still a variable. The four comparisons read arithmetically and
+also bind a field that is still a variable. `age` reads its first field as a `YYYY-MM-DD`
+date and binds the second to the years since it. The four comparisons read arithmetically and
 need a number on each side, so a name never passes for a zero.
 
 ```prolog
@@ -272,12 +274,14 @@ fixes, and a value written any other way - or a day the calendar does not have -
 refused like any other misfit. A time is written to the second, so one clock time has one
 spelling and a `unique(time)` field cannot hold both `09:30` and `09:30:00` for one
 subject. `src/knowledge.ms` reads a fitting value into a `Temporal`, which formats it, moves
-it by seconds and orders it against another of its kind.
+it by seconds and orders it against another of its kind. The host's own dates begin in 1970,
+so an older date is checked and counted by that reader rather than by the host, and prints in
+its kind's one shape; a date the host can hold prints in whatever `str(...)` format asks for.
 
 ```prolog
 is-parent-of(text, text)
 has-gender(text, unique(male|female))
-has-age(text, unique(number))
+has-birthdate(text, unique(date))
 belongs-to-age-group(text, child|adult)
 ```
 
@@ -289,7 +293,7 @@ what it says — the last line for a predicate is the one kept.
 to check it: it wraps exactly one field type, so `unique()` and `unique(number, number)`
 are refused, as is `unique(unique(number))`, and a bare `unique` is an ordinary word, so a
 domain that allows that value still writes it. What it means is about the pair rather than
-the value — `has-age`'s number is one per person — so it is the prompt and the facts loader
+the value — `has-birthdate`'s date is one per person — so it is the prompt and the facts loader
 that apply it, the value set there taking the place of the one already held, and
 `unique(...)` on a predicate a rule concludes is refused when the program starts, since a
 derived fact is never added anywhere a second one could be.
@@ -297,7 +301,7 @@ derived fact is never added anywhere a second one could be.
 ## Names the reader treats specially
 
 Seven names never name a fact inside a rule body. `and`, `or` and `not` are groupings there,
-and the six constraint names above are constraints there. A call spelled with one of those
+and the seven constraint names above are constraints there. A call spelled with one of those
 names is read that way, whatever it holds.
 
 Outside a rule body they are ordinary text, because nothing there looks for them: in a facts

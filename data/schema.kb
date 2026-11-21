@@ -18,8 +18,8 @@
 // to it too, before it is searched, so has-age(?a, twenty) is refused where it is typed. A
 // predicate the file does not name is accepted as it is written.
 //
-// unique(...) around a field's type is about the pair rather than the value: has-age's
-// number is one per person, so a second age for tim is refused by the prompt and by the
+// unique(...) around a field's type is about the pair rather than the value: has-birthdate's
+// date is one per person, so a second birthdate for tim is refused by the prompt and by the
 // loader, which is why this file is read before the facts are. A stored predicate is the
 // only kind that can carry it, since a fact a rule concludes is never added, and a
 // schema line that puts one on a derived predicate is refused when the program starts.
@@ -38,7 +38,7 @@
 is-parent-of(text, text)
 married-to(text, text)
 has-gender(text, unique(male|female))
-has-age(text, unique(number))
+has-birthdate(text, unique(date))
 
 // ── Derived by rules ─────────────────────────────────────────────────────────
 
@@ -52,5 +52,6 @@ is-grandpa-of(text, text)
 is-grandma-of(text, text)
 is-in-law-of(text, text)
 is-only-child-of(text, text)
+has-age(text, number)
 belongs-to-age-group(text, child|adult)
 shares-age-group-with(text, text)

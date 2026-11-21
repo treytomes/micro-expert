@@ -233,9 +233,10 @@ end function
 //   2019-04-01 09:30:00    datetime
 //
 // The shape is strict where the host's parser is not: _dateVal reads 3/15/2024 and
-// 2021-02-30 alike, one loose and one impossible, so the text is read here as digits
-// first and then held against the calendar by reading the value back. A value that fits
-// is a Temporal - the fact keeps the text, and this is what the text means:
+// 2021-02-30 alike, one loose and one impossible, so the calendar is counted here. The
+// host's dates begin in 1970, so a date before that is counted here too, and one of those
+// prints in its own shape and no other. A value that fits is a Temporal - the fact keeps
+// the text, and this is what the text means:
 //
 //   import "schema"
 //   when = schema.receive("2019-04-01 09:30:00")
@@ -256,6 +257,15 @@ Temporal = {}
 Temporal.str = function(format=null)
 	"Formats the value; a time reads from the epoch's midnight, so HH:mm:ss is its clock."
 	if format == null then format = defaultFormats[self.kind]
+	// The host counts from 1970, so an older date is printed from its own parts, in the
+	// one shape its kind writes.
+	if not self.hosted then
+		if format != defaultFormats[self.kind] then
+			return err("a date before 1970 prints as " + defaultFormats[self.kind] +
+				", not '" + format + "'")
+		end if
+		return shapeText(self)
+	end if
 	return _dateStr(self.value, format)
 end function
 
@@ -266,6 +276,16 @@ Temporal.addSeconds = function(seconds)
 		shifted = (self.value + seconds) % 86400
 		if shifted < 0 then shifted = shifted + 86400
 		return receive(_dateStr(shifted, "HH:mm:ss"), "time")
+	end if
+	// A date the host cannot hold is moved through the calendar here, since its seconds
+	// since 2000 are this module's own count.
+	if not self.hosted then
+		total = floor(self.value + seconds)
+		days = floor(total / 86400)
+		day = civilFromDays(dayOf2000 + days)
+		stamp = pad4(day.year) + "-" + pad2(day.month) + "-" + pad2(day.day)
+		if self.kind == "datetime" then stamp = stamp + " " + clockText(total - days * 86400)
+		return receive(stamp, self.kind)
 	end if
 	return receive(_dateStr(self.value + seconds, defaultFormats[self.kind]), self.kind)
 end function
@@ -314,6 +334,7 @@ assemble = function(kind, parts)
 	when = new Temporal
 	when.kind = kind
 	when.value = parts.value
+	when.hosted = parts.hosted
 	when.year = parts.year
 	when.month = parts.month
 	when.day = parts.day
@@ -334,15 +355,19 @@ dateParts = function(text)
 	year = val(pieces[0])
 	month = val(pieces[1])
 	day = val(pieces[2])
+	if year < 1 then return err("there is no year " + pieces[0] + ": " + text)
 	if month < 1 or month > 12 then return err("there is no month " + pieces[1] + ": " + text)
-	if day < 1 or day > 31 then return err("there is no day " + pieces[2] + ": " + text)
+	if day < 1 or day > daysInMonth(year, month) then return err("there is no such date: " + text)
+	// The host is trusted with a date it can hold, so a value and its printout agree with
+	// every other date the host knows. It begins in 1970, and an older date is counted
+	// here instead: the same seconds-since-2000 base, from the civil calendar.
 	value = _dateVal(text)
-	if value isa error then return err("not a date: " + text)
-	// The host rolls an impossible day forward, so the day is read back rather than
-	// trusted: 2021-02-30 would otherwise pass for March 2nd in a schema's clothing.
-	if _dateStr(value, "yyyy-MM-dd") != text then return err("there is no such date: " + text)
-	return {"text": text, "value": value, "year": year, "month": month, "day": day,
-		"hour": null, "minute": null, "second": null}
+	hosted = 1
+	if value isa error then hosted = 0
+	if hosted and _dateStr(value, "yyyy-MM-dd") != text then hosted = 0
+	if not hosted then value = (daysFromCivil(year, month, day) - dayOf2000) * 86400
+	return {"text": text, "value": value, "hosted": hosted, "year": year, "month": month,
+		"day": day, "hour": null, "minute": null, "second": null}
 end function
 
 timeParts = function(text)
@@ -363,7 +388,7 @@ timeParts = function(text)
 	if minute > 59 then return err("there is no minute " + pieces[1] + ": " + text)
 	if second > 59 then return err("there is no second " + secondText + ": " + text)
 	return {"text": pad2(hour) + ":" + pad2(minute) + ":" + pad2(second),
-		"value": hour * 3600 + minute * 60 + second,
+		"value": hour * 3600 + minute * 60 + second, "hosted": 1,
 		"year": null, "month": null, "day": null,
 		"hour": hour, "minute": minute, "second": second}
 end function
@@ -377,15 +402,21 @@ dateTimeParts = function(text)
 	clock = timeParts(text[at + 1:])
 	if clock isa error then return clock
 	stamp = date.text + " " + clock.text
-	value = _dateVal(stamp)
-	if value isa error then return err("not a date and time: " + stamp)
-	// The same reading back, for the same reason: a clock time a daylight-saving jump skips
-	// is not the time it was written as.
-	if _dateStr(value, "yyyy-MM-dd HH:mm:ss") != stamp then
-		return err("there is no such date and time: " + stamp)
+	hosted = date.hosted
+	if hosted then
+		value = _dateVal(stamp)
+		if value isa error then return err("not a date and time: " + stamp)
+		// The same reading back, for the same reason: a clock time a daylight-saving jump
+		// skips is not the time it was written as.
+		if _dateStr(value, "yyyy-MM-dd HH:mm:ss") != stamp then
+			return err("there is no such date and time: " + stamp)
+		end if
+	else
+		value = date.value + clock.value
 	end if
-	return {"text": stamp, "value": value, "year": date.year, "month": date.month,
-		"day": date.day, "hour": clock.hour, "minute": clock.minute, "second": clock.second}
+	return {"text": stamp, "value": value, "hosted": hosted, "year": date.year,
+		"month": date.month, "day": date.day, "hour": clock.hour, "minute": clock.minute,
+		"second": clock.second}
 end function
 
 allDigits = function(text)
@@ -402,6 +433,78 @@ pad2 = function(n)
 	text = str(n)
 	if text.len >= 2 then return text
 	return "0" + text
+end function
+
+pad4 = function(n)
+	"Four digits, the width a year is written in."
+	text = str(n)
+	while text.len < 4
+		text = "0" + text
+	end while
+	return text
+end function
+
+dayOf2000 = 10957
+
+daysInMonth = function(year, month)
+	"How many days a calendar month has, February counting its leap day."
+	if month == 2 then
+		if leapYear(year) then return 29
+		return 28
+	end if
+	if month == 4 or month == 6 or month == 9 or month == 11 then return 30
+	return 31
+end function
+
+leapYear = function(year)
+	"Every fourth year, but not every hundredth, except every four hundredth."
+	if year % 4 != 0 then return false
+	if year % 100 != 0 then return true
+	return year % 400 == 0
+end function
+
+daysFromCivil = function(year, month, day)
+	"Days from 1970-01-01 to a calendar date, in the era arithmetic of the civil calendar."
+	y = year
+	if month <= 2 then y = y - 1
+	era = floor(y / 400)
+	yoe = y - era * 400
+	marchMonth = month - 3
+	if month <= 2 then marchMonth = month + 9
+	dayOfYear = floor((153 * marchMonth + 2) / 5) + day - 1
+	dayOfEra = yoe * 365 + floor(yoe / 4) - floor(yoe / 100) + dayOfYear
+	return era * 146097 + dayOfEra - 719468
+end function
+
+civilFromDays = function(days)
+	"The calendar date a count of days from 1970-01-01 falls on."
+	z = days + 719468
+	era = floor(z / 146097)
+	doe = z - era * 146097
+	yoe = floor((doe - floor(doe / 1460) + floor(doe / 36524) - floor(doe / 146096)) / 365)
+	year = yoe + era * 400
+	doy = doe - (365 * yoe + floor(yoe / 4) - floor(yoe / 100))
+	mp = floor((5 * doy + 2) / 153)
+	day = doy - floor((153 * mp + 2) / 5) + 1
+	month = mp + 3
+	if mp >= 10 then month = mp - 9
+	if month <= 2 then year = year + 1
+	return {"year": year, "month": month, "day": day}
+end function
+
+clockText = function(seconds)
+	"HH:mm:ss for a whole number of seconds into a day."
+	seconds = floor(seconds)
+	return pad2(floor(seconds / 3600)) + ":" + pad2(floor((seconds % 3600) / 60)) + ":" +
+		pad2(seconds % 60)
+end function
+
+shapeText = function(when)
+	"The one shape a kind writes, from its own parts rather than from the host."
+	if when.kind == "time" then return clockText(when.value)
+	date = pad4(when.year) + "-" + pad2(when.month) + "-" + pad2(when.day)
+	if when.kind == "date" then return date
+	return date + " " + clockText(when.hour * 3600 + when.minute * 60 + when.second)
 end function
 
 

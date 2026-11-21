@@ -181,9 +181,10 @@ run = function(t, parser, schemaLoader, h)
 	shipped = schemaLoader.build()
 	h.check("data/schema.kb loads", not (shipped isa error))
 	if shipped isa error then return
-	h.check("data/schema.kb names sixteen predicates", shipped.len == 16)
-	h.check("an age's object is a number, and one per person",
-		shipped["has-age"][1] == "unique(number)")
+	h.check("data/schema.kb names seventeen predicates", shipped.len == 17)
+	h.check("a birthdate is a date, and one per person",
+		shipped["has-birthdate"][1] == "unique(date)")
+	h.check("an age is a number the age rule works out", shipped["has-age"][1] == "number")
 	h.check("a gender is one of two names, and one per person",
 		shipped["has-gender"][1] == "unique(male|female)")
 	h.check("a spouse is not marked unique, so the rule that reverses it can run",

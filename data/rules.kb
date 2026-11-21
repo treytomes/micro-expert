@@ -58,8 +58,13 @@ is-in-law-of(?x, ?y) => or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(i
 // the graph asks whether one exists - the rule holds when the search finds none.
 is-only-child-of(?x, ?y) => and(is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q)))
 
-// ?x is a child while ?x is 18 or younger. An age is stored as a number, so the
-// comparison is arithmetic: read as text, "9" would sort after "18".
+// ?x is ?n years old on the day this runs. The birthdate is the fact and the age is
+// arithmetic, so age(...) does the counting: a goal can only prove a fact, and a
+// comparison only reads a number that is already there.
+has-age(?x, ?n) => and(has-birthdate(?x, ?b), age(?b, ?n))
+
+// ?x is a child while ?x is 18 or younger. The age is a number the rule above worked
+// out, so the comparison is arithmetic: read as text, "9" would sort after "18".
 belongs-to-age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))
 
 // ?x is an adult when ?x has an age and is not a child - the same line the other way

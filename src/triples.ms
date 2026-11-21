@@ -218,8 +218,9 @@ end function
 // ── Constraints ──────────────────────────────────────────────────────────────
 // A rule body is a list of goals, and it may also hold constraints: conditions that are
 // checked against the bindings rather than proved by search. They are written as calls
-// like everything else - not-equal(?x, ?y), equal(?n, 18), less-than-or-equal(?n, 18) - and
-// their names are reserved, so no fact and no question can use one as a predicate.
+// like everything else - not-equal(?x, ?y), equal(?n, 18), less-than-or-equal(?n, 18),
+// age(?b, ?n) - and their names are reserved, so no fact and no question can use one as a
+// predicate.
 
 // not-equal and equal read their two terms as they are, whatever type they hold: not-equal
 // asks that they differ, equal that they are the same one. Their names are reserved like a
@@ -299,10 +300,104 @@ comparisonCall = function(symbol)
 	return symbol
 end function
 
+// age is the one constraint that computes: it reads a birthdate and the age that date
+// stands for on the day the search runs, and binds the side that is still a variable. It is
+// what lets a rule work out an age, which the goals alone cannot do - a goal proves a fact,
+// and a comparison only reads numbers that are already there.
+//
+// The day is the host's today unless a caller pins one, which is what the suite does so a
+// check cannot quietly change on somebody's birthday:
+//
+//   triples.today = {"year": 2019, "month": 4, "day": 1}
+
+ageName = "age"
+
+today = null
+
+dayToday = function
+	"The day an age is counted from: the one a caller pinned, or the host's today."
+	if today != null then return today
+	parts = _dateStr(_dateVal, "yyyy-MM-dd").split("-")
+	return {"year": val(parts[0]), "month": val(parts[1]), "day": val(parts[2])}
+end function
+
+ageYears = function(birthdate, on)
+	"The whole years from a yyyy-MM-dd birthdate to a day, or null when that is no birthdate or no age yet."
+	if not (birthdate isa string) then return null
+	parts = birthdate.split("-")
+	if parts.len != 3 then return null
+	if parts[0].len != 4 or parts[1].len != 2 or parts[2].len != 2 then return null
+	if not digitsOnly(parts[0]) or not digitsOnly(parts[1]) or not digitsOnly(parts[2]) then return null
+	year = val(parts[0])
+	month = val(parts[1])
+	day = val(parts[2])
+	// The calendar is read here rather than by the host, whose dates begin in 1970 and
+	// would roll 2019-02-30 forward like any other impossible day.
+	if year < 1 or month < 1 or month > 12 then return null
+	if day < 1 or day > daysInMonth(year, month) then return null
+	years = on.year - year
+	if on.month < month or (on.month == month and on.day < day) then years = years - 1
+	if years < 0 then return null
+	return years
+end function
+
+digitsOnly = function(text)
+	"Says whether every character is a decimal digit."
+	for c in text
+		if "0123456789".indexOf(c) == null then return false
+	end for
+	return true
+end function
+
+daysInMonth = function(year, month)
+	"How many days a calendar month has, February counting its leap day."
+	if month == 2 then
+		if leapYear(year) then return 29
+		return 28
+	end if
+	if month == 4 or month == 6 or month == 9 or month == 11 then return 30
+	return 31
+end function
+
+leapYear = function(year)
+	"Every fourth year, but not every hundredth, except every four hundredth."
+	if year % 4 != 0 then return false
+	if year % 100 != 0 then return true
+	return year % 400 == 0
+end function
+
+Age = {}
+
+Age.make = function(birthdate, age)
+	"Builds a 'this birthdate is this age on the day the search runs' constraint."
+	c = new Age
+	c.birthdate = birthdate
+	c.age = age
+	return c
+end function
+
+Age.text = function
+	"Says how the constraint reads: age(?b, ?a)."
+	return ageName + "(" + termText(self.birthdate) + ", " + termText(self.age) + ")"
+end function
+
+ageBinds = function(constraint, binds)
+	"The bindings that make the age the birthdate's, or null when the branch ends."
+	birthdate = substitute(constraint.birthdate, binds)
+	wanted = substitute(constraint.age, binds)
+	years = ageYears(birthdate, dayToday())
+	if years == null then return null
+	if wanted isa Var then return unifyTerms(constraint.age, years, binds)
+	if not (wanted isa number) then return null
+	if wanted != years then return null
+	return binds
+end function
+
 isConstraint = function(term)
 	"Says whether a term names a constraint, which a body checks rather than a line storing or asking it."
 	if not (term isa string) then return false
-	return term == notEqualName or term == equalName or comparisonNames.hasIndex(term) != 0
+	return term == notEqualName or term == equalName or term == ageName or
+		comparisonNames.hasIndex(term) != 0
 end function
 
 comparisonHolds = function(constraint, binds)
@@ -338,6 +433,7 @@ end function
 applyConstraint = function(constraint, binds)
 	"The bindings a constraint leaves, or null when the branch ends: the ones it was given, unless it bound something."
 	if constraint isa Equal then return equalBinds(constraint, binds)
+	if constraint isa Age then return ageBinds(constraint, binds)
 	if holdsConstraint(constraint, binds) then return binds
 	return null
 end function
@@ -434,6 +530,10 @@ end function
 
 renameConstraint = function(constraint, suffix)
 	"Copies a constraint, renaming the variables it mentions."
+	if constraint isa Age then
+		return Age.make(renameTerm(constraint.birthdate, suffix),
+			renameTerm(constraint.age, suffix))
+	end if
 	if constraint isa Equal then
 		return Equal.make(renameTerm(constraint.left, suffix),
 			renameTerm(constraint.right, suffix))
@@ -1197,7 +1297,7 @@ splitConditions = function(text)
 end function
 
 parseCondition = function(text, line)
-	"Reads one condition of a rule body: a triple, or a constraint such as not-equal(?x, ?y), equal(?n, 18) or less-than-or-equal(?n, 18)."
+	"Reads one condition of a rule body: a triple, or a constraint such as not-equal(?x, ?y), equal(?n, 18), age(?b, ?a) or less-than-or-equal(?n, 18)."
 	text = trimSpace(text)
 	if text == "" then return err(badRule(line))
 	constraint = constraintOf(text)
@@ -1222,6 +1322,7 @@ constraintOf = function(text)
 	if left == "" or right == "" then return err(expected)
 	if name == equalName then return Equal.make(termOf(left), termOf(right))
 	if name == notEqualName then return NotEqual.make(termOf(left), termOf(right))
+	if name == ageName then return Age.make(termOf(left), termOf(right))
 	return Comparison.make(comparisonNames[name], termOf(left), termOf(right))
 end function
 

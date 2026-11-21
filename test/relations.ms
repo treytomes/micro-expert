@@ -359,6 +359,59 @@ run = function(t, rules, h)
 		report.len == 2 and report[1].needs.len == 1 and
 			t.reportLines(report).join("|").indexOf("has-age(amy, ?a)") != null)
 
+	// ── A body that works an age out of a birthdate ─────────────────────────
+
+	// The day an age is counted from is the host's clock when none is pinned, so a run that
+	// pins nothing still answers. These two do not depend on the day the suite runs on: a
+	// birthdate on the first of January ten years back is ten, and today's own date is 0.
+	savedToday = t.today
+	t.today = null
+	twoDigits = function(n)
+		"Two digits, the width a date's month and day are written in."
+		if n < 10 then return "0" + n
+		return str(n)
+	end function
+	hostDay = t.dayToday()
+	hostToday = str(hostDay.year) + "-" + twoDigits(hostDay.month) + "-" + twoDigits(hostDay.day)
+	h.check("an unpinned day is the host's own",
+		t.today == null and hostDay.year >= 2024 and hostDay.month >= 1 and hostDay.month <= 12 and
+			hostDay.day >= 1 and hostDay.day <= 31)
+	h.check("an unpinned age counts from the host's day",
+		t.ageYears(str(hostDay.year - 10) + "-01-01", t.dayToday()) == 10 and
+			t.ageYears(hostToday, t.dayToday()) == 0)
+	t.today = savedToday
+
+	// age is the constraint that computes: the birthdate is a fact, and the age is counted
+	// from it to the day the search runs. The day is pinned here, so a check cannot quietly
+	// change on somebody's birthday.
+	savedToday = t.today
+	t.today = {"year": 2026, "month": 11, "day": 21}
+	birthdays = [
+		spo("walter", "has-birthdate", "1948-03-14"),
+		spo("tim", "has-birthdate", "2002-04-05"),
+		spo("mark", "has-birthdate", "2008-06-30"),
+	]
+	ageRule = rule(spo(v("x"), "has-age", v("n")),
+		[spo(v("x"), "has-birthdate", v("b")), t.Age.make(v("b"), v("n"))])
+	ageOf = function(who, wanted)
+		return t.proveGoals(spo(who, "has-age", wanted), birthdays, [ageRule], 3)
+	end function
+	h.check("an age is counted from a birthdate", ageOf("walter", v("n"))[0].binds["n"] == 78)
+	h.check("a birthday this year counts once the day comes",
+		ageOf("tim", v("n"))[0].binds["n"] == 24 and ageOf("mark", v("n"))[0].binds["n"] == 18)
+	h.check("a day before the birthday is the year short",
+		t.ageYears("2008-11-22", t.today) == 17)
+	h.check("no birthdate, no age", ageOf("susan", v("n")).len == 0)
+	h.check("a text that is not a date has no age", t.ageYears("yesterday", t.today) == null)
+	h.check("February the 30th is nobody's birthday", t.ageYears("2019-02-30", t.today) == null)
+	h.check("an age already settled is checked, not bound",
+		ageOf("tim", 24).len == 1 and ageOf("tim", 25).len == 0)
+	h.check("age prints as the call it is", ageRule.body[1].text == "age(?b, ?n)")
+	renamedAge = t.standardizeApart(ageRule).body[1].text
+	h.check("standardizeApart renames age's variables",
+		renamedAge.indexOf("age(?b_") == 0 and renamedAge.indexOf(", ?n_") != null)
+	t.today = savedToday
+
 	// ── A body that compares numbers ────────────────────────────────────────
 
 	// An age is stored as a number, so a rule can ask where the line is: a child is 18
