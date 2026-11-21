@@ -2,7 +2,7 @@
   "name": "micro-expert-knowledge",
   "displayName": "Micro-Expert Knowledge",
   "description": "Syntax highlighting for micro-expert knowledge files (.kb): the facts and rules the engine reasons over.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "micro-expert",
   "private": true,
   "license": "MIT",

@@ -9,6 +9,7 @@
     { "include": "#variables" },
     { "include": "#numbers" },
     { "include": "#grouping" },
+    { "include": "#schema-unique" },
     { "include": "#predicate" },
     { "include": "#field-types" },
     { "include": "#punctuation" }
@@ -33,6 +34,10 @@
     "grouping": {
       "match": "\\b(and|or|not)\\b(?=\\s*\\()",
       "name": "keyword.operator.logical.micro-expert-kb"
+    },
+    "schema-unique": {
+      "match": "\\bunique\\b(?=\\s*\\()",
+      "name": "storage.type.micro-expert-kb"
     },
     "predicate": {
       "match": "\\b[A-Za-z_][A-Za-z0-9_-]*(?=\\s*\\()",

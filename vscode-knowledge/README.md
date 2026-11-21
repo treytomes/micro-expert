@@ -8,8 +8,8 @@ facts and rules in `data/facts.kb` and `data/rules.kb`.
 - A TextMate grammar (scope `source.micro-expert-kb`) registered for `.kb` files.
 - Comment lines, the rule arrow `=>`, constraints (`not-equal`), variables (`?x`), predicate
   names, numbers, the schema's field types (`number`, `text`, `boolean`, `date`, `time`,
-  `datetime`), and the `and(...)` / `or(...)` / `not(...)` groupings each read in their own
-  way.
+  `datetime`) and its `unique(...)` wrapper, and the `and(...)` / `or(...)` / `not(...)`
+  groupings each read in their own way.
 - A language configuration: `//` toggles comments, parentheses match and auto-close.
 
 ## Try it
