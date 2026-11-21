@@ -2,7 +2,7 @@
 //
 // A fact is written there as one triple per line:
 //
-//   parent-of(walter, bill)
+//   is-parent-of(walter, bill)
 //   has-gender(bill, male)
 //   has-age(bill, 54)
 //

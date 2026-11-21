@@ -26,28 +26,28 @@ run = function(t, rules, host, h, schema, knowledge, library)
 
 	// ── A rule line is the line Rule.text prints ─────────────────────────────
 
-	line = "grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)"
+	line = "is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)"
 	parsed = t.parseRule(line)
 	h.check("a rule line parses", readable(parsed))
 	h.check("the head is the triple before the arrow",
-		parsed.head.text == "grandparent(?x, ?y)")
+		parsed.head.text == "is-grandparent-of(?x, ?y)")
 	h.check("the body takes one condition per comma", parsed.body.len == 2)
 	h.check("a condition reads back as it was written",
-		parsed.body[1].text == "parent-of(?p, ?y)")
+		parsed.body[1].text == "is-parent-of(?p, ?y)")
 	h.check("Rule.text gets its own line back",
 		rules.Rule.make(parsed.head, parsed.body).text == line)
 
-	constrained = t.parseRule("sibling-of(?x, ?y) <- parent-of(?p, ?x), not-equal(?x, ?y)")
+	constrained = t.parseRule("is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), not-equal(?x, ?y)")
 	h.check("a constraint in a body is read as a constraint",
 		readable(constrained) and constrained.body[1].text == "not-equal(?x, ?y)")
-	h.check("a line without an arrow is refused", t.parseRule("parent-of(?x, susan)") isa error)
-	h.check("a rule with no conditions is refused", t.parseRule("parent-of(?x, ?y) <- ") isa error)
+	h.check("a line without an arrow is refused", t.parseRule("is-parent-of(?x, susan)") isa error)
+	h.check("a rule with no conditions is refused", t.parseRule("is-parent-of(?x, ?y) <- ") isa error)
 	h.check("a broken condition refuses the whole line",
-		t.parseRule("grandparent(?x, ?y) <- parent-of(?x, ?p") isa error)
+		t.parseRule("is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p") isa error)
 
-	// The line data/rules.kb prints for in-law-of, so a rule the session shows can be
+	// The line data/rules.kb prints for is-in-law-of, so a rule the session shows can be
 	// typed back in: or(...) around two and(...) alternatives.
-	choice = "in-law-of(?x, ?y) <- or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling-of(?x, ?p), married-to(?p, ?y)))"
+	choice = "is-in-law-of(?x, ?y) <- or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(is-sibling-of(?x, ?p), married-to(?p, ?y)))"
 	chosen = t.parseRule(choice)
 	h.check("a rule line with or(...) parses", readable(chosen))
 	h.check("or(...) is one condition holding two and(...) alternatives",
@@ -56,8 +56,8 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("Rule.text gets an or(...) line back",
 		readable(chosen) and rules.Rule.make(chosen.head, chosen.body).text == choice)
 
-	// The line data/rules.kb prints for only-child-of, so a negation can be typed back in.
-	single = "only-child-of(?x, ?y) <- parent-of(?y, ?x), not(sibling-of(?x, ?q))"
+	// The line data/rules.kb prints for is-only-child-of, so a negation can be typed back in.
+	single = "is-only-child-of(?x, ?y) <- is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))"
 	negated = t.parseRule(single)
 	h.check("a rule line with not(...) parses", readable(negated) and negated.body.len == 2)
 	h.check("not(...) is one condition holding the body it negates",
@@ -88,42 +88,42 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		return {"session": session, "answers": answers}
 	end function
 
-	family = [spo("bill", "parent-of", "tim"), spo("tim", "parent-of", "anna")]
+	family = [spo("bill", "is-parent-of", "tim"), spo("tim", "is-parent-of", "anna")]
 
 	// A question nothing answers, and the one value it asks for.
-	asked = startSession(family + [], [], ["parent-of(?p, susan)", "walter", "quit"])
+	asked = startSession(family + [], [], ["is-parent-of(?p, susan)", "walter", "quit"])
 	lines = asked.answers.lines
 	h.check("the session says where the commands are", lines[0].indexOf("/help") != null)
 	h.check("a question with no answer says so",
 		printed(lines, "  no solution found at depth 8"))
 	h.check("the report names the fact still missing",
-		printed(lines, "    a fact like parent-of(?p, susan)"))
+		printed(lines, "    a fact like is-parent-of(?p, susan)"))
 	h.check("the session asks for the variable the report left open",
 		asked.answers.asked[1] == "  ?p = ")
 	h.check("the value it is given becomes a fact",
-		printed(lines, "  added parent-of(walter, susan)"))
+		printed(lines, "  added is-parent-of(walter, susan)"))
 	h.check("the query's own fact is not repeated above the prompt",
-		not printed(lines, "  parent-of(?p, susan)"))
+		not printed(lines, "  is-parent-of(?p, susan)"))
 	h.check("the fact answers the question on the next pass",
-		printed(lines, "  walter parent of susan"))
+		printed(lines, "  walter is parent of susan"))
 	h.check("the fact stays in the session", asked.session.facts.len == 3)
 
 	// A missing fact with two variables is asked about one at a time.
-	pair = startSession(family + [], [], ["aunt-of(?p, ?q)", "doris", "nina", "quit"])
+	pair = startSession(family + [], [], ["is-aunt-of(?p, ?q)", "doris", "nina", "quit"])
 	h.check("a two-variable fact is asked for a variable at a time",
 		pair.answers.asked[1] == "  ?p = " and pair.answers.asked[2] == "  ?q = ")
 	h.check("both answers make the one fact",
-		printed(pair.answers.lines, "  added aunt-of(doris, nina)"))
+		printed(pair.answers.lines, "  added is-aunt-of(doris, nina)"))
 	h.check("the question is answered too",
-		printed(pair.answers.lines, "  doris aunt of nina"))
+		printed(pair.answers.lines, "  doris is aunt of nina"))
 
 	// A rule typed at the prompt joins the search.
-	ruleLine = "grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)"
-	ruled = startSession(family + [], [], [ruleLine, "grandparent(?p, ?y)"])
+	ruleLine = "is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)"
+	ruled = startSession(family + [], [], [ruleLine, "is-grandparent-of(?p, ?y)"])
 	h.check("a rule typed at the prompt is added",
 		printed(ruled.answers.lines, "  added rule " + ruleLine))
 	h.check("the new rule answers the next question",
-		printed(ruled.answers.lines, "  bill grandparent anna"))
+		printed(ruled.answers.lines, "  bill is grandparent of anna"))
 
 	// A predicate's name has a shape, and the prompt is the other door into the knowledge
 	// base: a typed line is refused there in the words the file reader uses, since both read
@@ -133,160 +133,169 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		holds(shouted.answers.lines, "a predicate is lower-case letters and digits, joined by '-'"))
 	h.check("and nothing is stored from it", shouted.session.facts.len == family.len)
 
+	// A rule is a line too, and it is the door most likely to be typed: its head and every
+	// condition are asked the same question, and the answer says why rather than falling back
+	// to the malformed-line message the rest of a rule gets.
+	badHead = startSession(family + [], [], ["Parent-Of(?x, ?y) <- is-parent-of(?x, ?y)"])
+	h.check("a typed rule whose predicate is not a name is refused, and says why",
+		holds(badHead.answers.lines, "a predicate is lower-case letters and digits, joined by '-'") and
+			not holds(badHead.answers.lines, "malformed rule"))
+	h.check("and no rule is stored from it", badHead.session.rules.len == 0)
+
 	// A malformed line is refused, quoted, and the session carries on.
 	stumbling = startSession(family + [], [],
-		["parent-of(walter", "parent-of(walter, susan)", "parent-of(?p, susan)"])
+		["is-parent-of(walter", "is-parent-of(walter, susan)", "is-parent-of(?p, susan)"])
 	h.check("a bad line is refused with the line quoted",
 		holds(stumbling.answers.lines, "malformed spo") and
-			holds(stumbling.answers.lines, "parent-of(walter"))
+			holds(stumbling.answers.lines, "is-parent-of(walter"))
 	h.check("the session carries on after it",
-		printed(stumbling.answers.lines, "  added parent-of(walter, susan)"))
+		printed(stumbling.answers.lines, "  added is-parent-of(walter, susan)"))
 
 	// ── A rule's own facts are asked for, not the query's shape ────────────
 
 	// The uncle rule is the case where asking the query's own variable would end the
 	// session by assertion: ?p is the uncle, so the report needs a parent of Susan and
 	// a male sibling of that parent.
-	uncleRule = rules.Rule.make(spo(v("x"), "uncle-of", v("y")),
-		[spo(v("p"), "parent-of", v("y")), spo(v("x"), "sibling-of", v("p")),
+	uncleRule = rules.Rule.make(spo(v("x"), "is-uncle-of", v("y")),
+		[spo(v("p"), "is-parent-of", v("y")), spo(v("x"), "is-sibling-of", v("p")),
 			spo(v("x"), "has-gender", "male")])
 	uncle = startSession(family + [], [uncleRule],
-		["uncle-of(?p, susan)", "george", "alfonso", "y"])
+		["is-uncle-of(?p, susan)", "george", "alfonso", "y"])
 	uncleLines = uncle.answers.lines
 	uncleAsked = uncle.answers.asked
 	h.check("a rule's fact is asked for before the query's own shape",
 		uncleAsked[1] == "  ?p' = ")
 	h.check("the fact being filled is shown above its question",
-		printed(uncleLines, "  parent-of(?p', susan)"))
+		printed(uncleLines, "  is-parent-of(?p', susan)"))
 	h.check("that answer is added as a fact",
-		printed(uncleLines, "  added parent-of(george, susan)"))
+		printed(uncleLines, "  added is-parent-of(george, susan)"))
 	h.check("the sibling condition follows, named against the parent just given",
-		printed(uncleLines, "  sibling-of(?p, george)") and uncleAsked[2] == "  ?p = ")
+		printed(uncleLines, "  is-sibling-of(?p, george)") and uncleAsked[2] == "  ?p = ")
 	h.check("a fact with no variable left is offered instead of asked about",
 		printed(uncleLines, "  has-gender(alfonso, male)") and
 			uncleAsked[3] == "  add it? [y/N] ")
 	h.check("yes adds it and the rules reach the answer from those facts",
 		printed(uncleLines, "  added has-gender(alfonso, male)") and
-			uncleLines[uncleLines.len - 1] == "  alfonso uncle of susan")
+			uncleLines[uncleLines.len - 1] == "  alfonso is uncle of susan")
 	h.check("the query's own fact was never asserted", uncle.session.facts.len == 5)
 
 	// Declining the offer leaves the knowledge base as it was.
 	declined = startSession(family + [], [uncleRule],
-		["uncle-of(?p, susan)", "george", "alfonso", "n"])
+		["is-uncle-of(?p, susan)", "george", "alfonso", "n"])
 	h.check("no leaves the fact out", declined.session.facts.len == 4 and
 		not holds(declined.answers.lines, "  added has-gender"))
 
 	// A value given for a variable the rule introduces is progress, even when the rest of
 	// that rule's conditions already hold: naming the sibling lets the next pass ask for the
 	// one fact really missing, instead of the session giving up because nothing was added.
-	apart = family + [spo("bill", "sibling-of", "george"), spo("bill", "has-gender", "male")]
-	tangled = startSession(apart + [], [uncleRule], ["uncle-of(bill, ?p)", "george", "zed", "quit"])
+	apart = family + [spo("bill", "is-sibling-of", "george"), spo("bill", "has-gender", "male")]
+	tangled = startSession(apart + [], [uncleRule], ["is-uncle-of(bill, ?p)", "george", "zed", "quit"])
 	h.check("a rule's fact is asked about for the variables it introduces",
-		printed(tangled.answers.lines, "      parent-of(?p', ?p)") and
+		printed(tangled.answers.lines, "      is-parent-of(?p', ?p)") and
 			tangled.answers.asked[1] == "  ?p' = ")
 	h.check("naming the introduced variable carries the loop to the fact really missing",
 		tangled.answers.asked[2] == "  ?p = " and
-			printed(tangled.answers.lines, "  added parent-of(george, zed)") and
-			tangled.answers.lines[tangled.answers.lines.len - 1] == "  bill uncle of zed" and
+			printed(tangled.answers.lines, "  added is-parent-of(george, zed)") and
+			tangled.answers.lines[tangled.answers.lines.len - 1] == "  bill is uncle of zed" and
 			tangled.session.facts.len == 5)
 
 	// A condition a rule already derives - not a stored fact, but provable from the rules -
 	// is treated the same as one already stored: the fill does not offer to add it, and the
 	// loop still reaches the one fact that is genuinely missing. Here bill and george are
 	// derivably siblings, so only a child for george is missing.
-	siblingRule = rules.Rule.make(spo(v("x"), "sibling-of", v("y")),
-		[spo(v("p"), "parent-of", v("x")), spo(v("p"), "parent-of", v("y")),
+	siblingRule = rules.Rule.make(spo(v("x"), "is-sibling-of", v("y")),
+		[spo(v("p"), "is-parent-of", v("x")), spo(v("p"), "is-parent-of", v("y")),
 			t.NotEqual.make(v("x"), v("y"))])
-	// Two sets of parents keep parent-of(?p, ?y) open in the report, so the fill asks for the
+	// Two sets of parents keep is-parent-of(?p, ?y) open in the report, so the fill asks for the
 	// sibling by name; oliver and clara are derivably siblings through henry, so once the
 	// sibling is named the only fact still missing is a child for clara.
-	kin = [spo("henry", "parent-of", "oliver"), spo("henry", "parent-of", "clara"),
-		spo("walter", "parent-of", "bill"), spo("walter", "parent-of", "george"),
+	kin = [spo("henry", "is-parent-of", "oliver"), spo("henry", "is-parent-of", "clara"),
+		spo("walter", "is-parent-of", "bill"), spo("walter", "is-parent-of", "george"),
 		spo("oliver", "has-gender", "male")]
 	derivable = startSession(kin + [], [siblingRule, uncleRule],
-		["uncle-of(oliver, ?y)", "clara", "zed", "quit"])
+		["is-uncle-of(oliver, ?y)", "clara", "zed", "quit"])
 	h.check("a derivable condition is not offered as a fact to add",
 		not holds(derivable.answers.asked, "add it?"))
 	h.check("and the loop still reaches the fact that is really missing",
-		printed(derivable.answers.lines, "  added parent-of(clara, zed)") and
-			derivable.answers.lines[derivable.answers.lines.len - 1] == "  oliver uncle of zed")
+		printed(derivable.answers.lines, "  added is-parent-of(clara, zed)") and
+			derivable.answers.lines[derivable.answers.lines.len - 1] == "  oliver is uncle of zed")
 
 	// An answer given under one line of a rule's block is carried to the next: ?p' = sam
 	// turns the check below it into a fact with nothing left to fill, so it is kept.
-	carried = startSession(apart + [], [uncleRule], ["uncle-of(bill, ?p)", "sam", "y"])
+	carried = startSession(apart + [], [uncleRule], ["is-uncle-of(bill, ?p)", "sam", "y"])
 	h.check("an answer is carried to the next fact of the block",
 		carried.answers.asked[1] == "  ?p' = " and
 			carried.answers.asked[2] == "  add it? [y/N] " and
-			printed(carried.answers.lines, "  added sibling-of(bill, sam)") and
+			printed(carried.answers.lines, "  added is-sibling-of(bill, sam)") and
 			carried.session.facts.len == 5)
 
 	// What was given is remembered for as long as the report stands, so the question that
 	// comes round again shows the fact with the value in it and asks only what is left.
 	remembered = startSession(apart + [], [uncleRule],
-		["uncle-of(bill, ?p)", "sam", "y", "alfonso"])
+		["is-uncle-of(bill, ?p)", "sam", "y", "alfonso"])
 	h.check("a value given once is not asked for a second time",
-		printed(remembered.answers.lines, "  parent-of(sam, ?p)") and
+		printed(remembered.answers.lines, "  is-parent-of(sam, ?p)") and
 			remembered.answers.asked[3] == "  ?p = " and
-			printed(remembered.answers.lines, "  added parent-of(sam, alfonso)") and
-			remembered.answers.lines[remembered.answers.lines.len - 1] == "  bill uncle of alfonso")
+			printed(remembered.answers.lines, "  added is-parent-of(sam, alfonso)") and
+			remembered.answers.lines[remembered.answers.lines.len - 1] == "  bill is uncle of alfonso")
 	// The block above reads the same way, so the report and the question agree.
 	h.check("the report block shows the values already given",
-		printed(remembered.answers.lines, "      parent-of(sam, ?p)"))
+		printed(remembered.answers.lines, "      is-parent-of(sam, ?p)"))
 	// A fact the session can already prove needs nothing added, so the block stops asking
 	// for it - though it lists it while it is still only a check.
 	h.check("the report stops listing a fact the session holds",
-		not holds(remembered.answers.lines, "      sibling-of(bill, sam)") and
-			holds(remembered.answers.lines, "      sibling-of(bill, ?p')"))
+		not holds(remembered.answers.lines, "      is-sibling-of(bill, sam)") and
+			holds(remembered.answers.lines, "      is-sibling-of(bill, ?p')"))
 
 	// ── The query's own shape is the last thing offered ─────────────────────
 
 	// A rule in the knowledge base that cannot conclude this query leaves the query's
 	// own shape as the only fact there is to ask about.
-	unrelated = rules.Rule.make(spo(v("x"), "child-of", v("y")),
-		[spo(v("y"), "parent-of", v("x"))])
-	ownShape = startSession(family + [], [unrelated], ["parent-of(?p, susan)", "walter", "quit"])
+	unrelated = rules.Rule.make(spo(v("x"), "is-child-of", v("y")),
+		[spo(v("y"), "is-parent-of", v("x"))])
+	ownShape = startSession(family + [], [unrelated], ["is-parent-of(?p, susan)", "walter", "quit"])
 	h.check("the query's own shape is asked when no rule can conclude it",
 		ownShape.answers.asked[1] == "  ?p = " and
-			printed(ownShape.answers.lines, "  added parent-of(walter, susan)"))
+			printed(ownShape.answers.lines, "  added is-parent-of(walter, susan)"))
 
 	// A goal with no variable at all is a fact to add, not a question to ask, so the
 	// ranking above only ever decides between facts that still have one.
-	settled = family + [spo("george", "parent-of", "susan")]
-	asserted = startSession(settled + [], [uncleRule], ["uncle-of(zed, susan)"])
+	settled = family + [spo("george", "is-parent-of", "susan")]
+	asserted = startSession(settled + [], [uncleRule], ["is-uncle-of(zed, susan)"])
 	h.check("a ground line is a fact, even when nothing proves it",
-		printed(asserted.answers.lines, "  added uncle-of(zed, susan)"))
+		printed(asserted.answers.lines, "  added is-uncle-of(zed, susan)"))
 
 	// Answering by fiat is deliberate but still there: a whole fact typed where a value is
 	// asked for is a fact, with the standing any typed fact has, and the question starts
 	// again from it.
-	fiat = startSession(family + [], [uncleRule], ["uncle-of(bill, ?p)", "uncle-of(bill, zed)"])
+	fiat = startSession(family + [], [uncleRule], ["is-uncle-of(bill, ?p)", "is-uncle-of(bill, zed)"])
 	h.check("a fact typed instead of a value is added, and answers the question",
-		printed(fiat.answers.lines, "  added uncle-of(bill, zed)") and
-			fiat.answers.lines[fiat.answers.lines.len - 1] == "  bill uncle of zed")
+		printed(fiat.answers.lines, "  added is-uncle-of(bill, zed)") and
+			fiat.answers.lines[fiat.answers.lines.len - 1] == "  bill is uncle of zed")
 
 	// A line that parses but still holds a variable is neither a fact to add nor a value
 	// to bind, so it is refused and the question is put again.
 	refused = startSession(family + [], [],
-		["parent-of(?p, susan)", "parent-of(walter, ?x)", "walter", "quit"])
+		["is-parent-of(?p, susan)", "is-parent-of(walter, ?x)", "walter", "quit"])
 	h.check("a fact-shaped line with a variable is refused at a value prompt",
 		printed(refused.answers.lines,
-			"  parent-of(walter, ?x) still holds a variable: type a value, or a fact without one") and
+			"  is-parent-of(walter, ?x) still holds a variable: type a value, or a fact without one") and
 			refused.answers.asked.len == 4 and refused.answers.asked[2] == "  ?p = " and
-			printed(refused.answers.lines, "  added parent-of(walter, susan)"))
+			printed(refused.answers.lines, "  added is-parent-of(walter, susan)"))
 
 	// ── --verbose gives the tree behind each answer, as a run does ──────────
 
-	verbose = startSession(family + [], [], ["parent-of(?p, susan)", "walter", "quit"], null, 1)
+	verbose = startSession(family + [], [], ["is-parent-of(?p, susan)", "walter", "quit"], null, 1)
 	h.check("a verbose session prints the proof tree behind an answer",
-		printed(verbose.answers.lines, "  parent-of(walter, susan)  <- fact"))
-	verboseRule = startSession(family + [], [], [ruleLine, "grandparent(bill, ?y)"], null, 1)
+		printed(verbose.answers.lines, "  is-parent-of(walter, susan)  <- fact"))
+	verboseRule = startSession(family + [], [], [ruleLine, "is-grandparent-of(bill, ?y)"], null, 1)
 	h.check("a verbose answer names the rule behind it",
-		holds(verboseRule.answers.lines, "  <- rule grandparent(?x, ?y)"))
+		holds(verboseRule.answers.lines, "  <- rule is-grandparent-of(?x, ?y)"))
 
 	// ── Slash commands ──────────────────────────────────────────────────────
 
 	commands = startSession(family + [], [uncleRule],
-		["/help", "/facts", "/rules", "/nope", "/exit", "parent-of(?p, susan)"])
+		["/help", "/facts", "/rules", "/nope", "/exit", "is-parent-of(?p, susan)"])
 	commandLines = commands.answers.lines
 	h.check("/help lists every command",
 		printed(commandLines, "  /exit  leave the session") and
@@ -327,19 +336,19 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("/depth says the depth the session searches to",
 		printed(depthed.answers.lines, "  searching to depth 8"))
 	h.check("/facts lists the facts it holds",
-		printed(commandLines, "  2 facts") and printed(commandLines, "    parent-of(bill, tim)"))
+		printed(commandLines, "  2 facts") and printed(commandLines, "    is-parent-of(bill, tim)"))
 	h.check("/rules lists the rules it holds",
 		printed(commandLines, "  1 rule") and
-			holds(commandLines, "    uncle-of(?x, ?y) <- parent-of(?p, ?y)"))
+			holds(commandLines, "    is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y)"))
 	h.check("an unknown command is refused",
 		printed(commandLines, "  no such command: /nope (/help lists them)"))
 	h.check("/exit leaves before the next line is read", commands.answers.asked.len == 5)
 
 	// ── Taking a fact back ───────────────────────────────────────────────────
 
-	taken = startSession(family + [], [], ["parent-of(walter, susan)", "/undo", "/undo"])
+	taken = startSession(family + [], [], ["is-parent-of(walter, susan)", "/undo", "/undo"])
 	h.check("/undo takes back the fact just added",
-		printed(taken.answers.lines, "  took back parent-of(walter, susan)"))
+		printed(taken.answers.lines, "  took back is-parent-of(walter, susan)"))
 	h.check("the knowledge base loses it again", taken.session.facts.len == 2)
 	h.check("/undo with nothing to take back says so",
 		printed(taken.answers.lines, "  nothing to take back"))
@@ -348,45 +357,45 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// /undo reaches only the last change; /retract names the fact to take out, wherever it
 	// stands, so a fact learned long ago can go without unwinding everything after it.
 
-	pulled = startSession(family + [], [], ["/retract parent-of(tim, anna)", "/facts"], null, 0,
+	pulled = startSession(family + [], [], ["/retract is-parent-of(tim, anna)", "/facts"], null, 0,
 		null, {})
 	h.check("/retract takes the named fact out",
-		printed(pulled.answers.lines, "  retracted parent-of(tim, anna)"))
+		printed(pulled.answers.lines, "  retracted is-parent-of(tim, anna)"))
 	h.check("and the session holds only the other one",
-		pulled.session.facts.len == 1 and pulled.session.facts[0].text == "parent-of(bill, tim)")
+		pulled.session.facts.len == 1 and pulled.session.facts[0].text == "is-parent-of(bill, tim)")
 	h.check("/retract of a fact it does not hold says so",
-		printed(startSession(family + [], [], ["/retract parent-of(bill, anna)"]).answers.lines,
-			"  no such fact: parent-of(bill, anna)"))
+		printed(startSession(family + [], [], ["/retract is-parent-of(bill, anna)"]).answers.lines,
+			"  no such fact: is-parent-of(bill, anna)"))
 	h.check("/retract needs a fact to take out",
 		printed(startSession(family + [], [], ["/retract"]).answers.lines,
 			"  /retract needs a fact, as /retract has-gender(zed, male)"))
 	// A variable would say which facts to look for rather than which one to remove, so the
 	// command refuses it instead of choosing one.
 	h.check("/retract refuses a pattern",
-		printed(startSession(family + [], [], ["/retract parent-of(?p, tim)"]).answers.lines,
-			"  /retract takes a fact, not a pattern: parent-of(?p, tim)"))
+		printed(startSession(family + [], [], ["/retract is-parent-of(?p, tim)"]).answers.lines,
+			"  /retract takes a fact, not a pattern: is-parent-of(?p, tim)"))
 	// Taking one out is a change like any other, so /undo puts it back where it stood.
-	restored = startSession(family + [], [], ["/retract parent-of(bill, tim)", "/undo"])
+	restored = startSession(family + [], [], ["/retract is-parent-of(bill, tim)", "/undo"])
 	h.check("/undo puts a retracted fact back", restored.session.facts.len == 2 and
-		restored.session.facts[0].text == "parent-of(bill, tim)")
-	h.check("and says so", printed(restored.answers.lines, "  put parent-of(bill, tim) back"))
+		restored.session.facts[0].text == "is-parent-of(bill, tim)")
+	h.check("and says so", printed(restored.answers.lines, "  put is-parent-of(bill, tim) back"))
 
 	// A fact can be taken out while a question is still asking, the way /undo can be used
 	// there: the question is put again from the knowledge base the retraction left.
 	midQuestion = startSession(family + [], [],
-		["parent-of(?p, susan)", "/retract parent-of(tim, anna)", "walter"])
+		["is-parent-of(?p, susan)", "/retract is-parent-of(tim, anna)", "walter"])
 	h.check("a fact is retracted from inside a question",
-		printed(midQuestion.answers.lines, "  retracted parent-of(tim, anna)"))
+		printed(midQuestion.answers.lines, "  retracted is-parent-of(tim, anna)"))
 	h.check("and the question is put again", midQuestion.answers.asked.len == 4 and
 		midQuestion.answers.asked[1] == "  ?p = " and midQuestion.answers.asked[2] == "  ?p = ")
 	h.check("and the answer it is given completes it", midQuestion.session.facts.len == 2 and
-		printed(midQuestion.answers.lines, "  added parent-of(walter, susan)"))
+		printed(midQuestion.answers.lines, "  added is-parent-of(walter, susan)"))
 	// A name the session does not hold says so at the prompt and leaves the question where it
 	// stands, rather than ending it over a typo.
 	mistyped = startSession(family + [], [],
-		["parent-of(?p, susan)", "/retract parent-of(bill, anna)", "bob"])
+		["is-parent-of(?p, susan)", "/retract is-parent-of(bill, anna)", "bob"])
 	h.check("a retraction the session cannot make leaves the question asking",
-		printed(mistyped.answers.lines, "  no such fact: parent-of(bill, anna)") and
+		printed(mistyped.answers.lines, "  no such fact: is-parent-of(bill, anna)") and
 			mistyped.answers.asked.len == 4 and mistyped.answers.asked[2] == "  ?p = ")
 
 	// The other prompt a question puts is the 'add it?' offer, and it answers the same two
@@ -405,25 +414,25 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// A wrong answer can be taken back while the session is still asking, and the
 	// question is put again.
 	wrong = startSession(family + [], [],
-		["parent-of(walter, susan)", "aunt-of(?p, susan)", "/undo", "nina"])
+		["is-parent-of(walter, susan)", "is-aunt-of(?p, susan)", "/undo", "nina"])
 	h.check("a wrong fact is taken back from inside a question",
-		printed(wrong.answers.lines, "  took back parent-of(walter, susan)") and
+		printed(wrong.answers.lines, "  took back is-parent-of(walter, susan)") and
 			wrong.answers.asked[2] == "  ?p = " and wrong.answers.asked[3] == "  ?p = ")
 	h.check("the question is asked again and answered",
-		printed(wrong.answers.lines, "  added aunt-of(nina, susan)") and
+		printed(wrong.answers.lines, "  added is-aunt-of(nina, susan)") and
 			wrong.session.facts.len == 3)
 
 	// ── Painting is the same style table, so it is opt-in the same way ──────
 
 	mark = {"prompt": "<p>", "added": "<a>", "answer": "<n>", "warning": "<w>", "normal": "</>"}
-	painted = startSession(family + [], [], ["parent-of(?p, susan)", "walter", "quit"], mark)
+	painted = startSession(family + [], [], ["is-parent-of(?p, susan)", "walter", "quit"], mark)
 	h.check("a painted prompt opens and closes", painted.answers.asked[0] == "<p>? </>")
 	h.check("a painted gap warning closes its line",
 		printed(painted.answers.lines, "<w>  no solution found at depth 8</>"))
 	h.check("a painted added fact is marked as such",
-		printed(painted.answers.lines, "<a>  added parent-of(walter, susan)</>"))
+		printed(painted.answers.lines, "<a>  added is-parent-of(walter, susan)</>"))
 	h.check("a painted answer wraps the whole line",
-		printed(painted.answers.lines, "<n>  walter parent of susan</>"))
+		printed(painted.answers.lines, "<n>  walter is parent of susan</>"))
 
 	// ── Numbers, and the schema a typed fact is held against ─────────────────
 
@@ -486,11 +495,11 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		printed(boolean.answers.lines, "  added is-adult(tim, true)"))
 
 	// A text field is chosen from nothing, so it keeps the plain prompt.
-	free = startSession([], [], ["parent-of(bill, ?c)", "tim"], null, 0,
-		{"parent-of": ["text", "text"]})
+	free = startSession([], [], ["is-parent-of(bill, ?c)", "tim"], null, 0,
+		{"is-parent-of": ["text", "text"]})
 	h.check("a text field is asked for without a list",
 		not holds(free.answers.lines, "1) ") and
-			printed(free.answers.lines, "  added parent-of(bill, tim)"))
+			printed(free.answers.lines, "  added is-parent-of(bill, tim)"))
 
 	// A number field takes the digits typed at it as the number they spell, so the fact the
 	// value completes is one the schema accepts, rather than "24" text it would refuse.
@@ -634,7 +643,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	written = readBack(factsPath)
 	file.delete(factsPath)
 	h.check("/save-facts writes the facts to their file", written.len == 2 and
-		written[0] == "parent-of(bill, tim)" and written[1] == "parent-of(tim, anna)")
+		written[0] == "is-parent-of(bill, tim)" and written[1] == "is-parent-of(tim, anna)")
 	h.check("and says how many it wrote",
 		holds(savedFacts.answers.lines, "  wrote 2 facts to " + factsPath))
 
@@ -652,17 +661,17 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// Loading replaces what the session holds, and what was loaded is the base /undo can
 	// no longer reach past.
 	loadedPath = scratch("loaded-facts.kb")
-	writeFile(loadedPath, ["has-gender(walter, male)", "parent-of(walter, bill)"])
+	writeFile(loadedPath, ["has-gender(walter, male)", "is-parent-of(walter, bill)"])
 	loaded = startSession([], [], ["/load-facts " + quoted(loadedPath), "/undo"], null, 0, null, {})
 	file.delete(loadedPath)
 	h.check("/load-facts replaces the facts with the file's", loaded.session.facts.len == 2 and
-		loaded.session.facts[1].text == "parent-of(walter, bill)")
+		loaded.session.facts[1].text == "is-parent-of(walter, bill)")
 	h.check("the loaded facts are the base /undo cannot reach past",
 		printed(loaded.answers.lines, "  nothing to take back"))
 	h.check("and it says what it read", holds(loaded.answers.lines, "  loaded 2 facts from "))
 
 	// Rules are written as the data file spells them, with => between head and body.
-	uncle = "uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)"
+	uncle = "is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)"
 	unclePieces = t.parseRule(uncle)
 	rulePath = scratch("rules.kb")
 	savedRules = startSession(family + [], [rules.Rule.make(unclePieces.head, unclePieces.body)],
@@ -670,28 +679,28 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	writtenRule = readBack(rulePath)
 	file.delete(rulePath)
 	h.check("/save-rules writes the rule as 'head => conditions'", writtenRule.len == 1 and
-		writtenRule[0] == "uncle-of(?x, ?y) => parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)")
+		writtenRule[0] == "is-uncle-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)")
 	h.check("and says how many rules it wrote",
 		holds(savedRules.answers.lines, "  wrote 1 rule to "))
 
 	// A loaded rule joins the search, which is the point of keeping the format writeable.
 	rulePath = scratch("loaded-rules.kb")
-	writeFile(rulePath, ["grandparent(?x, ?y) => parent-of(?x, ?p), parent-of(?p, ?y)"])
+	writeFile(rulePath, ["is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)"])
 	loadedRules = startSession(family + [], [],
-		["/load-rules " + quoted(rulePath), "grandparent(bill, ?who)"], null, 0, null, {})
+		["/load-rules " + quoted(rulePath), "is-grandparent-of(bill, ?who)"], null, 0, null, {})
 	file.delete(rulePath)
 	h.check("/load-rules replaces the rules with the file's", loadedRules.session.rules.len == 1 and
 		loadedRules.session.rules[0].text ==
-			"grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)")
+			"is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)")
 	h.check("and the loaded rule answers a question",
-		printed(loadedRules.answers.lines, "  bill grandparent anna"))
+		printed(loadedRules.answers.lines, "  bill is grandparent of anna"))
 
 	// A rule whose head the schema marks unique(...) has nowhere to refuse a second value,
 	// since a fact a rule concludes is never added, so loading one is refused the way startup
 	// refuses the schema that marks it: the session keeps the rules it had.
-	uniqueHead = {"age-group": ["text", "unique(child|adult)"]}
+	uniqueHead = {"belongs-to-age-group": ["text", "unique(child|adult)"]}
 	rulePath = scratch("unique-rules.kb")
-	writeFile(rulePath, ["age-group(?x, child) => has-age(?x, ?n), less-than-or-equal(?n, 18)"])
+	writeFile(rulePath, ["belongs-to-age-group(?x, child) => has-age(?x, ?n), less-than-or-equal(?n, 18)"])
 	refusedRules = startSession(family + [], [], ["/load-rules " + quoted(rulePath)],
 		null, 0, uniqueHead, {})
 	file.delete(rulePath)
@@ -702,7 +711,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// The same line typed at the prompt is the same hole, so it is refused there too rather
 	// than added to a schema that has no place to enforce it.
 	typedRule = startSession([], [],
-		["age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)"], null, 0, uniqueHead)
+		["belongs-to-age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)"], null, 0, uniqueHead)
 	h.check("a typed rule whose head the schema marks unique(...) is refused",
 		holds(typedRule.answers.lines, "concluded by a rule") and typedRule.session.rules.len == 0)
 
@@ -730,15 +739,15 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// startup refuses it: the session keeps the types it had rather than holding a line it
 	// has nowhere to check.
 	derivedPath = scratch("derived-schema.kb")
-	writeFile(derivedPath, ["age-group(text, unique(child|adult))"])
-	older = t.parseRule("age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)")
+	writeFile(derivedPath, ["belongs-to-age-group(text, unique(child|adult))"])
+	older = t.parseRule("belongs-to-age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)")
 	refusedSchema = startSession([], [rules.Rule.make(older.head, older.body)],
 		["/load-schema " + quoted(derivedPath)], null, 0, {"has-age": ["text", "number"]}, {})
 	file.delete(derivedPath)
 	h.check("/load-schema refuses a unique(...) a rule leaves no place to enforce",
 		holds(refusedSchema.answers.lines, "concluded by a rule"))
 	h.check("and the session keeps the schema it had",
-		refusedSchema.session.types.hasIndex("age-group") == 0 and
+		refusedSchema.session.types.hasIndex("belongs-to-age-group") == 0 and
 			refusedSchema.session.types.hasIndex("has-age") == 1)
 
 	// A schema says what the facts already held have to be, so a pair it marks unique(...)
@@ -771,7 +780,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// leaves the file that was already there whole. A folder where the temp file goes is
 	// a write that cannot start.
 	keptPath = scratch("kept-facts.kb")
-	writeFile(keptPath, ["parent-of(bill, tim)"])
+	writeFile(keptPath, ["is-parent-of(bill, tim)"])
 	blocked = keptPath + ".tmp"
 	made = file.makedir(blocked)
 	blockedSave = startSession(family + [], [], ["/save-facts"], null, 0, null, {"facts": keptPath})
@@ -781,14 +790,14 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	file.delete(keptPath)
 	h.check("a failed save says so and leaves the old file whole",
 		holds(blockedSave.answers.lines, "  could not write ") and kept.len == 1 and
-			kept[0] == "parent-of(bill, tim)")
+			kept[0] == "is-parent-of(bill, tim)")
 	h.check("and the folder that stood where the temp file goes is still there", stillThere == 1)
 
 	// The name the old file is moved aside to is cleared for a file an interrupted swap
 	// left there, but a folder at that name is nobody's leftover: the save cannot swap its
 	// file in, says so, and leaves the folder and the old file where they are.
 	oldPath = scratch("kept-old-facts.kb")
-	writeFile(oldPath, ["parent-of(bill, tim)"])
+	writeFile(oldPath, ["is-parent-of(bill, tim)"])
 	made = file.makedir(oldPath + ".old")
 	oldBlocked = startSession(family + [], [], ["/save-facts"], null, 0, null, {"facts": oldPath})
 	keptOld = readBack(oldPath)
@@ -797,19 +806,19 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	file.delete(oldPath)
 	h.check("a folder where the old copy is moved aside to stays, and the save says why",
 		holds(oldBlocked.answers.lines, "  could not write ") and oldStillThere == 1 and
-			keptOld.len == 1 and keptOld[0] == "parent-of(bill, tim)")
+			keptOld.len == 1 and keptOld[0] == "is-parent-of(bill, tim)")
 
 	// A swap that cannot put its temp file in place puts the old one back: the session's
 	// file is where it was, and no copy of it is left beside it. A temp file that is not
 	// there is a swap that cannot finish.
 	restorePath = scratch("restore-facts.kb")
-	writeFile(restorePath, ["parent-of(bill, tim)"])
+	writeFile(restorePath, ["is-parent-of(bill, tim)"])
 	putBack = library.swapIn(scratch("vanished"), restorePath)
 	restored = readBack(restorePath)
 	oldLeft = file.exists(restorePath + ".old")
 	file.delete(restorePath)
 	h.check("a swap that cannot finish puts the old file back", putBack isa error and
-		restored.len == 1 and restored[0] == "parent-of(bill, tim)" and oldLeft == 0)
+		restored.len == 1 and restored[0] == "is-parent-of(bill, tim)" and oldLeft == 0)
 
 	// A save that works leaves neither the temp file nor the copy of the one it replaced.
 	cleanPath = scratch("clean-facts.kb")

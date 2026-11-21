@@ -42,7 +42,7 @@ fails, and so does `not-equal(1e3, 1000)`, because each pair reads as one number
 ```prolog
 // ?x and ?y are siblings when they share at least one parent, so half-siblings count
 // too, and nobody is their own sibling.
-sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y))
+is-sibling-of(?x, ?y) => and(is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y))
 ```
 
 A field that is still an unbound variable is compared by name. Two different names are two
@@ -71,7 +71,7 @@ it up a second time:
 // The two groups are reached by separate conditions, so equal(?g, ?h) is what says they
 // have to agree - and it is written the moment ?g is known, so ?h is already bound when
 // the second condition goes looking for the people in it.
-same-age-group-as(?x, ?y) => and(age-group(?x, ?g), equal(?g, ?h), age-group(?y, ?h), not-equal(?x, ?y))
+shares-age-group-with(?x, ?y) => and(belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h), not-equal(?x, ?y))
 ```
 
 Both fields may be unbound: `equal(?a, ?b)` links them, and the next condition that binds
@@ -80,7 +80,7 @@ passes, because both read as numbers, while `equal("24", 24)` fails, because the
 marks are ordinary text and the field never becomes a number.
 
 Whatever `equal` settles is visible to the conditions after it, to the answer, and to the
-missing-fact report — the body of `same-age-group-as` can go looking for the second person
+missing-fact report — the body of `shares-age-group-with` can go looking for the second person
 with `?h` already bound to the first person's group.
 
 ## Comparisons
@@ -103,7 +103,7 @@ are numbers, while `1e`, `eighteen` and `"18"` are text.
 
 ```prolog
 // A child is 18 or younger; the line lives in the rule rather than in a column of facts.
-age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))
+belongs-to-age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))
 ```
 
 A comparison on a variable that a later condition would have bound cannot wait: it is checked
@@ -120,7 +120,7 @@ other. A negation of a constraint is a negation of the check, not of a search:
 holds for either value.
 
 ```prolog
-sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y))
+is-sibling-of(?x, ?y) => and(is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y))
 ```
 
 A constraint proves nothing, so it adds no step to a proof tree, and it asks for no fact in a

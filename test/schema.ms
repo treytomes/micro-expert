@@ -126,10 +126,10 @@ run = function(t, parser, schemaLoader, h)
 		shipped["has-gender"][1] == "unique(male|female)")
 	h.check("a spouse is not marked unique, so the rule that reverses it can run",
 		shipped["married-to"][1] == "text")
-	h.check("a parent is text either way", shipped["parent-of"].join("|") == "text|text")
-	// A derived predicate is typed by the rules that conclude it: sibling-of links the two
-	// people parent-of links, and age-group's second field is one of the two words written.
-	h.check("a derived relation is text either way", shipped["sibling-of"].join("|") == "text|text")
+	h.check("a parent is text either way", shipped["is-parent-of"].join("|") == "text|text")
+	// A derived predicate is typed by the rules that conclude it: is-sibling-of links the two
+	// people is-parent-of links, and belongs-to-age-group's second field is one of the two words written.
+	h.check("a derived relation is text either way", shipped["is-sibling-of"].join("|") == "text|text")
 	h.check("a derived group is one of the words its rules write",
-		shipped["age-group"][1] == "child|adult")
+		shipped["belongs-to-age-group"][1] == "child|adult")
 end function

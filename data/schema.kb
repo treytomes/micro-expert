@@ -24,7 +24,7 @@
 // Both stored and derived predicates are listed, because both can be written and asked at
 // the prompt. A stored predicate's line comes from the facts that use it; a derived one's
 // from the rules that conclude it, since every condition in a body says what its fields
-// have to be - sibling-of takes the two people parent-of links, and age-group's second
+// have to be - is-sibling-of takes the two people is-parent-of links, and belongs-to-age-group's second
 // field is one of the two words its rules write. A comparison such as
 // less-than-or-equal(?n, 18) keeps its own field a number without being told.
 //
@@ -32,22 +32,22 @@
 
 // ── Stored facts ─────────────────────────────────────────────────────────────
 
-parent-of(text, text)
+is-parent-of(text, text)
 married-to(text, text)
 has-gender(text, unique(male|female))
 has-age(text, unique(number))
 
 // ── Derived by rules ─────────────────────────────────────────────────────────
 
-child-of(text, text)
-sibling-of(text, text)
-brother-of(text, text)
-sister-of(text, text)
-uncle-of(text, text)
-aunt-of(text, text)
-grandpa-of(text, text)
-grandma-of(text, text)
-in-law-of(text, text)
-only-child-of(text, text)
-age-group(text, child|adult)
-same-age-group-as(text, text)
+is-child-of(text, text)
+is-sibling-of(text, text)
+is-brother-of(text, text)
+is-sister-of(text, text)
+is-uncle-of(text, text)
+is-aunt-of(text, text)
+is-grandpa-of(text, text)
+is-grandma-of(text, text)
+is-in-law-of(text, text)
+is-only-child-of(text, text)
+belongs-to-age-group(text, child|adult)
+shares-age-group-with(text, text)

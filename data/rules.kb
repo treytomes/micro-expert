@@ -20,57 +20,57 @@
 // knowledge.ms parses the format; rules.ms loads this file into the engine.
 
 // ?x is the child of ?y when ?y is a parent of ?x.
-child-of(?x, ?y) => parent-of(?y, ?x)
+is-child-of(?x, ?y) => is-parent-of(?y, ?x)
 
 // Marriage is a two-way street, so one fact per couple can answer from either side.
 married-to(?y, ?x) => married-to(?x, ?y)
 
 // ?x and ?y are siblings when they share at least one parent, so half-siblings count
 // too, and nobody is their own sibling.
-sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y))
+is-sibling-of(?x, ?y) => and(is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y))
 
 // ?x is a brother of ?y when ?x is a male sibling, so the gender is asked of ?x
 // rather than of ?y.
-brother-of(?x, ?y) => and(sibling-of(?x, ?y), has-gender(?x, male))
+is-brother-of(?x, ?y) => and(is-sibling-of(?x, ?y), has-gender(?x, male))
 
 // ?x is a sister of ?y when ?x is a female sibling.
-sister-of(?x, ?y) => and(sibling-of(?x, ?y), has-gender(?x, female))
+is-sister-of(?x, ?y) => and(is-sibling-of(?x, ?y), has-gender(?x, female))
 
 // ?x is an uncle of ?y when ?x is a male sibling of one of ?y's parents.
-uncle-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male))
+is-uncle-of(?x, ?y) => and(is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male))
 
 // ?x is an aunt of ?y when ?x is a female sibling of one of ?y's parents.
-aunt-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, female))
+is-aunt-of(?x, ?y) => and(is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, female))
 
 // ?x is a grandpa of ?y when ?x is a male parent of one of ?y's parents.
-grandpa-of(?x, ?y) => and(parent-of(?p, ?y), parent-of(?x, ?p), has-gender(?x, male))
+is-grandpa-of(?x, ?y) => and(is-parent-of(?p, ?y), is-parent-of(?x, ?p), has-gender(?x, male))
 
 // ?x is a grandma of ?y when ?x is a female parent of one of ?y's parents.
-grandma-of(?x, ?y) => and(parent-of(?p, ?y), parent-of(?x, ?p), has-gender(?x, female))
+is-grandma-of(?x, ?y) => and(is-parent-of(?p, ?y), is-parent-of(?x, ?p), has-gender(?x, female))
 
 // ?x is an in-law of ?y when ?x married ?y's sibling, or ?x's sibling married ?y.
 // The two readings have nothing in common but the head - one asks about ?x's
 // spouse, the other about ?y's - so one or(...) says both.
-in-law-of(?x, ?y) => or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling-of(?x, ?p), married-to(?p, ?y)))
+is-in-law-of(?x, ?y) => or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(is-sibling-of(?x, ?p), married-to(?p, ?y)))
 
 // ?x is the only child of ?y when ?y is a parent of ?x and nobody is a sibling of ?x.
-// Only not(...) can say that: sibling-of(?x, ?q) holds for any ?q, so no condition of
+// Only not(...) can say that: is-sibling-of(?x, ?q) holds for any ?q, so no condition of
 // the graph asks whether one exists - the rule holds when the search finds none.
-only-child-of(?x, ?y) => and(parent-of(?y, ?x), not(sibling-of(?x, ?q)))
+is-only-child-of(?x, ?y) => and(is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q)))
 
 // ?x is a child while ?x is 18 or younger. An age is stored as a number, so the
 // comparison is arithmetic: read as text, "9" would sort after "18".
-age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))
+belongs-to-age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))
 
 // ?x is an adult when ?x has an age and is not a child - the same line the other way
 // round, so the age where childhood ends is written once. has-age comes first because
 // a negation cannot go looking: it can only report that a body with ?x already bound
 // has no proof.
-age-group(?x, adult) => and(has-age(?x, ?n), not(age-group(?x, child)))
+belongs-to-age-group(?x, adult) => and(has-age(?x, ?n), not(belongs-to-age-group(?x, child)))
 
 // ?x and ?y are in the same age group when both fall into one and it is the same one.
 // The two groups are reached by separate conditions, so equal(?g, ?h) is what says they
 // have to agree - and it is written the moment ?g is known, so ?h is already bound when
 // the second condition goes looking for the people in it.
-same-age-group-as(?x, ?y) => and(age-group(?x, ?g), equal(?g, ?h), age-group(?y, ?h), not-equal(?x, ?y))
+shares-age-group-with(?x, ?y) => and(belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h), not-equal(?x, ?y))
 

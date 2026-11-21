@@ -81,6 +81,6 @@ print padRight("query", 24) + padRight("answers", 9) + padRight("min", 9) +
 	padRight("median", 9) + "max"
 
 // A fact-level answer, a rule chain, and the deep one the solver was profiled against.
-report "parent-of(susan, ?p)", query("susan", "parent-of", triples.var("p"))
-report "grandpa-of(?p, ?y)", query(triples.var("p"), "grandpa-of", triples.var("y"))
-report "uncle-of(bill, ?p)", query("bill", "uncle-of", triples.var("p"))
+report "is-parent-of(susan, ?p)", query("susan", "is-parent-of", triples.var("p"))
+report "is-grandpa-of(?p, ?y)", query(triples.var("p"), "is-grandpa-of", triples.var("y"))
+report "is-uncle-of(bill, ?p)", query("bill", "is-uncle-of", triples.var("p"))

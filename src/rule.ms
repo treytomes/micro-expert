@@ -3,14 +3,14 @@
 // Variables are Var terms from triples.ms, which is how the ?x / ?y of the Lisp form
 // map onto triple fields:
 //
-//   (<- (child-of ?x ?y) (parent-of ?y ?x))
+//   (<- (is-child-of ?x ?y) (is-parent-of ?y ?x))
 //
 // becomes
 //
 //   childOf = Rule.make(
-//       fact(var("x"), "child-of", var("y")),      // head: the then-part
-//       [fact(var("y"), "parent-of", var("x"))])   // body: a list of conditions
-//   print childOf.text    // child-of(?x, ?y) <- parent-of(?y, ?x)
+//       fact(var("x"), "is-child-of", var("y")),      // head: the then-part
+//       [fact(var("y"), "is-parent-of", var("x"))])   // body: a list of conditions
+//   print childOf.text    // is-child-of(?x, ?y) <- is-parent-of(?y, ?x)
 //
 // Head comes first and conditions after it, matching (<- head body...). The body is
 // always a list, so a single condition is a list of one. A body may also hold a

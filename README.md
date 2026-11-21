@@ -5,12 +5,12 @@ about what those facts imply, and a backward-chaining solver that answers a ques
 only by showing you the facts and rules that make the answer true.
 
 ```
-? uncle-of(bill, ?p)
-  uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
-    parent-of(george, anna)  <- fact
-    sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)
-      parent-of(walter, bill)  <- fact
-      parent-of(walter, george)  <- fact
+? is-uncle-of(bill, ?p)
+  is-uncle-of(bill, anna)  <- rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+    is-parent-of(george, anna)  <- fact
+    is-sibling-of(bill, george)  <- rule is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
+      is-parent-of(walter, bill)  <- fact
+      is-parent-of(walter, george)  <- fact
     ...
   ...
 ```
@@ -75,13 +75,13 @@ entry point, and pass the script's exit code back.
 [INF] micro-expert: verbose:    0
 [INF] micro-expert: log-level:  information
 Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
-? uncle-of(bill, ?p)
-  bill uncle of anna
-  bill uncle of mark
-  bill uncle of clara
-  bill uncle of jack
-  bill uncle of nina
-  bill uncle of oliver
+? is-uncle-of(bill, ?p)
+  bill is uncle of anna
+  bill is uncle of mark
+  bill is uncle of clara
+  bill is uncle of jack
+  bill is uncle of nina
+  bill is uncle of oliver
 [INF] micro-expert: micro-expert exiting with code 0
 ```
 
@@ -90,22 +90,23 @@ Type a fact, a question, or a rule as 'head <- conditions'. /help lists the comm
 That is the answer set, said rather than shown: a predicate is named in sections joined by
 dashes, and a sentence is that name with the dashes opened to spaces, so
 `has-uncle(oliver, zed)` answers `oliver has uncle zed`. The name is where the words are -
-there is no second table saying what a predicate means - which is why the family's
-`uncle-of` reads `bill uncle of anna`: a domain that wants a smooth sentence names its
-predicates as verbs. The fact form stays wherever it is something to write back or read as
-data: the missing-fact report, `/facts` and `/rules`, and the proof tree below.
+there is no second table saying what a predicate means - which is why the shipped family
+names its predicates as verbs and the prepositions they need: `has-age`, `married-to`,
+`is-uncle-of`, so an answer reads `bill is uncle of anna`. The fact form stays wherever it is
+something to write back or read as data: the missing-fact report, `/facts` and `/rules`, and
+the proof tree below.
 
 `--verbose` adds the proof tree behind each one:
 
 ```
 > micro-expert --verbose
 Verbose run: depth 8
-? uncle-of(bill, ?p)
-  uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
-    parent-of(george, anna)  <- fact
-    sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)
-      parent-of(walter, bill)  <- fact
-      parent-of(walter, george)  <- fact
+? is-uncle-of(bill, ?p)
+  is-uncle-of(bill, anna)  <- rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+    is-parent-of(george, anna)  <- fact
+    is-sibling-of(bill, george)  <- rule is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
+      is-parent-of(walter, bill)  <- fact
+      is-parent-of(walter, george)  <- fact
     ...
   ...
 ```
@@ -124,8 +125,8 @@ Verbose run: depth 8
 | `--help`, `-h` | Usage, generated from the same option declarations the parser uses |
 | `--version`, `-v` | Version line |
 
-`--depth 1` is a good sanity check: `uncle-of` is two rule levels above the facts
-(`uncle-of` -> `sibling-of` -> facts), so it answers nothing and says what it would need.
+`--depth 1` is a good sanity check: `is-uncle-of` is two rule levels above the facts
+(`is-uncle-of` -> `is-sibling-of` -> facts), so it answers nothing and says what it would need.
 `--log-level debug` prints all 54 facts as they load and all fourteen rules as they are
 registered, which is the fastest way to see what the engine was actually given.
 
@@ -137,10 +138,10 @@ shape of the fact that is missing:
 
 ```
 > micro-expert
-? parent-of(?p, susan)
+? is-parent-of(?p, susan)
   no solution found at depth 8
   A solution would need one of these:
-    a fact like parent-of(?p, susan)
+    a fact like is-parent-of(?p, susan)
 ```
 
 A query aimed at a derived relation lists each rule that could conclude it and the facts its
@@ -168,15 +169,15 @@ if no rule could conclude the query.
 Ask it at the prompt:
 
 ```
-? grandpa-of(?who, tim)
-  walter grandpa of tim
+? is-grandpa-of(?who, tim)
+  walter is grandpa of tim
 ```
 
 Every predicate has the same shape - `relation(?x, ?y)` reads "?x is the relation of ?y" -
-so `uncle-of(bill, ?p)` puts Bill where the uncle goes and asks who he is an uncle of: his
+so `is-uncle-of(bill, ?p)` puts Bill where the uncle goes and asks who he is an uncle of: his
 six nieces and nephews above, through his brothers George and Henry. Put the variable where
-the unknown is: `grandpa-of(?who, tim)` reads "?who is the grandpa of tim" and answers
-`walter`, and `grandma-of(?x, ?y)` lists every grandmother/grandchild pair - seven of them,
+the unknown is: `is-grandpa-of(?who, tim)` reads "?who is the grandpa of tim" and answers
+`walter`, and `is-grandma-of(?x, ?y)` lists every grandmother/grandchild pair - seven of them,
 all Doris.
 
 ## A session at the prompt
@@ -188,18 +189,18 @@ starting with `/` is a command for the session itself.
 ```
 > micro-expert
 Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
-? parent-of(?p, susan)
+? is-parent-of(?p, susan)
   no solution found at depth 8
   A solution would need one of these:
-    a fact like parent-of(?p, susan)
+    a fact like is-parent-of(?p, susan)
   ?p = walter
-  added parent-of(walter, susan)
-  walter parent of susan
-? grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)
-  added rule grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)
-? grandparent(?p, tim)
-  walter grandparent tim
-  doris grandparent tim
+  added is-parent-of(walter, susan)
+  walter is parent of susan
+? is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)
+  added rule is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)
+? is-grandparent-of(?p, tim)
+  walter is grandparent of tim
+  doris is grandparent of tim
 ```
 
 When a question has no answer, the session reads the same report and asks for the fact that
@@ -209,38 +210,38 @@ the report reads that way too, and the variables a fact brings itself are asked 
 time:
 
 ```
-? uncle-of(?p, susan)
+? is-uncle-of(?p, susan)
   no solution found at depth 8
   A solution would need one of these:
-    a fact like uncle-of(?p, susan)
-    through rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
-      parent-of(?p', susan)
-      sibling-of(?p, ?p')
+    a fact like is-uncle-of(?p, susan)
+    through rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+      is-parent-of(?p', susan)
+      is-sibling-of(?p, ?p')
       has-gender(?p, male)  (checked once the facts above exist)
     (a name ending in ' is the rule's own variable, not one you asked about)
-  parent-of(?p', susan)
+  is-parent-of(?p', susan)
   ?p' = george
-  added parent-of(george, susan)
-  sibling-of(?p, george)
+  added is-parent-of(george, susan)
+  is-sibling-of(?p, george)
   ?p = bill
-  added sibling-of(bill, george)
-  bill uncle of susan
-  henry uncle of susan
+  added is-sibling-of(bill, george)
+  bill is uncle of susan
+  henry is uncle of susan
 ```
 
-Only the variables a fact brings itself are asked for, so `parent-of(?p', ?p)` asks for `?p'`
+Only the variables a fact brings itself are asked for, so `is-parent-of(?p', ?p)` asks for `?p'`
 alone: `?p` is the variable the question named. When nothing else is left to fill -
-`sibling-of(?p, george)` - the question's variable is asked for, since naming it is the only
+`is-sibling-of(?p, george)` - the question's variable is asked for, since naming it is the only
 way to complete the fact. A fact that would still be incomplete once its own variables are
 filled is shown with what is left and not added, rather than writing the answer into the
 knowledge base. The answers given are carried to the rest of that rule's facts, so `?p'` =
-sam turns the check below it into `sibling-of(oliver, sam)` and the session offers to keep
+sam turns the check below it into `is-sibling-of(oliver, sam)` and the session offers to keep
 that: a value given once is never asked for twice. A fact the session can already prove needs
 nothing added either, so it drops out of the report rather than being listed as a gap.
 
 Answering by fiat is still there when you want it: a whole fact typed where a value is asked
 for is a fact, with the standing any typed fact has, and the question starts again from it -
-so `uncle-of(oliver, walter)` typed at `?p' =` asserts the answer instead of deriving it.
+so `is-uncle-of(oliver, walter)` typed at `?p' =` asserts the answer instead of deriving it.
 A line that parses but still holds a variable is neither a fact nor a value, and is refused
 rather than kept as a value.
 
@@ -378,25 +379,25 @@ is the temp file it wrote itself.
 A fact is one triple per line, `predicate(subject, object)`:
 
 ```prolog
-parent-of(walter, bill)
+is-parent-of(walter, bill)
 has-gender(bill, male)
 has-age(bill, 54)
 ```
 
 A predicate is named in lower case, in sections joined by dashes, each section letters and
-numbers, and the first section starting with a letter: `parent-of`, `has-1-child`,
+numbers, and the first section starting with a letter: `is-parent-of`, `has-1-child`,
 `married-to`. A line that names one another way is refused where it is read, in a data file
-and at the prompt alike, and the schema's lines are held to the same shape - so the
-knowledge base holds only names a result can say, and the name is where the words of that
-result come from.
+and at the prompt alike - a rule's head and its conditions included - and the schema's lines
+are held to the same shape, so the knowledge base holds only names a result can say, and the
+name is where the words of that result come from.
 
 A rule is one line of `data/rules.kb`: a head - the one triple it can prove - and a body
 of conditions that must all hold first. The body is a comma-delimited list, which is an
 implied `and`, or `and(...)` around the same list:
 
 ```prolog
-uncle-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male))
-uncle-of(?x, ?y) => parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
+is-uncle-of(?x, ?y) => and(is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male))
+is-uncle-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
 ```
 
 A condition is a fact or a constraint such as `not-equal(?x, ?y)`, `equal(?n, 18)` or
@@ -405,13 +406,13 @@ run over several lines inside its parentheses, and `or(...)` holds alternatives 
 of them may hold instead, so a rule that could be written two ways is still one line:
 
 ```prolog
-in-law-of(?x, ?y) => or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling-of(?x, ?p), married-to(?p, ?y)))
+is-in-law-of(?x, ?y) => or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(is-sibling-of(?x, ?p), married-to(?p, ?y)))
 ```
 
 `not(...)` holds a body that must have no proof, so a rule can ask for an absence; it takes
 one condition, and `not(and(a, b))` negates several. `equal` is the one constraint that can
 bind as well as check: a side that is still a variable takes the other side's value, so
-`same-age-group-as` reaches the second age group through the first group's word. A
+`shares-age-group-with` reaches the second age group through the first group's word. A
 comparison is arithmetic rather than text: both sides have to be numbers, and a name never
 passes for a zero. A constraint's
 name is a shape a body checks, not a predicate a fact stores or a question asks, so
@@ -423,10 +424,10 @@ The six built-in constraint names, and what each one does with a field that is s
 variable, are in [docs/constraints.md](docs/constraints.md).
 
 ```prolog
-only-child-of(?x, ?y) => and(parent-of(?y, ?x), not(sibling-of(?x, ?q)))
-age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))
-age-group(?x, adult) => and(has-age(?x, ?n), not(age-group(?x, child)))
-same-age-group-as(?x, ?y) => and(age-group(?x, ?g), equal(?g, ?h), age-group(?y, ?h), not-equal(?x, ?y))
+is-only-child-of(?x, ?y) => and(is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q)))
+belongs-to-age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))
+belongs-to-age-group(?x, adult) => and(has-age(?x, ?n), not(belongs-to-age-group(?x, child)))
+shares-age-group-with(?x, ?y) => and(belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h), not-equal(?x, ?y))
 ```
 
 Facts and rules share the parser, so a fact may be added to `data/facts.kb` the same way a
@@ -443,7 +444,7 @@ To add a rule:
 For example, grandparenthood from the child's side:
 
 ```prolog
-grandchild-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?y, ?p))
+grandis-child-of(?x, ?y) => and(is-parent-of(?p, ?x), is-parent-of(?y, ?p))
 ```
 
 ## Running the tests
@@ -453,7 +454,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-487 passed, 0 failed
+489 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -469,8 +470,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 486 skipped
-##END {"passed":1,"failed":0,"skipped":486}
+1 passed, 0 failed, 488 skipped
+##END {"passed":1,"failed":0,"skipped":488}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -485,10 +486,10 @@ The parser, the logger and the repl library are their own repositories with thei
 by the same interpreter, and this suite imports none of them. It keeps one check about the
 repl library, and that one is about this repository rather than the library: `examples/notes.ms`
 is a whole program written on the library and nothing else, and `test/repl.ms` is what says so.
-The 487 cover the program itself: display and parsing (32), the knowledge data format (81), the
+The 489 cover the program itself: display and parsing (32), the knowledge data format (81), the
 predicate schema (40), the loaders (19), proofs and explanations (21), the missing-fact report
 (34), recursion and cycle handling (13), relations including the family rules (89), the session
-at the prompt (147), the notes example on the repl library (1), and the domain (10).
+at the prompt (149), the notes example on the repl library (1), and the domain (10).
 
 ## Repository layout
 
@@ -509,7 +510,7 @@ examples/notes.ms    a whole host for the repl library that is not a knowledge b
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
 src/repl/            submodule: micro-repl, the loop and its commands
-test/                the 487 checks and their runner
+test/                the 489 checks and their runner
 docs/articles/       the long-form write-up
 docs/kb-grammar.md   the .kb grammar, its constraints and its schema
 docs/constraints.md  the six built-in constraints, one by one

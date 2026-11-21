@@ -5,17 +5,17 @@
 A little expert system for MiniScript 2: 54 facts about one imaginary family, fourteen rules about what those facts imply, and a backward-chaining solver that answers a question only by showing you the facts and rules that make the answer true.
 
 ```prolog
-? uncle-of(bill, ?p)
-  uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
-    parent-of(george, anna)  <- fact
-    sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)
-      parent-of(walter, bill)  <- fact
-      parent-of(walter, george)  <- fact
+? is-uncle-of(bill, ?p)
+  is-uncle-of(bill, anna)  <- rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+    is-parent-of(george, anna)  <- fact
+    is-sibling-of(bill, george)  <- rule is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
+      is-parent-of(walter, bill)  <- fact
+      is-parent-of(walter, george)  <- fact
     ...
   ...
 ```
 
-Abridged: five more answers follow - mark, clara, jack, nina and oliver - each with a tree of that shape. The tree is three levels deep, `uncle-of` via `sibling-of` via the parent facts, and the sibling step shows up twice under one answer because Bill and George share both parents, so both license the same conclusion. Every leaf is a fact, every branch names the rule it used, and there is nothing in there you have to take on trust.
+Abridged: five more answers follow - mark, clara, jack, nina and oliver - each with a tree of that shape. The tree is three levels deep, `is-uncle-of` via `is-sibling-of` via the parent facts, and the sibling step shows up twice under one answer because Bill and George share both parents, so both license the same conclusion. Every leaf is a fact, every branch names the rule it used, and there is nothing in there you have to take on trust.
 
 No weights, no API key, no network. About 2,100 lines of MiniScript across eight modules, 1,175 of them the engine itself, and nothing needs retraining to change.
 
@@ -54,7 +54,7 @@ The last row is the honest one. This program cannot read *"who are Bill's nephew
 What a rules engine buys you, concretely, in an era of cheap text generation:
 
 - **Auditability.** Every claim has a proof you can print. There is no "the model said so" step to defend to a reviewer, an auditor, or yourself in six months.
-- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 487 assertions and they either pass or they don't.
+- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 489 assertions and they either pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility, scheduling constraints, device diagnostics, family relationships — questions where the rule is the requirement and being consistently right matters more than being fluent.
 - **Knowledge as a reviewed artifact.** Adding a rule is a five-line pull request with a test. There is no training run, and nothing else silently changes.
 - **No data leaving the machine.** The facts are the data, and they are text files.
@@ -68,46 +68,46 @@ Use an LLM where the input is language, ambiguity, or volume. Use something like
 Everything the program knows is a **subject–predicate–object triple**:
 
 ```plaintext
-walter  parent-of  bill
+walter  is-parent-of  bill
 bill    has-gender male
 ```
 
 It prints in a predicate-first call form, which reads like the query you asked:
 
 ```prolog
-parent-of(walter, bill)
+is-parent-of(walter, bill)
 ```
 
-A triple may hold **variables** in any position, written `?x`. `parent-of(?p, ?x)` is the pattern "someone is the parent of ?x". The parser accepts that call form and the old pipe form (`walter | parent-of | bill`), and rejects malformed calls rather than guessing.
+A triple may hold **variables** in any position, written `?x`. `is-parent-of(?p, ?x)` is the pattern "someone is the parent of ?x". The parser accepts that call form and the old pipe form (`walter | is-parent-of | bill`), and rejects malformed calls rather than guessing.
 
 - A **fact** is a triple with no variables. Facts are the leaves of every answer: `54` of them live in `data/facts.kb`, one `predicate(subject, object)` line each.
 - A **rule** has a head — one triple it can prove — and a body: the conditions that must all hold first. Rules are data, one per line in `data/rules.kb`, and print as `head <- conditions`:
 
 ```prolog
-uncle-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male))
+is-uncle-of(?x, ?y) => and(is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male))
 ```
 
-The arrow reads "proves". The body is a comma-delimited list of conditions — an implied `and` — so `and(...)` is optional there; it nests. `or(...)` holds alternatives: any one of them may hold instead, and each alternative is a body of its own, so a rule that could be written two ways is still one line. `not(...)` holds a body that must have no proof, so a rule can ask for something the graph does not have: the shipped `only-child-of` holds when no sibling of the child can be found. `src/knowledge.ms` parses the format and `src/rules.ms` loads it.
+The arrow reads "proves". The body is a comma-delimited list of conditions — an implied `and` — so `and(...)` is optional there; it nests. `or(...)` holds alternatives: any one of them may hold instead, and each alternative is a body of its own, so a rule that could be written two ways is still one line. `not(...)` holds a body that must have no proof, so a rule can ask for something the graph does not have: the shipped `is-only-child-of` holds when no sibling of the child can be found. `src/knowledge.ms` parses the format and `src/rules.ms` loads it.
 
 A body item does not have to be a triple. It can be a **constraint**, checked against the bindings rather than proved by search — here is the sibling rule, which must exclude a person paired with themselves:
 
 ```prolog
-sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y))
+is-sibling-of(?x, ?y) => and(is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y))
 ```
 
-`not-equal` only checks; `equal` can also **bind**. A side that is still a variable takes the other side's value, so a body can write `equal(?g, ?h)` the moment `?g` is known and go on with `?h` already settled — the shipped `same-age-group-as` reads as "the same group" without a second variable for the second lookup:
+`not-equal` only checks; `equal` can also **bind**. A side that is still a variable takes the other side's value, so a body can write `equal(?g, ?h)` the moment `?g` is known and go on with `?h` already settled — the shipped `shares-age-group-with` reads as "the same group" without a second variable for the second lookup:
 
 ```prolog
-same-age-group-as(?x, ?y) => and(age-group(?x, ?g), equal(?g, ?h), age-group(?y, ?h), not-equal(?x, ?y))
+shares-age-group-with(?x, ?y) => and(belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h), not-equal(?x, ?y))
 ```
 
-A comparison is the other constraint, written as a call like every other condition: `less-than-or-equal(?n, 18)` reads two numbers and holds when they stand in that order, so `age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))` puts the age where childhood ends into the rule instead of into a column of `is-child` facts. The parser reads a number as a number, which is what makes that arithmetic rather than text — as text, `"9"` would sort after `"18"` — and a side that is not a number ends the branch rather than passing for a zero. A number may also carry an exponent - `1e3` is a thousand - with digits required on both sides of the `e`, so `1e` stays text. `not(...)` then gives the other group without writing the line twice:
+A comparison is the other constraint, written as a call like every other condition: `less-than-or-equal(?n, 18)` reads two numbers and holds when they stand in that order, so `belongs-to-age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))` puts the age where childhood ends into the rule instead of into a column of `is-child` facts. The parser reads a number as a number, which is what makes that arithmetic rather than text — as text, `"9"` would sort after `"18"` — and a side that is not a number ends the branch rather than passing for a zero. A number may also carry an exponent - `1e3` is a thousand - with digits required on both sides of the `e`, so `1e` stays text. `not(...)` then gives the other group without writing the line twice:
 
 ```prolog
-age-group(?x, adult) => and(has-age(?x, ?n), not(age-group(?x, child)))
+belongs-to-age-group(?x, adult) => and(has-age(?x, ?n), not(belongs-to-age-group(?x, child)))
 ```
 
-Sharing *at least one* parent is deliberate, because a half-sibling should count. This family happens to have none - Walter and Doris are both parents to all three sons - so every sibling pair here shares both parents and every answer carries both derivations. The rule does not care either way: one `parent-of` fact is enough, and the test suite exercises the half-sibling case with a Henry who has only Walter for a father.
+Sharing *at least one* parent is deliberate, because a half-sibling should count. This family happens to have none - Walter and Doris are both parents to all three sons - so every sibling pair here shares both parents and every answer carries both derivations. The rule does not care either way: one `is-parent-of` fact is enough, and the test suite exercises the half-sibling case with a Henry who has only Walter for a father.
 
 ### Backward chaining
 
@@ -119,31 +119,31 @@ The engine answers a goal by working backwards from it:
 4. Substitute the final bindings into the goal to get the answer, and keep the tree of steps that got there.
 
 This is goal-directed, so it only explores what the question needs. Asking
-`uncle-of(bill, ?p)` never touches ages; asking about `has-age` never wakes the sibling rule.
+`is-uncle-of(bill, ?p)` never touches ages; asking about `has-age` never wakes the sibling rule.
 
 Three details in that loop are where a toy implementation turns into a solver:
 
-**Unification and fresh variables.** Matching a pattern against a triple assigns variables or fails; it never mutates the rule. Before a rule is used, its variables are **standardized apart** — renamed to fresh names like `?x_3` — so one use of a rule cannot capture the bindings of another. Without that, `uncle-of(bill, george)` and `uncle-of(bill, anna)` could not both be derived in one search.
+**Unification and fresh variables.** Matching a pattern against a triple assigns variables or fails; it never mutates the rule. Before a rule is used, its variables are **standardized apart** — renamed to fresh names like `?x_3` — so one use of a rule cannot capture the bindings of another. Without that, `is-uncle-of(bill, george)` and `is-uncle-of(bill, anna)` could not both be derived in one search.
 
-**Depth.** `--depth` bounds how many rule levels the search may go down. `0` means facts only. `uncle-of` needs two levels (`uncle-of` → `sibling-of` → facts), so `--depth 1` answers nothing — and says which
+**Depth.** `--depth` bounds how many rule levels the search may go down. `0` means facts only. `is-uncle-of` needs two levels (`is-uncle-of` → `is-sibling-of` → facts), so `--depth 1` answers nothing — and says which
 fact would change that.
 
 **Cycles.** A rule like `married-to(?y, ?x) <- married-to(?x, ?y)` can cheerfully call itself forever. The search therefore keeps the chain of goals on the current branch and refuses to re-enter a goal it is already inside, comparing goals with variables renamed away so that `?x` and `?x_7` are recognized as the same goal.
 
-**Every derivation is kept.** Ask `sibling-of(bill, george)` and one answer comes back carrying two derivations — one through Walter, one through Doris — because both are true and a reasoner that silently drops one is hiding information. `--verbose` shows them:
+**Every derivation is kept.** Ask `is-sibling-of(bill, george)` and one answer comes back carrying two derivations — one through Walter, one through Doris — because both are true and a reasoner that silently drops one is hiding information. `--verbose` shows them:
 
 ```prolog
 $ micro-expert --verbose
 Verbose run: depth 8
-? uncle-of(bill, ?p)
-  uncle-of(bill, anna)  <- rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
-    parent-of(george, anna)  <- fact
-    sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)
-      parent-of(walter, bill)  <- fact
-      parent-of(walter, george)  <- fact
-    sibling-of(bill, george)  <- rule sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)
-      parent-of(doris, bill)  <- fact
-      parent-of(doris, george)  <- fact
+? is-uncle-of(bill, ?p)
+  is-uncle-of(bill, anna)  <- rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+    is-parent-of(george, anna)  <- fact
+    is-sibling-of(bill, george)  <- rule is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
+      is-parent-of(walter, bill)  <- fact
+      is-parent-of(walter, george)  <- fact
+    is-sibling-of(bill, george)  <- rule is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
+      is-parent-of(doris, bill)  <- fact
+      is-parent-of(doris, george)  <- fact
     has-gender(bill, male)  <- fact
 ```
 
@@ -165,7 +165,7 @@ If you have met Prolog or Datalog, the mapping is direct: a triple is an atomic 
 
 ### Knowledge lives in its own files
 
-`data/facts.kb` and `data/rules.kb` hold the domain, and nothing else in the repo knows what a family is. A third file, `data/schema.kb`, is a table rather than knowledge: one line per predicate the knowledge base uses, giving the type of each field in the order a fact writes them, and `src/schema.ms` loads it so the prompt can refuse `has-age(tim, twenty)` instead of filing it where no rule could reach it. The stored predicates are typed from the facts that use them and the derived ones from the rules that conclude them, so `sibling-of` is two texts because the siblings come from `parent-of`, and `age-group`'s second field is `child|adult` because those are the two words its rules write. The suite holds the schema and the rules to each other: every predicate a rule names must be typed, and every constant it writes must fit the type it is given. The solver never reads it. Both are loaded through a `build` function rather than exported as a top-level array, because of a real constraint in this interpreter: **a module that imports `triples.ms` gets its own copy of its classes**, and `isa` checks only agree inside one copy. A loader that imported `triples.ms` directly would build triples the solver does not recognize, so the caller hands its copy in. The data dodge the problem another way: `src/knowledge.ms` parses the text with whichever copy it is handed, and the loaders wrap what it returns.
+`data/facts.kb` and `data/rules.kb` hold the domain, and nothing else in the repo knows what a family is. A third file, `data/schema.kb`, is a table rather than knowledge: one line per predicate the knowledge base uses, giving the type of each field in the order a fact writes them, and `src/schema.ms` loads it so the prompt can refuse `has-age(tim, twenty)` instead of filing it where no rule could reach it. The stored predicates are typed from the facts that use them and the derived ones from the rules that conclude them, so `is-sibling-of` is two texts because the siblings come from `is-parent-of`, and `belongs-to-age-group`'s second field is `child|adult` because those are the two words its rules write. The suite holds the schema and the rules to each other: every predicate a rule names must be typed, and every constant it writes must fit the type it is given. The solver never reads it. Both are loaded through a `build` function rather than exported as a top-level array, because of a real constraint in this interpreter: **a module that imports `triples.ms` gets its own copy of its classes**, and `isa` checks only agree inside one copy. A loader that imported `triples.ms` directly would build triples the solver does not recognize, so the caller hands its copy in. The data dodge the problem another way: `src/knowledge.ms` parses the text with whichever copy it is handed, and the loaders wrap what it returns.
 
 ```miniscript
 import "facts"
@@ -188,7 +188,7 @@ Two steps, and the test suite has a spot for each rule you add:
 For example, grandparenthood from the child's side:
 
 ```prolog
-grandchild-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?y, ?p))
+grandis-child-of(?x, ?y) => and(is-parent-of(?p, ?x), is-parent-of(?y, ?p))
 ```
 
 ## How to use this demo
@@ -208,13 +208,13 @@ ENTRY_POINT=./src/main.ms
 [INF] micro-expert: Command-line arguments (0): (none)
 ...
 Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
-? uncle-of(bill, ?p)
-  bill uncle of anna
-  bill uncle of mark
-  bill uncle of clara
-  bill uncle of jack
-  bill uncle of nina
-  bill uncle of oliver
+? is-uncle-of(bill, ?p)
+  bill is uncle of anna
+  bill is uncle of mark
+  bill is uncle of clara
+  bill is uncle of jack
+  bill is uncle of nina
+  bill is uncle of oliver
 ? /exit
 [INF] micro-expert: micro-expert exiting with code 0
 ```
@@ -236,34 +236,34 @@ Type a fact, a question, or a rule as 'head <- conditions'. /help lists the comm
 `--log-level debug` is the interesting one: it prints all 54 facts as they load and all fourteen rules as they are registered, which is the fastest way to see what the engine was actually given.
 
 ```prolog
-[DBG] micro-expert: (fact) parent-of(walter, bill)
+[DBG] micro-expert: (fact) is-parent-of(walter, bill)
 ...
-[DBG] micro-expert: (rule) sibling-of(?x, ?y) <- parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)
-[DBG] micro-expert: (rule) uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
+[DBG] micro-expert: (rule) is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
+[DBG] micro-expert: (rule) is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
 ```
 
-**Change the question** by typing another one at the prompt: `grandma-of(?x, ?y)` asks for every grandmother/grandchild pair (seven of them), and `grandpa-of(?who, tim)` asks for Tim's grandfather, the predicate reading "?who is the grandpa of tim", so the variable goes in the subject.
+**Change the question** by typing another one at the prompt: `is-grandma-of(?x, ?y)` asks for every grandmother/grandchild pair (seven of them), and `is-grandpa-of(?who, tim)` asks for Tim's grandfather, the predicate reading "?who is the grandpa of tim", so the variable goes in the subject.
 
 **Type a fact or a rule** at the same prompt and it joins the search. One line has one meaning: a ground line adds a fact, a line with a variable asks a question, a line with `<-` adds a rule, and a line starting with `/` is a command for the session (`/help`, `/facts`, `/rules`, `/undo`, `/exit`, and the six `/save-*` and `/load-*` commands that write a component back where it came from or read one in its place).
 
 ```plaintext
 > micro-expert
 Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
-? parent-of(?p, susan)
+? is-parent-of(?p, susan)
   no solution found at depth 8
   A solution would need one of these:
-    a fact like parent-of(?p, susan)
+    a fact like is-parent-of(?p, susan)
   ?p = walter
-  added parent-of(walter, susan)
-  walter parent of susan
-? grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)
-  added rule grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)
-? grandparent(?p, tim)
-  walter grandparent tim
-  doris grandparent tim
+  added is-parent-of(walter, susan)
+  walter is parent of susan
+? is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)
+  added rule is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)
+? is-grandparent-of(?p, tim)
+  walter is grandparent of tim
+  doris is grandparent of tim
 ```
 
-A question with no answer reads the report above, asks for the fact that would let a rule reach one, adds it, and asks again - the loop the report was written for. It asks for a rule's fact before the query's own shape, since asserting the answer proves nothing; it shows the fact it is filling, with the values given so far in it, and the report above reads the same way; and it asks one variable at a time, so a missing `parent-of(?p, ?q)` takes two answers. A rule's fact is filled in by the variables it brings itself, so `parent-of(?p', ?p)` asks for `?p'` and not again for `?p`, which the question already named; a fact that is still incomplete once its own variables are filled is shown with what is left over and not added, rather than the answer being written in as though it had been found, and the answers given are carried to the rest of that rule's facts, so a value is never asked for twice; a fact the session can already prove needs nothing added, so it drops out of the report too. A whole fact typed where a value is asked for is a fact too, so the answer can still be asserted by fiat when that is what you want: the session adds it and asks again from there, while a line that parses as a fact but still holds a variable is refused rather than stored as a value. A fact with no variable left is offered with `add it? [y/N]` rather than assumed, and a value left empty stops the asking and leaves the report standing. A fact and a question are both held to `data/schema.kb`: a question that names a value no fact could store is refused before the search, and an answer that completes a refused fact stops the question instead of being asked for again. `/undo` takes back the last fact the session added - at the prompt or in the middle of a question, which asks it again - so a wrong value does not stick for the rest of the run. Nothing is written back until you ask: the session adds to the arrays `main.ms` built, and `/save-*` is what puts a component back on disk.
+A question with no answer reads the report above, asks for the fact that would let a rule reach one, adds it, and asks again - the loop the report was written for. It asks for a rule's fact before the query's own shape, since asserting the answer proves nothing; it shows the fact it is filling, with the values given so far in it, and the report above reads the same way; and it asks one variable at a time, so a missing `is-parent-of(?p, ?q)` takes two answers. A rule's fact is filled in by the variables it brings itself, so `is-parent-of(?p', ?p)` asks for `?p'` and not again for `?p`, which the question already named; a fact that is still incomplete once its own variables are filled is shown with what is left over and not added, rather than the answer being written in as though it had been found, and the answers given are carried to the rest of that rule's facts, so a value is never asked for twice; a fact the session can already prove needs nothing added, so it drops out of the report too. A whole fact typed where a value is asked for is a fact too, so the answer can still be asserted by fiat when that is what you want: the session adds it and asks again from there, while a line that parses as a fact but still holds a variable is refused rather than stored as a value. A fact with no variable left is offered with `add it? [y/N]` rather than assumed, and a value left empty stops the asking and leaves the report standing. A fact and a question are both held to `data/schema.kb`: a question that names a value no fact could store is refused before the search, and an answer that completes a refused fact stops the question instead of being asked for again. `/undo` takes back the last fact the session added - at the prompt or in the middle of a question, which asks it again - so a wrong value does not stick for the rest of the run. Nothing is written back until you ask: the session adds to the arrays `main.ms` built, and `/save-*` is what puts a component back on disk.
 
 Adding `--verbose` prints the proof tree behind each answer here too, exactly as in the example above.
 
@@ -275,12 +275,12 @@ The session paints from the same style table as the report, so `NO_COLOR` turns 
 
 ```plaintext
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-487 passed, 0 failed
+489 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it for the session or paste the path in its place.
 
-The 487 checks are split by area: display and parsing (32), the knowledge data format (81), the predicate schema (40), the loaders (19), proofs and explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (89), the session at the prompt (147), the notes example on the repl library (1), and the domain (10). The parser, the logger and the repl library are submodules with suites of their own (32, 56 and 52 checks), run from their own folders. One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
+The 489 checks are split by area: display and parsing (32), the knowledge data format (81), the predicate schema (40), the loaders (19), proofs and explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (89), the session at the prompt (149), the notes example on the repl library (1), and the domain (10). The parser, the logger and the repl library are submodules with suites of their own (32, 56 and 52 checks), run from their own folders. One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
 
 ## Where an LLM fits
 
@@ -290,7 +290,7 @@ The interesting 2026 architecture is not LLM *or* rules engine. It is an LLM as 
 "who are bill's nephews?"          natural language
         │
         ├── LLM: plans the question, proposes triples/queries
-        │        uncle-of(bill, ?x)? validate predicate against the rule base
+        │        is-uncle-of(bill, ?x)? validate predicate against the rule base
         ▼
    engine: unifies, chains, returns answers *with proof trees*
         │

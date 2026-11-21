@@ -3,10 +3,10 @@
 //
 // A fact is one triple on a line, predicate(subject, object):
 //
-//   parent-of(george, anna)
+//   is-parent-of(george, anna)
 //
 // A predicate is lower case, its sections joined by '-', each section letters and digits,
-// and the first section starting with a letter: parent-of, has-1-child, married-to. The
+// and the first section starting with a letter: is-parent-of, has-1-child, married-to. The
 // shape is checked with the one function that knows it, triples.ms's predicateProblem, and
 // a name that is not one is refused here with its line; the same check closes the prompt's
 // own door, since a typed line is read by the solver. Nothing in the search needs it - it
@@ -14,7 +14,7 @@
 //
 // A rule is a head and a body joined by '=>':
 //
-//   uncle-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male))
+//   is-uncle-of(?x, ?y) => and(is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male))
 //
 // The body is one condition, or a comma-delimited list of them, which means all of
 // them must hold — the same thing and(...) says out loud. and(...) nests, and an
@@ -31,7 +31,7 @@
 // or(...) holds a body's alternatives: any one of them may hold instead, and each
 // alternative is a body of its own, so or(and(a, b), c) reads as it looks. not(...)
 // holds a body that must have no proof, which is how a rule says what the facts do
-// not: not(sibling-of(?x, ?q)) holds when nothing in the graph is ?x's sibling. It
+// not: not(is-sibling-of(?x, ?q)) holds when nothing in the graph is ?x's sibling. It
 // takes one condition, so not(a, b) is refused rather than read as not(and(a, b)).
 //
 // data/schema.kb is the third file, and it is a table rather than knowledge:

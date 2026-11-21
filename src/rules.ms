@@ -2,7 +2,7 @@
 //
 // A rule is written there as 'head => body':
 //
-//   uncle-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male))
+//   is-uncle-of(?x, ?y) => and(is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male))
 //
 // knowledge.ms reads that format; this module finds the file and wraps each piece in
 // the Rule class. The file is loaded on request rather than at import time, because

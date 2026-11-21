@@ -14,52 +14,52 @@ Some questions, like the problem of continual learning in AI, may not be provabl
 
 The interesting queries are the ones that fail; the times when backwards chaining comes back empty.  The answer isn't "yes" or "no", it's "this graph has a hole in it".  The useful answer in this case isn't the empty result set, it's the shape of the hole.
 
-Our example model is small enough to hold in your head.  A fact is one ground S-P-O triple, `parent-of(susan, tim)`; put a `?p` in it and it becomes a question.  A rule is a head and a body:
+Our example model is small enough to hold in your head.  A fact is one ground S-P-O triple, `is-parent-of(susan, tim)`; put a `?p` in it and it becomes a question.  A rule is a head and a body:
 
 ```
-uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
+is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
 ```
 
 When the search fails, the same machinery runs backwards: one candidate for every path where the goal could still be proved, and each rule body walked left to right.  A condition the search can meet is crossed off, carrying a value forward only when every proof agrees on it - a report never picks one of two parents just to look concrete.  The conditions it can't meet are facts to add, in symbolic form, and a later one that those facts would settle is printed as a check instead:
 
 ```
-Query: uncle-of(oliver, ?p)
+Query: is-uncle-of(oliver, ?p)
   no solution found at depth 8
   A solution would need one of these:
-    a fact like uncle-of(oliver, ?p)
-    through rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
-      parent-of(?p', ?p)
-      sibling-of(oliver, ?p')  (checked once the facts above exist)
+    a fact like is-uncle-of(oliver, ?p)
+    through rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+      is-parent-of(?p', ?p)
+      is-sibling-of(oliver, ?p')  (checked once the facts above exist)
     (a name ending in ' is the rule's own variable, not one you asked about)
 ```
 
-This is the case that matters for the picture above.  Every one of those conditions is separately provable - parent facts exist, Oliver has siblings, Oliver is male - and Oliver is still nobody's uncle: three conditions that each look satisfied prove nothing together.  That's why a body is judged as a body, and what comes back is the edge that is really missing: Oliver's siblings exist, but none of them has a child, so the fact to add is `parent-of(?p', ?p)` for one of those siblings.  Give one of them a child - `parent-of(clara, zed)` - and the query answers `oliver uncle of zed`.  The loop below walks exactly that: name the open sibling, and the one fact left to add is the child.
+This is the case that matters for the picture above.  Every one of those conditions is separately provable - parent facts exist, Oliver has siblings, Oliver is male - and Oliver is still nobody's uncle: three conditions that each look satisfied prove nothing together.  That's why a body is judged as a body, and what comes back is the edge that is really missing: Oliver's siblings exist, but none of them has a child, so the fact to add is `is-parent-of(?p', ?p)` for one of those siblings.  Give one of them a child - `is-parent-of(clara, zed)` - and the query answers `oliver is uncle of zed`.  The loop below walks exactly that: name the open sibling, and the one fact left to add is the child.
 
 The REPL session picks an open topic to ask about, ranking according to what will allow the query to take the next step along the graph.  Asserting the answer teaches the graph exactly one instance and nothing else; in our example here we only learn about *one* of Oliver's nieces/nephews.
 
 Here is that loop at the prompt from end to end - the report, the answers typed in at each prompt, and the query re-run against the one fact it gains:
 
 ```text
-? uncle-of(oliver, ?p)
+? is-uncle-of(oliver, ?p)
   no solution found at depth 8
   A solution would need one of these:
-    a fact like uncle-of(oliver, ?p)
-    through rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
-      parent-of(?p', ?p)
-      sibling-of(oliver, ?p')  (checked once the facts above exist)
+    a fact like is-uncle-of(oliver, ?p)
+    through rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+      is-parent-of(?p', ?p)
+      is-sibling-of(oliver, ?p')  (checked once the facts above exist)
     (a name ending in ' is the rule's own variable, not one you asked about)
-  parent-of(?p', ?p)
+  is-parent-of(?p', ?p)
   ?p' = clara
-  parent-of(clara, ?p)  (not added: what is left is the question's own)
+  is-parent-of(clara, ?p)  (not added: what is left is the question's own)
   no solution found at depth 8
   A solution would need one of these:
-    a fact like uncle-of(oliver, ?p)
-    through rule uncle-of(?x, ?y) <- parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)
-      parent-of(clara, ?p)
-  parent-of(clara, ?p)
+    a fact like is-uncle-of(oliver, ?p)
+    through rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+      is-parent-of(clara, ?p)
+  is-parent-of(clara, ?p)
   ?p = zed
-  added parent-of(clara, zed)
-  oliver uncle of zed
+  added is-parent-of(clara, zed)
+  oliver is uncle of zed
 ```
 
 Oliver begins as nobody's uncle; by the last line the one edge that was really missing - a child for Clara - sits in the graph where the report pointed, and the query that came back empty now answers.
@@ -85,7 +85,7 @@ That is the whole idea, and it is why the feature was cheap: the hard parts - wh
 
 Walking a body is where the details are.  Conditions are taken left to right, carrying bindings, and each one lands in one of three states.  Proved, it is crossed off and its bindings go forward.  Unproved, it becomes a fact to add, printed in symbolic form with whatever the body has bound so far substituted in.  Or unproved *and* undecidable, because a fact asked for earlier in the same body would bind the variables it mentions.  There is no way to look that one up yet, and no honest way to say it needs a fact of its own either, so it prints as a check: `(checked once the facts above exist)`.  Two variables of bookkeeping, `newVars` for what the missing facts would bind and `coveredBy` for testing a condition against it, and the report stops asking for the same value twice.  A `not(...)` is a fourth state and the simplest: it is checked against the graph and never asked for, because nothing added can make an absence true - met, it disappears from the report, and failed, it rules that way through the rule out.
 
-The next detail is the one I would defend hardest.  A condition can have several proofs, and the proofs can disagree: every child in this family has two parents, so `parent-of(?p, tim)` holds twice over, once with `?p` as Bill and once as Susan, and nothing about the question says which.  The report carries forward only the bindings *every* proof agrees on (`agreeingBinds`), so a line stays symbolic exactly as long as the graph fails to force a value.  It would have been easy - and wrong - to take the first proof and print `parent-of(bill, tim)` as the missing fact: the gap would look narrower than it is, and a reader would go looking for one particular fact when either would do.  Values that are settled do still show: the goal's own terms, anything the search pinned down, and anything the session has been told, which is substituted into the report before printing - the `clara` in the loop's second report above came from the session's answer, not from the search.
+The next detail is the one I would defend hardest.  A condition can have several proofs, and the proofs can disagree: every child in this family has two parents, so `is-parent-of(?p, tim)` holds twice over, once with `?p` as Bill and once as Susan, and nothing about the question says which.  The report carries forward only the bindings *every* proof agrees on (`agreeingBinds`), so a line stays symbolic exactly as long as the graph fails to force a value.  It would have been easy - and wrong - to take the first proof and print `is-parent-of(bill, tim)` as the missing fact: the gap would look narrower than it is, and a reader would go looking for one particular fact when either would do.  Values that are settled do still show: the goal's own terms, anything the search pinned down, and anything the session has been told, which is substituted into the report before printing - the `clara` in the loop's second report above came from the session's answer, not from the search.
 
 Then there is the case that made the report worth writing.  A body whose conditions are each provable on their own, but never all at once, gets walked leniently first: each condition is checked against the graph and crossed off, and at the end the body claims it needs nothing - while the search that prompted the report came back empty.  Rather than print a rule that needs nothing for a query that fails, the body is read a second time in a stricter mode (`reportOpen`): a condition whose proofs leave some variable open is reported as a fact to add instead of being crossed off.  That is the three-line block in the previous section, and it is the difference between "nothing is missing" and "nothing is missing individually".  A body has to be judged as a body.
 

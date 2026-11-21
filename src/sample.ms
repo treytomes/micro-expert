@@ -138,13 +138,13 @@ end function
 
 // ── The examples ─────────────────────────────────────────────────────────────
 // A predicate reads "?x is the relation of ?y", so the variable goes where the
-// unknown is: uncle-of(bill, ?p) asks who Bill is an uncle of. The lines above that
+// unknown is: is-uncle-of(bill, ?p) asks who Bill is an uncle of. The lines above that
 // are commented out are the other shapes worth reading: no variables in the subject,
 // none in the object, and one in each.
 
-// runQuery fact(var("x"), "child-of", var("y"))
-// runQuery fact("bill", "uncle-of", var("?p"))
-// runQuery fact(var("?p"), "parent-of", "susan")
-runQuery fact("susan", "parent-of", var("?p"))
-runQuery fact(var("?p"), "grandpa-of", "susan")
-runQuery fact(var("?p"), "uncle-of", "susan")
+// runQuery fact(var("x"), "is-child-of", var("y"))
+// runQuery fact("bill", "is-uncle-of", var("?p"))
+// runQuery fact(var("?p"), "is-parent-of", "susan")
+runQuery fact("susan", "is-parent-of", var("?p"))
+runQuery fact(var("?p"), "is-grandpa-of", "susan")
+runQuery fact(var("?p"), "is-uncle-of", "susan")

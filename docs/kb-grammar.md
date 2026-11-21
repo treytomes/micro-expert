@@ -73,7 +73,7 @@ a character that is not a space or a tab.
                      ; and neither a <number> nor beginning with "?"
 
 <name>             ::= <section> { "-" <section> }
-                     ; lower case, sections joined by "-", none empty: parent-of
+                     ; lower case, sections joined by "-", none empty: is-parent-of
 <section>          ::= <name-character> { <name-character> }
 <name-character>   ::= <letter> | <digit>
 <letter>           ::= "a" … "z"
@@ -111,9 +111,9 @@ That is why a body may be broken after its arrow or anywhere inside its parenthe
 why nothing else may be broken:
 
 ```prolog
-uncle-of(?x, ?y) => and(
-	parent-of(?p, ?y),
-	sibling-of(?x, ?p),
+is-uncle-of(?x, ?y) => and(
+	is-parent-of(?p, ?y),
+	is-sibling-of(?x, ?p),
 	has-gender(?x, male))
 
 married-to(?y, ?x) =>
@@ -155,7 +155,7 @@ rule, `=>`, because that splits the line into head and body.
 
 A name is lower case, its sections joined by `-`, none of them empty, and each of them
 letters and digits. The first section starts with a letter, so a name never reads as a
-number; a later one may open with a digit, which is how `has-1-child` is written. `parent-of`,
+number; a later one may open with a digit, which is how `has-1-child` is written. `is-parent-of`,
 `married-to` and `has-1-child` are names; `Parent-Of`, `2nd-child`, `parent--of`,
 `parent_of` and `parent of` are not.
 
@@ -175,7 +175,7 @@ that is not a name - a variable stands there - and an answer holding one keeps t
 ```
 
 One fact is one triple, `predicate(subject, object)`, and a facts file is one fact per
-entry. Exactly two fields: `parent-of(walter)` is refused, and so is a call with nothing in
+entry. Exactly two fields: `is-parent-of(walter)` is refused, and so is a call with nothing in
 its parentheses or a field with no text in it. Text after the closing `)` is refused rather
 than read as a second call.
 
@@ -213,9 +213,9 @@ looks. `not(...)` takes exactly one condition — a body of several has to be jo
 as `not(and(a, b))`, and `not(a, b)` is refused rather than guessed at.
 
 ```prolog
-sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y))
-in-law-of(?x, ?y) => or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling-of(?x, ?p), married-to(?p, ?y)))
-only-child-of(?x, ?y) => and(parent-of(?y, ?x), not(sibling-of(?x, ?q)))
+is-sibling-of(?x, ?y) => and(is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y))
+is-in-law-of(?x, ?y) => or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(is-sibling-of(?x, ?p), married-to(?p, ?y)))
+is-only-child-of(?x, ?y) => and(is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q)))
 ```
 
 ## Constraints
@@ -236,9 +236,9 @@ also bind a field that is still a variable. The four comparisons read arithmetic
 need a number on each side, so a name never passes for a zero.
 
 ```prolog
-sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y))
-age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))
-same-age-group-as(?x, ?y) => and(age-group(?x, ?g), equal(?g, ?h), age-group(?y, ?h), not-equal(?x, ?y))
+is-sibling-of(?x, ?y) => and(is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y))
+belongs-to-age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))
+shares-age-group-with(?x, ?y) => and(belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h), not-equal(?x, ?y))
 ```
 
 ## The schema
@@ -264,10 +264,10 @@ Exactly two field types, both non-empty. A type is one of four things:
 | `unique(t)` | a value of type `t`, and at most one of them per subject |
 
 ```prolog
-parent-of(text, text)
+is-parent-of(text, text)
 has-gender(text, unique(male|female))
 has-age(text, unique(number))
-age-group(text, child|adult)
+belongs-to-age-group(text, child|adult)
 ```
 
 The reader accepts any non-empty type word; the meaning is what the prompt gives it. A

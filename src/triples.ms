@@ -103,7 +103,7 @@ end function
 
 // ── Predicate names ──────────────────────────────────────────────────────────
 // A predicate is written in lower case as sections joined by '-', each section letters
-// and digits, and the first section starting with a letter: parent-of, has-1-child,
+// and digits, and the first section starting with a letter: is-parent-of, has-1-child,
 // married-to. Nothing in the search depends on that - the shape is what makes a result
 // sayable, since a sentence is the name with its dashes opened to spaces - so a name that
 // is not one is refused where the line is read, and the knowledge base holds only names a
@@ -1136,14 +1136,19 @@ parseRule = function(line)
 	"Reads 'head <- condition, condition' into {head, body}, or an error."
 	pieces = line.split("<-")
 	if pieces.len != 2 then return err(badRule(line))
+	// A head that does not parse keeps its own error: it names the piece that is wrong,
+	// where the rule's one message would only repeat the line, and a predicate name it
+	// refuses is the one message a typo can act on.
 	head = SpoTriple.parse(pieces[0])
-	if head isa error then return err(badRule(line))
+	if head isa error then return head
 	body = trimSpace(pieces[1])
 	if body == "" then return err(badRule(line))
 	conditions = []
 	for text in splitConditions(body)
 		more = parseBodyPart(text, line)
-		if more isa error then return err(badRule(line))
+		// Likewise for a condition: a body is where most rule typos are, so the piece's own
+		// message says more than the line's.
+		if more isa error then return more
 		conditions = conditions + more
 	end for
 	return {"head": head, "body": conditions}

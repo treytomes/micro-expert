@@ -25,38 +25,38 @@ run = function(t, knowledge, h)
 
 	// ── A rule's head and body ───────────────────────────────────────────────
 
-	single = parseOneRule("child-of(?x, ?y) => parent-of(?y, ?x)")
+	single = parseOneRule("is-child-of(?x, ?y) => is-parent-of(?y, ?x)")
 	h.check("a rule line parses", not (single isa error))
 	h.check("one rule line is one rule", single.len == 1)
-	h.check("the head reads back", single[0].head.text == "child-of(?x, ?y)")
+	h.check("the head reads back", single[0].head.text == "is-child-of(?x, ?y)")
 	h.check("one condition is a body of one", single[0].body.len == 1)
-	h.check("the condition reads back", single[0].body[0].text == "parent-of(?y, ?x)")
+	h.check("the condition reads back", single[0].body[0].text == "is-parent-of(?y, ?x)")
 
 	// ── The implied and, said out loud ───────────────────────────────────────
 
-	implied = parseOneRule("uncle-of(?x, ?y) => parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male)")
-	spoken = parseOneRule("uncle-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male))")
+	implied = parseOneRule("is-uncle-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)")
+	spoken = parseOneRule("is-uncle-of(?x, ?y) => and(is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male))")
 	h.check("a comma list is one condition per comma", implied[0].body.len == 3)
 	h.check("and(...) holds the same three", spoken[0].body.len == 3)
 	h.check("both forms read alike", bodyText(implied[0]) == bodyText(spoken[0]))
 	h.check("the head is the same either way", implied[0].head.text == spoken[0].head.text)
 
-	nested = parseOneRule("uncle-of(?x, ?y) => and(parent-of(?p, ?y), and(sibling-of(?x, ?p), has-gender(?x, male)))")
+	nested = parseOneRule("is-uncle-of(?x, ?y) => and(is-parent-of(?p, ?y), and(is-sibling-of(?x, ?p), has-gender(?x, male)))")
 	h.check("and(...) nests", nested[0].body.len == 3)
 
 	// ── Constraints ──────────────────────────────────────────────────────────
 
-	constrained = parseOneRule("sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y))")
+	constrained = parseOneRule("is-sibling-of(?x, ?y) => and(is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y))")
 	h.check("a constraint parses inside and(...)", constrained[0].body.len == 3)
 	h.check("a constraint reads as a call",
 		constrained[0].body[2].text == "not-equal(?x, ?y)")
 	h.check("a constraint is not a triple", not (constrained[0].body[2] isa t.SpoTriple))
 
-	equal = parseOneRule("same-age-group-as(?x, ?y) => and(age-group(?x, ?g), equal(?g, ?h), age-group(?y, ?h))")
+	equal = parseOneRule("shares-age-group-with(?x, ?y) => and(belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h))")
 	h.check("equal parses as a constraint", equal[0].body[1] isa t.Equal)
 	h.check("equal is not a triple", not (equal[0].body[1] isa t.SpoTriple))
 	h.check("equal reads back as a call",
-		bodyText(equal[0]) == "age-group(?x, ?g), equal(?g, ?h), age-group(?y, ?h)")
+		bodyText(equal[0]) == "belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h)")
 
 	// ── Lines ────────────────────────────────────────────────────────────────
 
@@ -65,9 +65,9 @@ run = function(t, knowledge, h)
 	tab = char(9)
 	spread = knowledge.parseRules(t, [
 		"// A rule may run over several lines.",
-		"uncle-of(?x, ?y) => and(",
-		tab + "parent-of(?p, ?y),",
-		tab + "sibling-of(?x, ?p),",
+		"is-uncle-of(?x, ?y) => and(",
+		tab + "is-parent-of(?p, ?y),",
+		tab + "is-sibling-of(?x, ?p),",
 		tab + "has-gender(?x, male))",
 		"",
 		"married-to(?y, ?x) =>",
@@ -80,33 +80,33 @@ run = function(t, knowledge, h)
 
 	// ── or: a body that offers a choice ──────────────────────────────────────
 
-	choice = parseOneRule("in-law-of(?x, ?y) => or(married-to(?x, ?p), sibling-of(?p, ?y))")
+	choice = parseOneRule("is-in-law-of(?x, ?y) => or(married-to(?x, ?p), is-sibling-of(?p, ?y))")
 	h.check("or(...) parses", not (choice isa error))
 	h.check("or(...) is one condition", choice[0].body.len == 1)
 	h.check("or(...) is a choice, not a triple", choice[0].body[0] isa t.Or)
 	h.check("or(...) reads back",
-		bodyText(choice[0]) == "or(married-to(?x, ?p), sibling-of(?p, ?y))")
+		bodyText(choice[0]) == "or(married-to(?x, ?p), is-sibling-of(?p, ?y))")
 
-	either = parseOneRule("close(?x, ?y) => and(or(sibling-of(?x, ?y), married-to(?x, ?y)), not-equal(?x, ?y))")
+	either = parseOneRule("close(?x, ?y) => and(or(is-sibling-of(?x, ?y), married-to(?x, ?y)), not-equal(?x, ?y))")
 	h.check("or(...) sits among other conditions", either[0].body.len == 2)
 	h.check("the choice keeps its alternatives", either[0].body[0].alternatives.len == 2)
 
-	paired = parseOneRule("in-law-of(?x, ?y) => or(and(married-to(?x, ?p), sibling-of(?p, ?y)), sibling-of(?x, ?y))")
+	paired = parseOneRule("is-in-law-of(?x, ?y) => or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), is-sibling-of(?x, ?y))")
 	h.check("an alternative of several conditions reads as and(...)", not (paired isa error))
 	h.check("or(...) holds an and(...) alternative",
 		bodyText(paired[0]) ==
-			"or(and(married-to(?x, ?p), sibling-of(?p, ?y)), sibling-of(?x, ?y))")
+			"or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), is-sibling-of(?x, ?y))")
 
 	// ── not: a body that must not hold ───────────────────────────────────────
 
-	negated = parseOneRule("only-child-of(?x, ?y) => and(parent-of(?y, ?x), not(sibling-of(?x, ?q)))")
+	negated = parseOneRule("is-only-child-of(?x, ?y) => and(is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q)))")
 	h.check("not(...) parses", not (negated isa error))
 	h.check("not(...) sits among other conditions", negated[0].body.len == 2)
 	h.check("not(...) is a negation, not a triple", negated[0].body[1] isa t.Not)
 	h.check("not(...) holds the body it negates",
-		negated[0].body[1].body.len == 1 and negated[0].body[1].body[0].text == "sibling-of(?x, ?q)")
+		negated[0].body[1].body.len == 1 and negated[0].body[1].body[0].text == "is-sibling-of(?x, ?q)")
 	h.check("not(...) reads back",
-		bodyText(negated[0]) == "parent-of(?y, ?x), not(sibling-of(?x, ?q))")
+		bodyText(negated[0]) == "is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))")
 
 	whole = parseOneRule("a(?x, ?y) => not(and(b(?x, ?p), c(?p, ?y)))")
 	h.check("not(...) around several conditions reads as and(...)",
@@ -115,8 +115,8 @@ run = function(t, knowledge, h)
 
 	// ── Refusals ─────────────────────────────────────────────────────────────
 
-	h.check("a line without an arrow is refused", failure("parent-of(?x, ?y)") != null)
-	h.check("a rule with no body is refused", failure("parent-of(?x, ?y) => ") != null)
+	h.check("a line without an arrow is refused", failure("is-parent-of(?x, ?y)") != null)
+	h.check("a rule with no body is refused", failure("is-parent-of(?x, ?y) => ") != null)
 	h.check("not(...) with no condition is refused", failure("a(?x, ?y) => not()") != null)
 	several = failure("a(?x, ?y) => not(b(?x, ?y), c(?x, ?y))")
 	h.check("not(...) of several conditions is refused", several != null)
@@ -124,9 +124,9 @@ run = function(t, knowledge, h)
 		h.check("the refusal says how to write it", several.message.indexOf("not(and(") != null)
 	end if
 	h.check("a broken part refuses the whole rule",
-		failure("grandparent(?x, ?y) => parent-of(?x, ?p") != null)
+		failure("is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p") != null)
 
-	broken = knowledge.parseRules(t, ["// A rule", "grandparent(?x, ?y) => parent-of(?x, ?p"])
+	broken = knowledge.parseRules(t, ["// A rule", "is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p"])
 	h.check("a refusal names the line", broken isa error)
 	if broken isa error then
 		h.check("the line is the one that broke", broken.message.indexOf("line 2") != null)
@@ -149,10 +149,10 @@ run = function(t, knowledge, h)
 		"// A person",
 		"",
 		"has-gender(walter, male)",
-		"parent-of(walter, bill)",
+		"is-parent-of(walter, bill)",
 	])
 	h.check("comments and blank lines are skipped in a facts document", factLines.len == 2)
-	h.check("facts keep their order", factLines[1].text == "parent-of(walter, bill)")
+	h.check("facts keep their order", factLines[1].text == "is-parent-of(walter, bill)")
 
 	// A file's predicate is a name in the same shape a typed line's is, since the shape is the
 	// solver's one check and the reader here hands it the caller's copy of the solver.
@@ -164,7 +164,7 @@ run = function(t, knowledge, h)
 		h.check("and the refusal says a name is lower case", renamed.message.indexOf("lower-case") != null)
 	end if
 
-	brokenFact = knowledge.parseFacts(t, ["// A fact", "parent-of(walter)"])
+	brokenFact = knowledge.parseFacts(t, ["// A fact", "is-parent-of(walter)"])
 	h.check("a malformed fact is refused", brokenFact isa error)
 	if brokenFact isa error then
 		h.check("the fact's refusal names its line", brokenFact.message.indexOf("line 2") != null)
@@ -172,7 +172,7 @@ run = function(t, knowledge, h)
 
 	// ── A condition that compares numbers ────────────────────────────────────
 
-	aged = parseOneRule("age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))")
+	aged = parseOneRule("belongs-to-age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))")
 	h.check("a comparison parses", not (aged isa error))
 	h.check("a comparison is a constraint, not a fact", aged[0].body[1] isa t.Comparison)
 	h.check("a comparison reads back",
@@ -210,17 +210,17 @@ run = function(t, knowledge, h)
 		rereadFacts[1].text == factLines[1].text)
 
 	writtenRules = [
-		parseOneRule("sibling-of(?x, ?y) => and(parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y))")[0],
-		parseOneRule("in-law-of(?x, ?y) => or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling-of(?x, ?p), married-to(?p, ?y)))")[0],
-		parseOneRule("only-child-of(?x, ?y) => and(parent-of(?y, ?x), not(sibling-of(?x, ?q)))")[0],
+		parseOneRule("is-sibling-of(?x, ?y) => and(is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y))")[0],
+		parseOneRule("is-in-law-of(?x, ?y) => or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(is-sibling-of(?x, ?p), married-to(?p, ?y)))")[0],
+		parseOneRule("is-only-child-of(?x, ?y) => and(is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q)))")[0],
 	]
 	ruleLines = knowledge.rulesLines(writtenRules)
 	h.check("rules are written with '=>', as the file spells it", ruleLines[0] ==
-		"sibling-of(?x, ?y) => parent-of(?p, ?x), parent-of(?p, ?y), not-equal(?x, ?y)")
+		"is-sibling-of(?x, ?y) => is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)")
 	h.check("a rule's alternatives read back as or(...)", ruleLines[1] ==
-		"in-law-of(?x, ?y) => or(and(married-to(?x, ?p), sibling-of(?p, ?y)), and(sibling-of(?x, ?p), married-to(?p, ?y)))")
+		"is-in-law-of(?x, ?y) => or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(is-sibling-of(?x, ?p), married-to(?p, ?y)))")
 	h.check("a rule's negation reads back", ruleLines[2] ==
-		"only-child-of(?x, ?y) => parent-of(?y, ?x), not(sibling-of(?x, ?q))")
+		"is-only-child-of(?x, ?y) => is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))")
 	rereadRules = knowledge.parseRules(t, ruleLines)
 	h.check("written rules read back", not (rereadRules isa error) and
 		rereadRules.len == 3 and bodyText(rereadRules[0]) == bodyText(writtenRules[0]))

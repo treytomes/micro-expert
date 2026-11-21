@@ -11,7 +11,7 @@ run = function(t, h)
 
 	// ── Display ─────────────────────────────────────────────────────────────
 
-	h.check("display", spo("bill", "parent-of", "susan").text == "parent-of(bill, susan)")
+	h.check("display", spo("bill", "is-parent-of", "susan").text == "is-parent-of(bill, susan)")
 	h.check("display with variables", spo(v("x"), "child", v("y")).text == "child(?x, ?y)")
 	h.check("display with a variable predicate", spo("bill", v("p"), "susan").text == "?p(bill, susan)")
 
@@ -23,7 +23,7 @@ run = function(t, h)
 	h.check("a triple reads as a sentence",
 		spo("oliver", "has-uncle", "zed").sentence == "oliver has uncle zed")
 	h.check("each dash is a space",
-		spo("bill", "parent-of", "susan").sentence == "bill parent of susan")
+		spo("bill", "is-parent-of", "susan").sentence == "bill is parent of susan")
 	h.check("a number field is said as it stands",
 		spo("oliver", "has-age", 7).sentence == "oliver has age 7")
 	h.check("a digit inside a section is said too",
@@ -33,16 +33,16 @@ run = function(t, h)
 
 	// ── Parsing ─────────────────────────────────────────────────────────────
 
-	parsed = t.SpoTriple.parse("parent-of(bill, susan)")
-	h.check("parses the display form", parsed.text == "parent-of(bill, susan)")
+	parsed = t.SpoTriple.parse("is-parent-of(bill, susan)")
+	h.check("parses the display form", parsed.text == "is-parent-of(bill, susan)")
 	h.check("the display form reads back", t.SpoTriple.parse(parsed.text).text == parsed.text)
-	h.check("parses the pipe form", t.SpoTriple.parse("bill | parent-of | susan").text == "parent-of(bill, susan)")
+	h.check("parses the pipe form", t.SpoTriple.parse("bill | is-parent-of | susan").text == "is-parent-of(bill, susan)")
 	h.check("parses variables", t.SpoTriple.parse("child(?x, ?y)").text == "child(?x, ?y)")
 	h.check("spaces are trimmed",
-		t.SpoTriple.parse("  parent-of( bill ,  susan )  ").text == "parent-of(bill, susan)")
+		t.SpoTriple.parse("  is-parent-of( bill ,  susan )  ").text == "is-parent-of(bill, susan)")
 	h.check("rejects one argument", t.SpoTriple.parse("child(susan)") isa error)
 	h.check("rejects a pipe form inside a call", t.SpoTriple.parse("oav(bill | gender | male)") isa error)
-	h.check("rejects two fields", t.SpoTriple.parse("bill | parent-of") isa error)
+	h.check("rejects two fields", t.SpoTriple.parse("bill | is-parent-of") isa error)
 	h.check("rejects an empty field", t.SpoTriple.parse("bill |  | susan") isa error)
 
 	// A predicate is lower case, its sections joined by '-', each section letters and digits
