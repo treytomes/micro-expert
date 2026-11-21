@@ -60,15 +60,18 @@ run = function(t, knowledge, h)
 
 	// ── Lines ────────────────────────────────────────────────────────────────
 
+	// MiniScript has no escape in a string literal, so "\t" is a backslash and a t rather
+	// than the tab an indent is: char(9) is the tab, and these lines are indented with one.
+	tab = char(9)
 	spread = knowledge.parseRules(t, [
 		"// A rule may run over several lines.",
 		"uncle-of(?x, ?y) => and(",
-		"\tparent-of(?p, ?y),",
-		"\tsibling-of(?x, ?p),",
-		"\thas-gender(?x, male))",
+		tab + "parent-of(?p, ?y),",
+		tab + "sibling-of(?x, ?p),",
+		tab + "has-gender(?x, male))",
 		"",
 		"married-to(?y, ?x) =>",
-		"\tmarried-to(?x, ?y)",
+		tab + "married-to(?x, ?y)",
 	])
 	h.check("comments and blank lines are skipped", spread.len == 2)
 	h.check("a rule may run over several lines", spread[0].body.len == 3)
@@ -150,6 +153,16 @@ run = function(t, knowledge, h)
 	])
 	h.check("comments and blank lines are skipped in a facts document", factLines.len == 2)
 	h.check("facts keep their order", factLines[1].text == "parent-of(walter, bill)")
+
+	// A file's predicate is a name in the same shape a typed line's is, since the shape is the
+	// solver's one check and the reader here hands it the caller's copy of the solver.
+	shaped = knowledge.parseFacts(t, ["has-1-child(oliver, true)"])
+	h.check("a fact may open a later section with a digit", not (shaped isa error))
+	renamed = knowledge.parseFacts(t, ["Parent-Of(walter, bill)"])
+	h.check("a fact's predicate is held to its shape", renamed isa error)
+	if renamed isa error then
+		h.check("and the refusal says a name is lower case", renamed.message.indexOf("lower-case") != null)
+	end if
 
 	brokenFact = knowledge.parseFacts(t, ["// A fact", "parent-of(walter)"])
 	h.check("a malformed fact is refused", brokenFact isa error)

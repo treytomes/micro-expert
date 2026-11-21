@@ -72,8 +72,12 @@ a character that is not a space or a tab.
                      ; no top-level "," and no unbalanced "(" or ")";
                      ; and neither a <number> nor beginning with "?"
 
-<name>             ::= <text>
-                     ; by convention lower-case words run together with "-": parent-of
+<name>             ::= <section> { "-" <section> }
+                     ; lower case, sections joined by "-", none empty: parent-of
+<section>          ::= <name-character> { <name-character> }
+<name-character>   ::= <letter> | <digit>
+<letter>           ::= "a" … "z"
+<digit>            ::= "0" … "9"
 
 <schema-type>      ::= <field-type>
                      | "unique" "(" <field-type> ")"
@@ -146,6 +150,22 @@ continues. Quotes have no meaning here — `has-age(tim, "24")` is the text `"24
 quotes, and the schema refuses it where a number belongs. Two sequences cannot appear in a
 field at all: `//`, because a comment starts there wherever it stands on the line, and, in a
 rule, `=>`, because that splits the line into head and body.
+
+## Predicate names
+
+A name is lower case, its sections joined by `-`, none of them empty, and each of them
+letters and digits. The first section starts with a letter, so a name never reads as a
+number; a later one may open with a digit, which is how `has-1-child` is written. `parent-of`,
+`married-to` and `has-1-child` are names; `Parent-Of`, `2nd-child`, `parent--of`,
+`parent_of` and `parent of` are not.
+
+The rule is not about the search - nothing in unification or proof cares what a predicate is
+called. It is about saying a result: an answer prints as a sentence, and the sentence is the
+name with its dashes opened to spaces, so `has-uncle(oliver, zed)` answers
+`oliver has uncle zed`. The name is the words, so there is no second table saying what each
+predicate means, and a name no sentence could be made of is refused where it is read: in a
+facts or rules file, in a schema line, and at the prompt. `?p(bill, susan)` is the one thing
+that is not a name - a variable stands there - and an answer holding one keeps the fact form.
 
 ## Facts
 

@@ -76,18 +76,26 @@ entry point, and pass the script's exit code back.
 [INF] micro-expert: log-level:  information
 Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
 ? uncle-of(bill, ?p)
-  uncle-of(bill, anna)
-  uncle-of(bill, mark)
-  uncle-of(bill, clara)
-  uncle-of(bill, jack)
-  uncle-of(bill, nina)
-  uncle-of(bill, oliver)
+  bill uncle of anna
+  bill uncle of mark
+  bill uncle of clara
+  bill uncle of jack
+  bill uncle of nina
+  bill uncle of oliver
 [INF] micro-expert: micro-expert exiting with code 0
 ```
 
 (timestamps trimmed for width; the fact and rule dump `--log-level debug` adds is left out)
 
-That is the answer set. `--verbose` adds the proof tree behind each one:
+That is the answer set, said rather than shown: a predicate is named in sections joined by
+dashes, and a sentence is that name with the dashes opened to spaces, so
+`has-uncle(oliver, zed)` answers `oliver has uncle zed`. The name is where the words are -
+there is no second table saying what a predicate means - which is why the family's
+`uncle-of` reads `bill uncle of anna`: a domain that wants a smooth sentence names its
+predicates as verbs. The fact form stays wherever it is something to write back or read as
+data: the missing-fact report, `/facts` and `/rules`, and the proof tree below.
+
+`--verbose` adds the proof tree behind each one:
 
 ```
 > micro-expert --verbose
@@ -161,7 +169,7 @@ Ask it at the prompt:
 
 ```
 ? grandpa-of(?who, tim)
-  grandpa-of(walter, tim)
+  walter grandpa of tim
 ```
 
 Every predicate has the same shape - `relation(?x, ?y)` reads "?x is the relation of ?y" -
@@ -186,12 +194,12 @@ Type a fact, a question, or a rule as 'head <- conditions'. /help lists the comm
     a fact like parent-of(?p, susan)
   ?p = walter
   added parent-of(walter, susan)
-  parent-of(walter, susan)
+  walter parent of susan
 ? grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)
   added rule grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)
 ? grandparent(?p, tim)
-  grandparent(walter, tim)
-  grandparent(doris, tim)
+  walter grandparent tim
+  doris grandparent tim
 ```
 
 When a question has no answer, the session reads the same report and asks for the fact that
@@ -216,8 +224,8 @@ time:
   sibling-of(?p, george)
   ?p = bill
   added sibling-of(bill, george)
-  uncle-of(bill, susan)
-  uncle-of(henry, susan)
+  bill uncle of susan
+  henry uncle of susan
 ```
 
 Only the variables a fact brings itself are asked for, so `parent-of(?p', ?p)` asks for `?p'`
@@ -254,7 +262,7 @@ them numbered, and takes either the number or the value itself:
   2) female
   ?g = 2
   added has-gender(zed, female)
-  has-gender(zed, female)
+  zed has gender female
 ```
 
 The list is the schema's, so it follows the domain: another domain's `a|b|c` field is
@@ -375,6 +383,13 @@ has-gender(bill, male)
 has-age(bill, 54)
 ```
 
+A predicate is named in lower case, in sections joined by dashes, each section letters and
+numbers, and the first section starting with a letter: `parent-of`, `has-1-child`,
+`married-to`. A line that names one another way is refused where it is read, in a data file
+and at the prompt alike, and the schema's lines are held to the same shape - so the
+knowledge base holds only names a result can say, and the name is where the words of that
+result come from.
+
 A rule is one line of `data/rules.kb`: a head - the one triple it can prove - and a body
 of conditions that must all hold first. The body is a comma-delimited list, which is an
 implied `and`, or `and(...)` around the same list:
@@ -438,7 +453,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-470 passed, 0 failed
+488 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -454,8 +469,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 469 skipped
-##END {"passed":1,"failed":0,"skipped":469}
+1 passed, 0 failed, 487 skipped
+##END {"passed":1,"failed":0,"skipped":487}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -470,10 +485,10 @@ The parser, the logger and the repl library are their own repositories with thei
 by the same interpreter, and this suite imports none of them. It keeps one check about the
 repl library, and that one is about this repository rather than the library: `examples/notes.ms`
 is a whole program written on the library and nothing else, and `test/repl.ms` is what says so.
-The 470 cover the program itself: display and parsing (22), the knowledge data format (78), the
-predicate schema (38), the loaders (19), proofs and explanations (21), the missing-fact report
+The 488 cover the program itself: display and parsing (33), the knowledge data format (81), the
+predicate schema (40), the loaders (19), proofs and explanations (21), the missing-fact report
 (34), recursion and cycle handling (13), relations including the family rules (89), the session
-at the prompt (145), the notes example on the repl library (1), and the domain (10).
+at the prompt (147), the notes example on the repl library (1), and the domain (10).
 
 ## Repository layout
 
@@ -494,7 +509,7 @@ examples/notes.ms    a whole host for the repl library that is not a knowledge b
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
 src/repl/            submodule: micro-repl, the loop and its commands
-test/                the 470 checks and their runner
+test/                the 488 checks and their runner
 docs/articles/       the long-form write-up
 docs/kb-grammar.md   the .kb grammar, its constraints and its schema
 docs/constraints.md  the six built-in constraints, one by one

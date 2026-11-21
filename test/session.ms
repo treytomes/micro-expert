@@ -105,7 +105,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("the query's own fact is not repeated above the prompt",
 		not printed(lines, "  parent-of(?p, susan)"))
 	h.check("the fact answers the question on the next pass",
-		printed(lines, "  parent-of(walter, susan)"))
+		printed(lines, "  walter parent of susan"))
 	h.check("the fact stays in the session", asked.session.facts.len == 3)
 
 	// A missing fact with two variables is asked about one at a time.
@@ -115,7 +115,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("both answers make the one fact",
 		printed(pair.answers.lines, "  added aunt-of(doris, nina)"))
 	h.check("the question is answered too",
-		printed(pair.answers.lines, "  aunt-of(doris, nina)"))
+		printed(pair.answers.lines, "  doris aunt of nina"))
 
 	// A rule typed at the prompt joins the search.
 	ruleLine = "grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)"
@@ -123,7 +123,15 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("a rule typed at the prompt is added",
 		printed(ruled.answers.lines, "  added rule " + ruleLine))
 	h.check("the new rule answers the next question",
-		printed(ruled.answers.lines, "  grandparent(bill, anna)"))
+		printed(ruled.answers.lines, "  bill grandparent anna"))
+
+	// A predicate's name has a shape, and the prompt is the other door into the knowledge
+	// base: a typed line is refused there in the words the file reader uses, since both read
+	// through the solver's one check.
+	shouted = startSession(family + [], [], ["Parent-Of(tim, susan)"])
+	h.check("a typed line whose predicate is not a name is refused",
+		holds(shouted.answers.lines, "a predicate is lower-case letters and digits, joined by '-'"))
+	h.check("and nothing is stored from it", shouted.session.facts.len == family.len)
 
 	// A malformed line is refused, quoted, and the session carries on.
 	stumbling = startSession(family + [], [],
@@ -159,7 +167,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 			uncleAsked[3] == "  add it? [y/N] ")
 	h.check("yes adds it and the rules reach the answer from those facts",
 		printed(uncleLines, "  added has-gender(alfonso, male)") and
-			uncleLines[uncleLines.len - 1] == "  uncle-of(alfonso, susan)")
+			uncleLines[uncleLines.len - 1] == "  alfonso uncle of susan")
 	h.check("the query's own fact was never asserted", uncle.session.facts.len == 5)
 
 	// Declining the offer leaves the knowledge base as it was.
@@ -179,7 +187,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("naming the introduced variable carries the loop to the fact really missing",
 		tangled.answers.asked[2] == "  ?p = " and
 			printed(tangled.answers.lines, "  added parent-of(george, zed)") and
-			tangled.answers.lines[tangled.answers.lines.len - 1] == "  uncle-of(bill, zed)" and
+			tangled.answers.lines[tangled.answers.lines.len - 1] == "  bill uncle of zed" and
 			tangled.session.facts.len == 5)
 
 	// A condition a rule already derives - not a stored fact, but provable from the rules -
@@ -201,7 +209,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		not holds(derivable.answers.asked, "add it?"))
 	h.check("and the loop still reaches the fact that is really missing",
 		printed(derivable.answers.lines, "  added parent-of(clara, zed)") and
-			derivable.answers.lines[derivable.answers.lines.len - 1] == "  uncle-of(oliver, zed)")
+			derivable.answers.lines[derivable.answers.lines.len - 1] == "  oliver uncle of zed")
 
 	// An answer given under one line of a rule's block is carried to the next: ?p' = sam
 	// turns the check below it into a fact with nothing left to fill, so it is kept.
@@ -220,7 +228,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		printed(remembered.answers.lines, "  parent-of(sam, ?p)") and
 			remembered.answers.asked[3] == "  ?p = " and
 			printed(remembered.answers.lines, "  added parent-of(sam, alfonso)") and
-			remembered.answers.lines[remembered.answers.lines.len - 1] == "  uncle-of(bill, alfonso)")
+			remembered.answers.lines[remembered.answers.lines.len - 1] == "  bill uncle of alfonso")
 	// The block above reads the same way, so the report and the question agree.
 	h.check("the report block shows the values already given",
 		printed(remembered.answers.lines, "      parent-of(sam, ?p)"))
@@ -254,7 +262,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	fiat = startSession(family + [], [uncleRule], ["uncle-of(bill, ?p)", "uncle-of(bill, zed)"])
 	h.check("a fact typed instead of a value is added, and answers the question",
 		printed(fiat.answers.lines, "  added uncle-of(bill, zed)") and
-			fiat.answers.lines[fiat.answers.lines.len - 1] == "  uncle-of(bill, zed)")
+			fiat.answers.lines[fiat.answers.lines.len - 1] == "  bill uncle of zed")
 
 	// A line that parses but still holds a variable is neither a fact to add nor a value
 	// to bind, so it is refused and the question is put again.
@@ -415,7 +423,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("a painted added fact is marked as such",
 		printed(painted.answers.lines, "<a>  added parent-of(walter, susan)</>"))
 	h.check("a painted answer wraps the whole line",
-		printed(painted.answers.lines, "<n>  parent-of(walter, susan)</>"))
+		printed(painted.answers.lines, "<n>  walter parent of susan</>"))
 
 	// ── Numbers, and the schema a typed fact is held against ─────────────────
 
@@ -423,7 +431,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// the prompt reads a field with the same term parser the loaders use.
 	aged = startSession([spo("bill", "has-age", 54)], [], ["has-age(?p, 54)"])
 	h.check("a number typed in a question meets the fact it was stored as",
-		printed(aged.answers.lines, "  has-age(bill, 54)"))
+		printed(aged.answers.lines, "  bill has age 54"))
 
 	ageTypes = {"has-age": ["text", "number"]}
 	missed = startSession([spo("bill", "has-age", 54)], [], ["has-age(bill, twenty)"],
@@ -452,7 +460,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		printed(chosenLines, "  added has-gender(zed, female)") and
 			chosen.session.facts[0].text == "has-gender(zed, female)")
 	h.check("and the chosen value answers the question",
-		chosenLines[chosenLines.len - 1] == "  has-gender(zed, female)")
+		chosenLines[chosenLines.len - 1] == "  zed has gender female")
 
 	// The value itself is still accepted, so the list is a shortcut rather than a gate.
 	spoken = startSession([], [], ["has-gender(zed, ?g)", "female"], null, 0, genderTypes)
@@ -534,7 +542,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("a prompted value takes the field's old value out",
 		printed(clash.answers.lines, "  replaced has-age(zed, 24) with has-age(zed, 30)"))
 	h.check("and the question is answered by the fact it left",
-		clash.answers.lines[clash.answers.lines.len - 1] == "  has-age(zed, 30)" and
+		clash.answers.lines[clash.answers.lines.len - 1] == "  zed has age 30" and
 			clash.session.facts.len == 1 and clash.session.facts[0].object == 30)
 
 	// The wrapper says how many, not what, so a wrapped list is still the list the prompt
@@ -676,7 +684,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		loadedRules.session.rules[0].text ==
 			"grandparent(?x, ?y) <- parent-of(?x, ?p), parent-of(?p, ?y)")
 	h.check("and the loaded rule answers a question",
-		printed(loadedRules.answers.lines, "  grandparent(bill, anna)"))
+		printed(loadedRules.answers.lines, "  bill grandparent anna"))
 
 	// A rule whose head the schema marks unique(...) has nowhere to refuse a second value,
 	// since a fact a rule concludes is never added, so loading one is refused the way startup

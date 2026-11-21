@@ -336,7 +336,7 @@ end function
 
 schemaRead = function(session, path)
 	"Replaces the session's field types with the file at path, answering them, or an error."
-	loaded = session.knowledge.loadSchemaAt(path)
+	loaded = session.knowledge.loadSchemaAt(path, session.triples)
 	if loaded isa error then return loaded
 	problem = unenforceable(session, loaded, session.rules)
 	if problem isa error then return problem
@@ -527,7 +527,10 @@ showProofs = function(session, goal, proofs)
 				session.io.say(line)
 			end for
 		else
-			repl.say(session, "answer", "  " + session.triples.substitute(goal, proof.binds).text)
+			// An answer is said in words, not shown as a fact: a predicate's dashes are the
+			// spaces of the sentence it reads as. The report, /facts and the proof tree keep
+			// the fact form, since each of them is something to write back or read as data.
+			repl.say(session, "answer", "  " + session.triples.substitute(goal, proof.binds).sentence)
 		end if
 	end for
 end function

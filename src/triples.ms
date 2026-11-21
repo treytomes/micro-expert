@@ -72,6 +72,12 @@ SpoTriple.parse = function(line)
 	"Parses 'predicate(subject, object)' or 'subject | predicate | object'; '?x' fields become Vars."
 	fields = parseLine(line)
 	if fields isa error then return fields
+	// A predicate that cannot be said is refused with the line it came on, here and not
+	// later: this is the one reader a typed fact, question or rule comes through.
+	if fields[1] isa string then
+		problem = predicateProblem(fields[1])
+		if problem != null then return err(problem + ": " + line)
+	end if
 	return SpoTriple.make(fields[0], fields[1], fields[2])
 end function
 
@@ -85,6 +91,52 @@ SpoTriple.parts = function
 	"Returns the triple as the list [subject, predicate, object]."
 	return [self.subject, self.predicate, self.object]
 end function
+
+SpoTriple.sentence = function
+	"Formats the triple as a sentence, 'oliver has uncle zed': the predicate's dashes read as spaces."
+	// A variable predicate is not a name, so the triple keeps the fact form that shows
+	// the variable itself rather than inventing a word for it.
+	if not (self.predicate isa string) then return self.text
+	return termText(self.subject) + " " + self.predicate.split("-").join(" ") + " " +
+		termText(self.object)
+end function
+
+// ── Predicate names ──────────────────────────────────────────────────────────
+// A predicate is written in lower case as sections joined by '-', each section letters
+// and digits, and the first section starting with a letter: parent-of, has-1-child,
+// married-to. Nothing in the search depends on that - the shape is what makes a result
+// sayable, since a sentence is the name with its dashes opened to spaces - so a name that
+// is not one is refused where the line is read, and the knowledge base holds only names a
+// result can say. knowledge.ms checks the same rule on the data files and the schema.
+//
+// A variable is not a name: ?p(susan, tim) asks what relates the two, and there is
+// nothing yet to say.
+
+predicateProblem = function(name)
+	"Says what is wrong with a predicate name, as 'a predicate starts with a letter', or null when it is one."
+	if name == "" then return "a predicate cannot be empty"
+	if name[:1] == "?" then return null
+	// Every dash separates two sections, so each one has to be there.
+	sections = name.split("-")
+	for at in range(0, sections.len - 1)
+		section = sections[at]
+		if section == "" then return "a predicate is sections joined by '-', and none is empty"
+		for c in section
+			if LETTERS.indexOf(c) == null and DIGITS.indexOf(c) == null then
+				return "a predicate is lower-case letters and digits, joined by '-'"
+			end if
+		end for
+		// A leading digit would read as a number, so the name starts with a letter and
+		// only the sections after it may open with one.
+		if at == 0 and DIGITS.indexOf(section[0]) != null then
+			return "a predicate starts with a letter"
+		end if
+	end for
+	return null
+end function
+
+LETTERS = "abcdefghijklmnopqrstuvwxyz"
+DIGITS = "0123456789"
 
 // ── Unification ───────────────────────────────────────────────────────────────
 

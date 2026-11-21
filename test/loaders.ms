@@ -47,7 +47,7 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 	// ships have to pass the same check: a value the schema would refuse is the two
 	// files drifting apart, not a fact. A predicate the schema does not name is taken
 	// as written, so the second check is what stops a new predicate going unchecked.
-	types = schemaLoader.build()
+	types = schemaLoader.build(t)
 	misfits = []
 	used = {}
 	if not (types isa error) then
@@ -182,7 +182,7 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 
 	schemaPath = scratch("schema.kb")
 	writeFile(schemaPath, ["has-age(text, number)"])
-	namedSchema = schemaLoader.build(schemaPath)
+	namedSchema = schemaLoader.build(t, schemaPath)
 	file.delete(schemaPath)
 	h.check("a loader reads the schema file it is named", not (namedSchema isa error) and
 		namedSchema.hasIndex("has-age") == 1)

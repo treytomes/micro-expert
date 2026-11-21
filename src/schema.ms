@@ -17,18 +17,22 @@
 // the map back, so the prompt can refuse a fact that does not fit before storing it:
 //
 //   import "schema"
-//   types = globals["schema"].build()
+//   types = globals["schema"].build(triples)
 //   problem = schema.misfit(types, triple)   // null, or "the object should be a number"
+//
+// The solver is handed in for one reason only: a predicate name has a shape, and the
+// schema names predicates, so the file is held to it here as a fact is. Handed none, the
+// names are taken as written.
 //
 // A predicate the file does not name is taken as it is written, so the schema grows
 // with the family rather than standing in its way.
 
 import "knowledge"
 
-build = function(path=null)
-	"Reads the schema file at path - data/schema.kb when none is named - and returns {predicate: [field type, field type]}, or an error."
+build = function(triples=null, path=null)
+	"Reads the schema file at path - data/schema.kb when none is named - and returns {predicate: [field type, field type]}, or an error; triples, when given, holds each name to the predicate's shape."
 	if path == null then path = "../data/schema.kb"
-	return knowledge.loadSchema(info(@build).sourceLoc, path)
+	return knowledge.loadSchema(info(@build).sourceLoc, path, triples)
 end function
 
 misfit = function(types, triple)

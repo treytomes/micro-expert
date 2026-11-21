@@ -15,6 +15,24 @@ run = function(t, h)
 	h.check("display with variables", spo(v("x"), "child", v("y")).text == "child(?x, ?y)")
 	h.check("display with a variable predicate", spo("bill", v("p"), "susan").text == "?p(bill, susan)")
 
+	// ── A sentence ──────────────────────────────────────────────────────────
+
+	// A predicate is named in sections joined by dashes, and the sentence is that name with
+	// the dashes opened to spaces: the name is where the words are, so there is no second
+	// table saying what each predicate means.
+	h.check("a triple reads as a sentence",
+		spo("oliver", "has-uncle", "zed").sentence == "oliver has uncle zed")
+	h.check("each dash is a space",
+		spo("bill", "parent-of", "susan").sentence == "bill parent of susan")
+	h.check("a number field is said as it stands",
+		spo("oliver", "has-age", 7).sentence == "oliver has age 7")
+	h.check("a digit inside a section is said too",
+		spo("oliver", "has-1-child", "true").sentence == "oliver has 1 child true")
+	h.check("a variable field keeps its ?",
+		spo(v("x"), "parent-of", "susan").sentence == "?x parent of susan")
+	h.check("a variable predicate has no name to say, so the fact form stands",
+		spo("bill", v("p"), "susan").sentence == "?p(bill, susan)")
+
 	// ── Parsing ─────────────────────────────────────────────────────────────
 
 	parsed = t.SpoTriple.parse("parent-of(bill, susan)")
@@ -28,6 +46,20 @@ run = function(t, h)
 	h.check("rejects a pipe form inside a call", t.SpoTriple.parse("oav(bill | gender | male)") isa error)
 	h.check("rejects two fields", t.SpoTriple.parse("bill | parent-of") isa error)
 	h.check("rejects an empty field", t.SpoTriple.parse("bill |  | susan") isa error)
+
+	// A predicate is lower case, its sections joined by '-', each section letters and digits
+	// and the first starting with a letter. A line that names one another way is refused
+	// where it is read, so the knowledge base holds only names a result can say.
+	h.check("a predicate may hold a digit in a later section",
+		not (t.SpoTriple.parse("has-1-child(oliver, true)") isa error))
+	h.check("a predicate in capitals is refused",
+		t.SpoTriple.parse("Parent-Of(bill, susan)") isa error)
+	h.check("a predicate that opens with a digit is refused",
+		t.SpoTriple.parse("2nd-child(bill, susan)") isa error)
+	h.check("a predicate with an empty section is refused",
+		t.SpoTriple.parse("parent--of(bill, susan)") isa error)
+	h.check("a predicate with anything but letters and digits is refused",
+		t.SpoTriple.parse("parent_of(bill, susan)") isa error)
 
 	// A number is read as a number here as it is in the data files, so a question typed
 	// with one in it meets the fact that was loaded with one in it.

@@ -192,7 +192,7 @@ domainPaths = globals["domain"].pathsFor(options.values)
 // file rather than of one line: two facts that each fit can still be one too many for a
 // pair, so the loader has to know the types to say so.
 import "schema"
-types = globals["schema"].build(domainPaths.schema)
+types = globals["schema"].build(triples, domainPaths.schema)
 if types isa error then
 	print "error: " + types.message
 	finish 1

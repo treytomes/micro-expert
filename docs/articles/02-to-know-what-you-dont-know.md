@@ -33,7 +33,7 @@ Query: uncle-of(oliver, ?p)
     (a name ending in ' is the rule's own variable, not one you asked about)
 ```
 
-This is the case that matters for the picture above.  Every one of those conditions is separately provable - parent facts exist, Oliver has siblings, Oliver is male - and Oliver is still nobody's uncle: three conditions that each look satisfied prove nothing together.  That's why a body is judged as a body, and what comes back is the edge that is really missing: Oliver's siblings exist, but none of them has a child, so the fact to add is `parent-of(?p', ?p)` for one of those siblings.  Give one of them a child - `parent-of(clara, zed)` - and the query answers `uncle-of(oliver, zed)`.  The loop below walks exactly that: name the open sibling, and the one fact left to add is the child.
+This is the case that matters for the picture above.  Every one of those conditions is separately provable - parent facts exist, Oliver has siblings, Oliver is male - and Oliver is still nobody's uncle: three conditions that each look satisfied prove nothing together.  That's why a body is judged as a body, and what comes back is the edge that is really missing: Oliver's siblings exist, but none of them has a child, so the fact to add is `parent-of(?p', ?p)` for one of those siblings.  Give one of them a child - `parent-of(clara, zed)` - and the query answers `oliver uncle of zed`.  The loop below walks exactly that: name the open sibling, and the one fact left to add is the child.
 
 The REPL session picks an open topic to ask about, ranking according to what will allow the query to take the next step along the graph.  Asserting the answer teaches the graph exactly one instance and nothing else; in our example here we only learn about *one* of Oliver's nieces/nephews.
 
@@ -59,7 +59,7 @@ Here is that loop at the prompt from end to end - the report, the answers typed 
   parent-of(clara, ?p)
   ?p = zed
   added parent-of(clara, zed)
-  uncle-of(oliver, zed)
+  oliver uncle of zed
 ```
 
 Oliver begins as nobody's uncle; by the last line the one edge that was really missing - a child for Clara - sits in the graph where the report pointed, and the query that came back empty now answers.

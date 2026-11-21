@@ -5,6 +5,13 @@
 //
 //   parent-of(george, anna)
 //
+// A predicate is lower case, its sections joined by '-', each section letters and digits,
+// and the first section starting with a letter: parent-of, has-1-child, married-to. The
+// shape is checked with the one function that knows it, triples.ms's predicateProblem, and
+// a name that is not one is refused here with its line; the same check closes the prompt's
+// own door, since a typed line is read by the solver. Nothing in the search needs it - it
+// is what lets an answer be said, since a sentence is the name with its dashes opened.
+//
 // A rule is a head and a body joined by '=>':
 //
 //   uncle-of(?x, ?y) => and(parent-of(?p, ?y), sibling-of(?x, ?p), has-gender(?x, male))
@@ -93,37 +100,43 @@ loadFactsAt = function(triples, path, types=null)
 	return facts
 end function
 
-loadSchema = function(source, relative)
-	"Reads the schema file at relative from the module at source and returns its field types, or an error."
-	return loadSchemaAt(resolvePath(relative, source))
+loadSchema = function(source, relative, triples=null)
+	"Reads the schema file at relative from the module at source and returns its field types, or an error; triples, when given, holds each name to the predicate's shape."
+	return loadSchemaAt(resolvePath(relative, source), triples)
 end function
 
-loadSchemaAt = function(path)
-	"Reads the schema file at path and returns its field types, or an error."
+loadSchemaAt = function(path, triples=null)
+	"Reads the schema file at path and returns its field types, or an error; triples, when given, holds each name to the predicate's shape."
 	lines = readLines(path)
 	if lines isa error then return lines
-	types = parseSchema(lines)
+	types = parseSchema(lines, triples)
 	if types isa error then return err(file.name(path) + " " + types.message)
 	return types
 end function
 
-parseSchema = function(lines)
-	"Reads the lines of a schema document into {predicate: [field type, field type]}, or an error naming the line."
+parseSchema = function(lines, triples=null)
+	"Reads the lines of a schema document into {predicate: [field type, field type]}, or an error naming the line; triples, when given, holds each name to the predicate's shape."
 	types = {}
 	for entry in entries(lines)
-		parsed = parseSchemaEntry(entry.text)
+		parsed = parseSchemaEntry(entry.text, triples)
 		if parsed isa error then return err("line " + entry.line + ": " + parsed.message)
 		types[parsed.predicate] = parsed.types
 	end for
 	return types
 end function
 
-parseSchemaEntry = function(text)
-	"Reads 'predicate(field type, field type)' into {predicate, types}, or an error."
+parseSchemaEntry = function(text, triples=null)
+	"Reads 'predicate(field type, field type)' into {predicate, types}, or an error; triples, when given, holds the name to the predicate's shape."
 	called = parseCall(text)
 	if called isa error then return called
 	if called.args.len != 2 then
 		return err("expected 'predicate(field type, field type)': " + trimSpace(text))
+	end if
+	// A schema line names the same predicates a fact is written with, so it is held to the
+	// same shape: a typed line the prompt could never match a fact to is refused here.
+	if triples != null then
+		problem = triples.predicateProblem(called.name)
+		if problem != null then return err(problem + ": " + trimSpace(text))
 	end if
 	types = []
 	for arg in called.args
@@ -468,6 +481,10 @@ parseFact = function(triples, text)
 	if called.args.len != 2 then
 		return err("expected 'predicate(subject, object)': " + trimSpace(text))
 	end if
+	// The name rule is the solver's, because the sentence a result reads as is built from
+	// it; a file is held to it here, so a name no result could say never gets stored.
+	problem = triples.predicateProblem(called.name)
+	if problem != null then return err(problem + ": " + trimSpace(text))
 	predicate = termOf(triples, called.name)
 	subject = termOf(triples, called.args[0])
 	object = termOf(triples, called.args[1])

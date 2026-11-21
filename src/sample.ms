@@ -129,7 +129,9 @@ runQuery = function(query)
 				print line
 			end for
 		else
-			print "  " + triples.substitute(query, proof.binds).text
+			// The answer is said rather than shown: the predicate's dashes are the spaces of
+			// the sentence, so the query prints a line of English under its own aim.
+			print "  " + triples.substitute(query, proof.binds).sentence
 		end if
 	end for
 end function
