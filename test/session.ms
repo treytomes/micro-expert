@@ -286,7 +286,9 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// ── --verbose gives the tree behind each answer, as a run does ──────────
 
 	verbose = startSession(family + [], [], ["is-parent-of(?p, susan)", "walter", "quit"], null, 1)
-	h.check("a verbose session prints the proof tree behind an answer",
+	h.check("a verbose session still says the answer in words",
+		printed(verbose.answers.lines, "  walter is parent of susan"))
+	h.check("and prints the proof tree under it",
 		printed(verbose.answers.lines, "  is-parent-of(walter, susan)  <- fact"))
 	verboseRule = startSession(family + [], [], [ruleLine, "is-grandparent-of(bill, ?y)"], null, 1)
 	h.check("a verbose answer names the rule behind it",

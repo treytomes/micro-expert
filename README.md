@@ -96,12 +96,14 @@ names its predicates as verbs and the prepositions they need: `has-age`, `marrie
 something to write back or read as data: the missing-fact report, `/facts` and `/rules`, and
 the proof tree below.
 
-`--verbose` adds the proof tree behind each one:
+`--verbose` adds the proof tree under each one, so the answer is said and its reason is
+printed beneath it:
 
 ```
 > micro-expert --verbose
 Verbose run: depth 8
 ? is-uncle-of(bill, ?p)
+  bill is uncle of anna
   is-uncle-of(bill, anna)  <- rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
     is-parent-of(george, anna)  <- fact
     is-sibling-of(bill, george)  <- rule is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
@@ -116,7 +118,7 @@ Verbose run: depth 8
 | Option | Meaning |
 | --- | --- |
 | `--depth <NUM>` | Maximum backward-chaining depth, default `8`; `0` is facts only |
-| `--verbose` | Print the proof tree behind each answer |
+| `--verbose` | Say the answer and print its proof tree under it |
 | `--domain <DIR>` | Folder holding `facts.kb`, `rules.kb` and `schema.kb`, default `data` |
 | `--facts <FILE>` | Facts file, in place of the domain's `facts.kb` |
 | `--rules <FILE>` | Rules file, in place of the domain's `rules.kb` |
@@ -311,7 +313,7 @@ rest of the run. Nothing is written back by
 itself: the session adds to the arrays `src/main.ms` built, and `/save-*` is what puts a
 component back on disk when you ask it to. A rule is read from the line `Rule.text` prints, and a line that
 will not parse is refused with itself quoted. `--depth` bounds the session's search the way
-it bounds a run, and `--verbose` prints the proof tree behind each answer here too.
+it bounds a run, and `--verbose` prints the proof tree under each answer here too.
 
 | Command | Meaning |
 | --- | --- |
@@ -454,7 +456,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-489 passed, 0 failed
+490 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -470,8 +472,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 488 skipped
-##END {"passed":1,"failed":0,"skipped":488}
+1 passed, 0 failed, 489 skipped
+##END {"passed":1,"failed":0,"skipped":489}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -486,10 +488,10 @@ The parser, the logger and the repl library are their own repositories with thei
 by the same interpreter, and this suite imports none of them. It keeps one check about the
 repl library, and that one is about this repository rather than the library: `examples/notes.ms`
 is a whole program written on the library and nothing else, and `test/repl.ms` is what says so.
-The 489 cover the program itself: display and parsing (32), the knowledge data format (81), the
+The 490 cover the program itself: display and parsing (32), the knowledge data format (81), the
 predicate schema (40), the loaders (19), proofs and explanations (21), the missing-fact report
 (34), recursion and cycle handling (13), relations including the family rules (89), the session
-at the prompt (149), the notes example on the repl library (1), and the domain (10).
+at the prompt (150), the notes example on the repl library (1), and the domain (10).
 
 ## Repository layout
 
@@ -510,7 +512,7 @@ examples/notes.ms    a whole host for the repl library that is not a knowledge b
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
 src/repl/            submodule: micro-repl, the loop and its commands
-test/                the 489 checks and their runner
+test/                the 490 checks and their runner
 docs/articles/       the long-form write-up
 docs/kb-grammar.md   the .kb grammar, its constraints and its schema
 docs/constraints.md  the six built-in constraints, one by one

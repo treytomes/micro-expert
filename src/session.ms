@@ -526,15 +526,16 @@ end function
 showProofs = function(session, goal, proofs)
 	"Prints each answer - the proof tree behind it too, when the session is verbose."
 	for proof in proofs
+		// An answer is said in words, not shown as a fact: a predicate's dashes are the
+		// spaces of the sentence it reads as. The report, /facts and the proof lines below
+		// keep the fact form, since each of them is something to write back or read as data.
+		repl.say(session, "answer", "  " + session.triples.substitute(goal, proof.binds).sentence)
+		// --verbose hangs the tree under the sentence rather than putting it in the sentence's
+		// place: the answer stays readable in words and its reason is right there to check.
 		if session.verbose then
 			for line in session.triples.proofLines(proof, "  ")
 				session.io.say(line)
 			end for
-		else
-			// An answer is said in words, not shown as a fact: a predicate's dashes are the
-			// spaces of the sentence it reads as. The report, /facts and the proof tree keep
-			// the fact form, since each of them is something to write back or read as data.
-			repl.say(session, "answer", "  " + session.triples.substitute(goal, proof.binds).sentence)
 		end if
 	end for
 end function

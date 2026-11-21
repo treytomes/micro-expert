@@ -124,14 +124,14 @@ runQuery = function(query)
 		return
 	end if
 	for proof in proofs
+		// The answer is said rather than shown: the predicate's dashes are the spaces of the
+		// sentence, so the query prints a line of English under its own aim. --verbose hangs
+		// the proof tree under that sentence rather than printing it in the sentence's place.
+		print "  " + triples.substitute(query, proof.binds).sentence
 		if verbose then
 			for line in triples.proofLines(proof, "  ")
 				print line
 			end for
-		else
-			// The answer is said rather than shown: the predicate's dashes are the spaces of
-			// the sentence, so the query prints a line of English under its own aim.
-			print "  " + triples.substitute(query, proof.binds).sentence
 		end if
 	end for
 end function
