@@ -484,6 +484,21 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("a fact that fits the schema is added",
 		startSession([], [], ["has-age(tim, 24)"], null, 0, ageTypes).session.facts.len == 1)
 
+	// The three date types are held at the prompt like any other, so a fact they take is
+	// stored and one written to another shape is refused where it is typed.
+	datedTypes = {"founded-on": ["text", "date"], "opens-at": ["text", "time"],
+		"seen-at": ["text", "datetime"]}
+	dated = startSession([], [], ["founded-on(acme, 2019-04-01)", "opens-at(acme, 09:30:00)",
+		"seen-at(acme, 2019-04-01 09:30:00)"], null, 0, datedTypes)
+	h.check("a date, a time and a datetime typed at the prompt are stored",
+		dated.session.facts.len == 3 and
+			printed(dated.answers.lines, "  added seen-at(acme, 2019-04-01 09:30:00)"))
+	shortTime = startSession([], [], ["opens-at(acme, 09:30)"], null, 0, datedTypes)
+	h.check("a time short of its seconds is refused at the prompt",
+		printed(shortTime.answers.lines,
+			"  refused: opens-at(acme, 09:30): the object should be a time") and
+			shortTime.session.facts.len == 0)
+
 	// ── A boolean or a list of values is chosen, not typed ──────────────────
 	// The schema's type names the set, so the prompt lists it numbered and takes the
 	// number beside the value itself. Text and numbers keep the prompt they always had.
