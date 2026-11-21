@@ -171,9 +171,9 @@ run = function(t, parser, schemaLoader, h)
 		parser.receive("1970-01-01").addSeconds(-86400).str == "1969-12-31")
 	h.check("and the two sides order by their dates",
 		parser.receive("1969-12-31").compare(parser.receive("1970-01-01")) == -1)
-	// A datetime crosses the same boundary with its clock. The step into 1970 lands on a
+	// A datetime crosses the same boundary with its clock: the step into 1970 lands on a
 	// value the host can print, and the step back out of it lands on one it cannot, so both
-	// directions read back as the day and clock they are: addSeconds decides on the result.
+	// directions have to read back as the day and clock they are.
 	lastOld = parser.receive("1969-12-31 23:59:59")
 	newYear = parser.receive("1970-01-01 00:00:00")
 	h.check("an old datetime keeps its day and its clock",

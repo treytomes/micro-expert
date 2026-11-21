@@ -420,6 +420,14 @@ run = function(t, rules, h)
 		reportLines.join("|").indexOf("has-birthdate(zed, ?b)") != null)
 	h.check("and it still offers a fact shaped like the goal",
 		reportLines.join("|").indexOf("a fact like has-age(zed, ?n)") != null)
+	// A comparison waits the same way, and it is the only constraint that used to end the
+	// branch here: the fact listed before it would settle the field it cannot read.
+	olderRule = rule(spo(v("x"), "older-than", v("n")),
+		[spo(v("x"), "has-age", v("n")), t.Comparison.make(">", v("n"), 65)])
+	olderLines = t.neededFactLines(spo("zed", "older-than", v("n")), [], [olderRule], 3).join("|")
+	h.check("the report offers the fact a comparison is waiting on",
+		olderLines.indexOf("through rule older-than(?x, ?n)") != null and
+			olderLines.indexOf("has-age(zed, ?n)") != null)
 	t.today = savedToday
 
 	// ── A body that compares numbers ────────────────────────────────────────
