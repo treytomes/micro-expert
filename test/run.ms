@@ -53,6 +53,7 @@ import "recursion"
 import "relations"
 import "session"
 import "knowledge"
+import "datetimes"
 import "repl"
 import "schema"
 import "loaders"
@@ -99,9 +100,10 @@ replCases = globals["repl"]
 // knowledge.ms is the parser behind the data files, aliased away for the same reason:
 // `knowledge` is this suite's own case module for it.
 parser = globals["../src/knowledge"]
-// datetimes.ms is the date, time and datetime types the schema reads and the age constraint
-// counts on, aliased away from this suite's `schema` case module.
+// `datetimes` is this suite's own case module for the date types, so the module itself is
+// aliased to `dates` and reached as `dateCases` below.
 dates = globals["../src/datetimes"]
+dateCases = globals["datetimes"]
 // domain.ms places the three data files a run reads; it is aliased away from the case
 // module below, which is named domain.ms too.
 domainModule = globals["../src/domain"]
@@ -163,7 +165,8 @@ recursion.run(triples, rules, harness)
 relations.run(triples, rules, harness)
 sessionCases.run(triples, rules, sessionModule, harness, schemaLoader, parser, replLibrary)
 replCases.run(harness)
-schema.run(triples, parser, dates, schemaLoader, harness)
+dateCases.run(triples, parser, dates, harness)
+schema.run(triples, parser, schemaLoader, harness)
 loaders.run(triples, rulesLoader, factsLoader, schemaLoader, harness)
 globals["domain"].run(domainModule, harness)
 globals["options"].run(cliLibrary, optionsModule, harness)

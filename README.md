@@ -515,9 +515,10 @@ by the same interpreter, and this suite imports none of them. It keeps one check
 repl library, and that one is about this repository rather than the library: `examples/notes.ms`
 is a whole program written on the library and nothing else, and `test/repl.ms` is what says so.
 The 554 cover the program itself: display and parsing (32), the knowledge data format (81), the
-predicate schema (73), the loaders (19), proofs and explanations (23), the missing-fact report
-(34), recursion and cycle handling (13), relations including the family rules (104), the session
-at the prompt (158), the notes example on the repl library (1), the command line (6), and the domain (10).
+predicate schema (42), the date and time types (31), the loaders (19), proofs and explanations
+(23), the missing-fact report (34), recursion and cycle handling (13), relations including the
+family rules (104), the session at the prompt (158), the notes example on the repl library (1),
+the command line (6), and the domain (10).
 
 ## Repository layout
 
