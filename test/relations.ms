@@ -414,8 +414,8 @@ run = function(t, rules, h)
 	// The report reads the same body, so the fact that would supply the date has to be named:
 	// years-since cannot be judged until the birthdate it reads exists, and the constraint is
 	// carried past the fact already listed rather than ending the branch.
-	zing = spo("zed", "has-age", v("n"))
-	reportLines = t.neededFactLines(zing, [], [ageRule], 3)
+	zedGoal = spo("zed", "has-age", v("n"))
+	reportLines = t.neededFactLines(zedGoal, [], [ageRule], 3)
 	h.check("the report offers the birthdate the age rule would need",
 		reportLines.join("|").indexOf("has-birthdate(zed, ?b)") != null)
 	h.check("and it still offers a fact shaped like the goal",

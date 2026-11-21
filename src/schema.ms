@@ -3,13 +3,13 @@
 // The file names each predicate the knowledge base uses, stored or derived by a rule, and
 // the type of its two fields in the order a fact writes them:
 //
-//   has-age(text, unique(number))
+//   has-birthdate(text, unique(date))
 //
 // A type is the word number, text, boolean, date, time or datetime, or a '|' list of the
 // values allowed, such as male|female.
 //
 // unique(...) around one field's type says that field takes at most one value for each of
-// the other: one age per person rather than a list of them. It is checked against the
+// the other: one birthdate per person rather than a list of them. It is checked against the
 // facts already held, since a value can fit its type and still be the second one for that
 // subject, and a predicate a rule concludes cannot carry it - there is no place where a
 // fact of that predicate is added to refuse. knowledge.ms reads that format; this module

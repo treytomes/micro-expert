@@ -147,7 +147,9 @@ A comparison on a variable that a later condition would have bound cannot wait: 
 where it stands, so it ends the branch. The same is true in the report that says what a
 solution would need — the comparison is checked against what is known, and with its field
 still free the branch is gone, so the rule is never offered. `equal` does not have that
-problem, because it binds rather than checks.
+problem, because it binds rather than checks. A field a fact *earlier* in the body would
+settle is the one exception: the report carries the check past that fact instead of ending
+the branch, which is how a missing age names the birthdate.
 
 ## Constraint and grouping
 

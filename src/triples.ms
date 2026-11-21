@@ -322,10 +322,10 @@ dayToday = function
 	return {"year": val(parts[0]), "month": val(parts[1]), "day": val(parts[2])}
 end function
 
-yearsSince = function(when, on)
+yearsSince = function(text, on)
 	"The whole years from a yyyy-MM-dd date to a day, or null when that is not a date or it has not arrived yet."
-	if not (when isa string) then return null
-	parts = when.split("-")
+	if not (text isa string) then return null
+	parts = text.split("-")
 	if parts.len != 3 then return null
 	if parts[0].len != 4 or parts[1].len != 2 or parts[2].len != 2 then return null
 	if not digitsOnly(parts[0]) or not digitsOnly(parts[1]) or not digitsOnly(parts[2]) then return null
@@ -915,7 +915,7 @@ bodyRequirements = function(conditions, facts, rules, depth, binds, open, newVar
 		// It may be waiting on a fact this body has already listed, which would settle the
 		// field it cannot read yet - the birthdate an age is counted from, say. It asks for
 		// nothing itself, and the fact it waits on is already in the report.
-		if promisedBy(judgeableTerms(first), binds, newVars) then
+		if promisedBy(constraintTerms(first), binds, newVars) then
 			return bodyRequirements(conditions[1:], facts, rules, depth, binds, open, newVars,
 				reportOpen)
 		end if
@@ -982,25 +982,17 @@ missingFact = function(triple, settled)
 end function
 
 constraintTerms = function(constraint)
-	"Every field a constraint reads, in the order it writes them."
-	if constraint isa YearsSince then return [constraint.date, constraint.years]
-	return [constraint.left, constraint.right]
-end function
-
-judgeableTerms = function(constraint)
-	"Every field a constraint must read to be judged: years-since binds its second field, so only the date has to be settled first."
+	"The fields a constraint must have settled before it can be judged: years-since binds its second field, so only its date has to be read."
 	if constraint isa YearsSince then return [constraint.date]
-	return constraintTerms(constraint)
+	return [constraint.left, constraint.right]
 end function
 
 promisedBy = function(terms, binds, newVars)
 	"Says whether a fact already listed would settle every field still free, so the check can only be judged once that fact exists."
-	if newVars.len == 0 then return false
 	waiting = false
 	for term in terms
 		if term isa Var then
-			value = term
-			if binds != null then value = deref(term, binds)
+			value = substitute(term, binds)
 			if value isa Var then
 				waiting = true
 				if newVars.hasIndex(value.name) == 0 then return false
