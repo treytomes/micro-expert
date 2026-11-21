@@ -282,7 +282,8 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	commandLines = commands.answers.lines
 	h.check("/help lists every command",
 		printed(commandLines, "  /exit  leave the session") and
-			printed(commandLines, "  /undo  take back the last fact added") and
+			printed(commandLines, "  /undo  take back the last change") and
+			printed(commandLines, "  /retract  take a stored fact out") and
 			printed(commandLines, "  /rules  list the rules"))
 	h.check("/help lists the save and load commands",
 		printed(commandLines, "  /save-facts [FILE]  write the facts to their file, or to one named") and
@@ -290,16 +291,17 @@ run = function(t, rules, host, h, schema, knowledge, library)
 			printed(commandLines, "  /save-schema [FILE]  write the schema to its file, or to one named"))
 
 	// The block as the program itself prints it, pinned line for line: the first line is the
-	// greeting the session gives before the loop, the twelve after it are /help. The labels are
+	// greeting the session gives before the loop, the thirteen after it are /help. The labels are
 	// the library's and the notes are this host's, so this is where the two meet - a change to
 	// either shows up here, rather than only in a run someone happens to be watching.
 	pinned = startSession([], [], ["/help", "q"])
-	h.check("the program's greeting and /help block are exactly these thirteen lines",
+	h.check("the program's greeting and /help block are exactly these fourteen lines",
 		pinned.answers.lines == [
 		"Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.",
 		"  /exit  leave the session",
 		"  /help [NAME]  list these commands",
-		"  /undo  take back the last fact added",
+		"  /undo  take back the last change",
+		"  /retract  take a stored fact out",
 		"  /facts  list the facts",
 		"  /rules  list the rules",
 		"  /save-facts [FILE]  write the facts to their file, or to one named",
@@ -333,6 +335,33 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("the knowledge base loses it again", taken.session.facts.len == 2)
 	h.check("/undo with nothing to take back says so",
 		printed(taken.answers.lines, "  nothing to take back"))
+
+	// ── Retracting a fact by name ────────────────────────────────────────────
+	// /undo reaches only the last change; /retract names the fact to take out, wherever it
+	// stands, so a fact learned long ago can go without unwinding everything after it.
+
+	pulled = startSession(family + [], [], ["/retract parent-of(tim, anna)", "/facts"], null, 0,
+		null, {})
+	h.check("/retract takes the named fact out",
+		printed(pulled.answers.lines, "  retracted parent-of(tim, anna)"))
+	h.check("and the session holds only the other one",
+		pulled.session.facts.len == 1 and pulled.session.facts[0].text == "parent-of(bill, tim)")
+	h.check("/retract of a fact it does not hold says so",
+		printed(startSession(family + [], [], ["/retract parent-of(bill, anna)"]).answers.lines,
+			"  no such fact: parent-of(bill, anna)"))
+	h.check("/retract needs a fact to take out",
+		printed(startSession(family + [], [], ["/retract"]).answers.lines,
+			"  /retract needs a fact, as /retract has-gender(zed, male)"))
+	// A variable would say which facts to look for rather than which one to remove, so the
+	// command refuses it instead of choosing one.
+	h.check("/retract refuses a pattern",
+		printed(startSession(family + [], [], ["/retract parent-of(?p, tim)"]).answers.lines,
+			"  /retract takes a fact, not a pattern: parent-of(?p, tim)"))
+	// Taking one out is a change like any other, so /undo puts it back where it stood.
+	restored = startSession(family + [], [], ["/retract parent-of(bill, tim)", "/undo"])
+	h.check("/undo puts a retracted fact back", restored.session.facts.len == 2 and
+		restored.session.facts[0].text == "parent-of(bill, tim)")
+	h.check("and says so", printed(restored.answers.lines, "  put parent-of(bill, tim) back"))
 
 	// A wrong answer can be taken back while the session is still asking, and the
 	// question is put again.
@@ -438,10 +467,25 @@ run = function(t, rules, host, h, schema, knowledge, library)
 
 	uniqueAge = {"has-age": ["text", "unique(number)"]}
 	again = startSession([spo("zed", "has-age", 24)], [], ["has-age(zed, 17)"], null, 0, uniqueAge)
-	h.check("a second value for a unique field is refused",
-		printed(again.answers.lines,
-			"  refused: has-age(zed, 17): the object is already taken: has-age(zed, 24)"))
-	h.check("and it is not stored", again.session.facts.len == 1)
+	h.check("a second value takes the first one's place",
+		printed(again.answers.lines, "  replaced has-age(zed, 24) with has-age(zed, 17)"))
+	h.check("and the field still holds one value",
+		again.session.facts.len == 1 and again.session.facts[0].text == "has-age(zed, 17)")
+	// The place matters, because search tries facts in the order they are held: the corrected
+	// fact stands where the one it replaced stood rather than moving to the end.
+	ordered = startSession([spo("zed", "has-age", 24), spo("ann", "has-age", 30)], [],
+		["has-age(zed, 40)"], null, 0, uniqueAge)
+	h.check("a replacement stands where the fact it replaced stood",
+		ordered.session.facts[0].text == "has-age(zed, 40)" and
+			ordered.session.facts[1].text == "has-age(ann, 30)")
+	// A replacement is a change like any other, so it can be taken back.
+	corrected = startSession([spo("zed", "has-age", 24)], [], ["has-age(zed, 17)", "/undo"],
+		null, 0, uniqueAge)
+	h.check("/undo takes a replacement back",
+		corrected.session.facts[0].text == "has-age(zed, 24)")
+	h.check("and says what it put back",
+		printed(corrected.answers.lines,
+			"  took back has-age(zed, 17), putting has-age(zed, 24) back"))
 	// The same value again is the fact already held, which the session says in its own
 	// words, so the pair is never reported as a second one when it is the first one twice.
 	same = startSession([spo("zed", "has-age", 24)], [], ["has-age(zed, 24)"], null, 0, uniqueAge)
@@ -451,17 +495,16 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	other = startSession([spo("zed", "has-age", 24)], [], ["has-age(tim, 17)"], null, 0, uniqueAge)
 	h.check("another subject is another pair", other.session.facts.len == 2)
 
-	// A value given at the prompt that would be a second one stops the question the way a
-	// value of the wrong type does, rather than completing a fact the session refuses and
-	// then asking for the same variable again. Nobody has 30, so the question is open on who
-	// does, and the person named for it already has an age of their own.
+	// A value given at the prompt is set the same way one typed at the prompt is: a unique(...)
+	// field's value is corrected rather than duplicated. Nobody has 30, so the question is open
+	// on who does, and the person named for it already has an age of their own - which the
+	// answer takes the place of, and the question is then answered by the fact it left.
 	clash = startSession([spo("zed", "has-age", 24)], [], ["has-age(?x, 30)", "zed"], null, 0, uniqueAge)
-	h.check("a prompted value that breaks uniqueness is refused",
-		printed(clash.answers.lines,
-			"  refused: has-age(zed, 30): the object is already taken: has-age(zed, 24)"))
-	h.check("and the question ends instead of asking again",
-		clash.answers.asked.len == 3 and clash.answers.asked[2] == "? ")
-	h.check("and the value is not stored", clash.session.facts.len == 1)
+	h.check("a prompted value takes the field's old value out",
+		printed(clash.answers.lines, "  replaced has-age(zed, 24) with has-age(zed, 30)"))
+	h.check("and the question is answered by the fact it left",
+		clash.answers.lines[clash.answers.lines.len - 1] == "  has-age(zed, 30)" and
+			clash.session.facts.len == 1 and clash.session.facts[0].object == 30)
 
 	// The wrapper says how many, not what, so a wrapped list is still the list the prompt
 	// offers: unique(...) does not turn a choice back into a word to remember.
@@ -658,6 +701,20 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("and the session keeps the schema it had",
 		refusedSchema.session.types.hasIndex("age-group") == 0 and
 			refusedSchema.session.types.hasIndex("has-age") == 1)
+
+	// A schema says what the facts already held have to be, so a pair it marks unique(...)
+	// that the session already fills twice is refused rather than loaded into a knowledge
+	// base that breaks it - the file cannot know what is held, which is why this is the
+	// session's check and not the reader's.
+	twicePath = scratch("twice-schema.kb")
+	writeFile(twicePath, ["has-gender(text, unique(male|female))"])
+	twice = startSession([spo("zed", "has-gender", "male"), spo("zed", "has-gender", "female")],
+		[], ["/load-schema " + quoted(twicePath)], null, 0, {"has-gender": ["text", "male|female"]}, {})
+	file.delete(twicePath)
+	h.check("/load-schema refuses a schema the facts already break",
+		holds(twice.answers.lines, "already taken"))
+	h.check("and the session keeps the schema it had",
+		twice.session.types["has-gender"][1] == "male|female")
 
 	// What cannot be saved says why, and the session carries on.
 	noSchema = startSession([], [], ["/save-schema"], null, 0, null,

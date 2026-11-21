@@ -46,6 +46,11 @@ uniqueClash = function(types, facts, triple)
 	return knowledge.uniqueClash(types, facts, triple)
 end function
 
+uniqueTaken = function(types, facts, triple)
+	"The fact the triple would take the place of, as {at, held, message}, or null when the pair is free."
+	return knowledge.uniqueTaken(types, facts, triple)
+end function
+
 derivedUniques = function(types, rules)
 	"Says which unique(...) sits on a predicate a rule concludes, as an error, or null when none does."
 	return knowledge.derivedUniques(types, rules)

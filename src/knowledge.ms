@@ -224,38 +224,51 @@ sameValue = function(a, b)
 	return false
 end function
 
-uniqueClash = function(types, facts, triple)
-	"How a fact would give a unique(...) field a second value, naming the fact that holds the first, or null when it would not."
+uniqueTaken = function(types, facts, triple)
+	"The fact a triple would take the place of, as {at, held, message}, or null when the pair is free."
 	if types == null then return null
 	if not (triple.predicate isa string) then return null
 	if types.hasIndex(triple.predicate) == 0 then return null
+	// range(0, -1) counts down here rather than being empty, so the empty case is said out
+	// loud instead of being asked of the loop.
+	if facts.len == 0 then return null
 	fields = types[triple.predicate]
 	for slot in [0, 1]
 		if not isUniqueField(fields[slot]) then continue
-		for known in facts
-			// Only another fact of the same predicate can make this one a second value, and the
-			// two have to agree in the field that is not the unique one: the subject limits a
-			// unique object, and the object limits a unique subject.
+		for at in range(0, facts.len - 1)
+			known = facts[at]
+			// Only another fact of the same predicate can stand in this one's place, and the two
+			// have to agree in the field that is not the unique one: the subject limits a unique
+			// object, and the object limits a unique subject.
 			if not (known.predicate isa string) then continue
 			if known.predicate != triple.predicate then continue
 			if slot == 1 then
 				if not sameValue(known.subject, triple.subject) then continue
-				// The same value again is a fact the caller already knows how to report, not a
-				// second one, so it is left to that.
+				// The same value again is the fact already held, which the caller reports in its
+				// own words rather than as a value to take the place of.
 				if sameValue(known.object, triple.object) then continue
-				return "the object is already taken: " + known.text
+				return {"at": at, "held": known,
+					"message": "the object is already taken: " + known.text}
 			end if
 			if not sameValue(known.object, triple.object) then continue
 			if sameValue(known.subject, triple.subject) then continue
-			return "the subject is already taken: " + known.text
+			return {"at": at, "held": known, "message": "the subject is already taken: " + known.text}
 		end for
 	end for
 	return null
 end function
 
+uniqueClash = function(types, facts, triple)
+	"How a fact would give a unique(...) field a second value, naming the fact that holds the first, or null when it would not."
+	taken = uniqueTaken(types, facts, triple)
+	if taken == null then return null
+	return taken.message
+end function
+
 uniqueRepeats = function(types, facts)
 	"Reads a whole file for a unique(...) field that two facts fill, as an error naming the second, or null when no pair repeats."
 	if types == null then return null
+	if facts.len == 0 then return null
 	// Each fact is held against the ones before it, so it is never compared with itself,
 	// and the error names the line a reader would delete.
 	for at in range(0, facts.len - 1)

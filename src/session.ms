@@ -83,26 +83,104 @@ changedMark = {"changed": 1}
 commandTable = function()
 	"Every command this session answers itself, in the order /help lists them; its saves and loads come from its components."
 	return [
-		{"name": "/undo", "note": "take back the last fact added", "run": @undoCommand},
+		{"name": "/undo", "note": "take back the last change", "run": @undoCommand},
+		{"name": "/retract", "note": "take a stored fact out", "run": @retractCommand},
 		{"name": "/facts", "note": "list the facts", "run": @listFacts},
 		{"name": "/rules", "note": "list the rules", "run": @listRules},
 	]
 end function
 
 undoCommand = function(session, command, argument)
-	"Takes back the last fact, as /undo; the session carries on either way."
+	"Takes back the last change, as /undo; the session carries on either way."
 	undo(session)
 	return false
 end function
 
+// ── Changes the session can take back ───────────────────────────────────────
+// /undo reverses the last change, and a change is no longer only an add: a value that took
+// a unique(...) field's place, and a fact taken out by hand, have to be reversible too or
+// the session would offer to take back what it cannot put back. So each one is recorded as
+// it happens, and the record is what /undo reads: an add drops the last fact, a replacement
+// swaps the old one back into the place it stood in, and a retraction puts its fact back
+// where it was. The list is why nothing has to compare against a starting length.
+
+noteChange = function(session, step)
+	"Records a change /undo can reverse."
+	if not session.hasIndex("changes") then session.changes = []
+	session.changes.push(step)
+end function
+
 undo = function(session)
-	"Takes back the last fact the session added; says so, or that there is none."
-	if session.facts.len <= session.baseFacts then
+	"Takes back the last change the session made - an added fact, a replacement, or a retraction - or says there is none."
+	if not session.hasIndex("changes") then session.changes = []
+	if session.changes.len == 0 then
 		repl.say(session, "warning", "  nothing to take back")
 		return false
 	end if
-	removed = session.facts.pop
-	repl.say(session, "added", "  took back " + removed.text)
+	step = session.changes.pop
+	if step.kind == "replace" then
+		session.facts[step.at] = step.held
+		repl.say(session, "added", "  took back " + step.added.text +
+			", putting " + step.held.text + " back")
+		return true
+	end if
+	if step.kind == "retract" then
+		session.facts.insert(step.at, step.held)
+		repl.say(session, "added", "  put " + step.held.text + " back")
+		return true
+	end if
+	session.facts.pop
+	repl.say(session, "added", "  took back " + step.added.text)
+	return true
+end function
+
+// ── Retracting a fact ───────────────────────────────────────────────────────
+// /undo reaches only the last change; /retract names the fact to take out, wherever it
+// stands. It takes a fact rather than a pattern, since a variable would say which facts to
+// look for rather than which one to remove, and it says what it took out so the line can
+// be typed back in to put it there.
+
+retractCommand = function(session, command, argument)
+	"Takes the fact /retract names out of the session, which carries on either way."
+	retract(session, argument)
+	return false
+end function
+
+retract = function(session, argument)
+	"Takes a stored fact out by name, saying which, or why it could not."
+	text = session.triples.trimSpace(argument)
+	if text == "" then
+		repl.say(session, "warning", "  /retract needs a fact, as /retract has-gender(zed, male)")
+		return false
+	end if
+	triple = session.triples.SpoTriple.parse(text)
+	if triple isa error then
+		repl.say(session, "warning", "  " + triple.message)
+		return false
+	end if
+	if session.triples.hasUnknowns(triple) then
+		repl.say(session, "warning", "  /retract takes a fact, not a pattern: " + triple.text)
+		return false
+	end if
+	at = null
+	// range(0, -1) counts down here rather than being empty, so a session holding no facts
+	// skips the search rather than asking for the first of them.
+	if session.facts.len > 0 then
+		for index in range(0, session.facts.len - 1)
+			if session.facts[index].text == triple.text then
+				at = index
+				break
+			end if
+		end for
+	end if
+	if at == null then
+		repl.say(session, "warning", "  no such fact: " + triple.text)
+		return false
+	end if
+	removed = session.facts[at]
+	session.facts.remove(at)
+	noteChange(session, {"kind": "retract", "at": at, "held": removed})
+	repl.say(session, "added", "  retracted " + removed.text)
 	return true
 end function
 
@@ -177,7 +255,7 @@ factsRead = function(session, path)
 	if loaded isa error then return loaded
 	session.facts = loaded
 	// What was loaded is the knowledge base now, so /undo no longer reaches back past it.
-	session.baseFacts = session.facts.len
+	session.changes = []
 	return loaded
 end function
 
@@ -194,12 +272,11 @@ rulesRead = function(session, path)
 	for piece in pieces
 		loaded.push(session.Rule.make(piece.head, piece.body))
 	end for
-	// The other half of the guard schemaRead makes: a rule whose head the schema marks
-	// unique(...) has nowhere to refuse a second value, since a fact a rule concludes is
-	// never added. Loading such a file would be the way around the check startup makes, so
-	// it is refused before it is held and the session keeps the rules it had.
-	unenforceable = session.knowledge.derivedUniques(heldTypes(session), loaded)
-	if unenforceable isa error then return unenforceable
+	// The other half of the guard schemaRead makes, over the side that changed this time:
+	// loading a rule the schema could not enforce would be the way around the check startup
+	// makes, so the file is refused before it is held and the session keeps the rules it had.
+	problem = unenforceable(session, heldTypes(session), loaded)
+	if problem isa error then return problem
 	session.rules = loaded
 	return loaded
 end function
@@ -208,6 +285,19 @@ heldTypes = function(session)
 	"The field types the session holds, or null for a session given no schema."
 	if not session.hasIndex("types") then return null
 	return session.types
+end function
+
+// ── The one check types and rules make of each other ────────────────────────
+// A unique(...) field is enforced where a fact is added, so a predicate a rule concludes can
+// never carry one: there is no place where a second value would be refused. That is a
+// property of the pair, the schema together with the rules, and both can be replaced at the
+// prompt - so every path that changes either asks this one question, and startup asks it of
+// the two files it read. One function is what stops the four paths drifting into four
+// slightly different answers, and it is where the reasoning lives for all of them.
+
+unenforceable = function(session, types, ruleList)
+	"Says whether a rule concludes a predicate the schema marks unique(...), as an error naming it, or null when the two agree."
+	return session.knowledge.derivedUniques(types, ruleList)
 end function
 
 schemaLines = function(session)
@@ -222,13 +312,14 @@ schemaRead = function(session, path)
 	"Replaces the session's field types with the file at path, answering them, or an error."
 	loaded = session.knowledge.loadSchemaAt(path)
 	if loaded isa error then return loaded
-	// A unique(...) on a predicate the session's rules conclude is the one thing a schema
-	// line can say that the program has nowhere to enforce, since a fact a rule concludes
-	// is never added and so never refused. Startup refuses such a file; loading one here
-	// would be the way around that, so the file is refused before it is held and the
-	// session keeps the types it had.
-	unenforceable = session.knowledge.derivedUniques(loaded, session.rules)
-	if unenforceable isa error then return unenforceable
+	problem = unenforceable(session, loaded, session.rules)
+	if problem isa error then return problem
+	// A schema is about the facts already held as much as the ones to come: a pair this file
+	// marks unique(...) may already be filled twice by what the session holds, which the file
+	// itself cannot know, so it is refused rather than loaded into a knowledge base that
+	// breaks it.
+	problem = session.knowledge.uniqueRepeats(loaded, session.facts)
+	if problem isa error then return problem
 	session.types = loaded
 	return loaded
 end function
@@ -237,9 +328,9 @@ end function
 
 run = function(session)
 	"Reads lines until the user leaves, adding facts and rules and answering questions."
-	// Only what the session adds can be taken back, never the knowledge base it
-	// started from.
-	session.baseFacts = session.facts.len
+	// Only changes the session makes can be taken back, never the knowledge base it
+	// started from: /undo reads the list this starts empty.
+	session.changes = []
 	// What the library needs from this module: how to read a line that is not a command,
 	// and the commands the session answers itself. The loop is the repl library's.
 	session.fallback = @handleLine
@@ -283,16 +374,30 @@ handleLine = function(session, line)
 end function
 
 addFact = function(session, triple)
-	"Adds a fact to the session's knowledge base, and says which one; nothing is added twice."
+	"Adds a fact to the session's knowledge base, and says which one; nothing is added twice, and a unique(...) field's value is replaced rather than refused."
 	if refuseConstraint(session, triple) then return false
 	if not fitsSchema(session, triple) then return false
 	if alreadyKnown(session, triple) then
 		repl.say(session, "note", "  already known: " + triple.text)
 		return false
 	end if
-	if not fitsUnique(session, triple) then return false
+	taken = takenFact(session, triple)
+	if taken != null then return replaceFact(session, triple, taken)
 	session.facts.push(triple)
+	noteChange(session, {"kind": "add", "added": triple})
 	repl.say(session, "added", "  added " + triple.text)
+	return true
+end function
+
+// A unique(...) field takes one value, so a second one is a correction rather than a second
+// fact: has-gender(zed, male) and then has-gender(zed, female) leaves one gender, and the new
+// one stands where the old one stood, since search tries facts in the order they are held.
+
+replaceFact = function(session, triple, taken)
+	"Puts a fact where the one a unique(...) field already had stood, so the value is corrected rather than duplicated."
+	session.facts[taken.at] = triple
+	noteChange(session, {"kind": "replace", "at": taken.at, "held": taken.held, "added": triple})
+	repl.say(session, "added", "  replaced " + taken.held.text + " with " + triple.text)
 	return true
 end function
 
@@ -314,14 +419,11 @@ fitsSchema = function(session, triple)
 	return false
 end function
 
-fitsUnique = function(session, triple)
-	"Says whether the fact takes no second value for a field the schema marks unique(...), saying which fact holds the first when it does."
-	if not session.hasIndex("types") then return true
-	if session.types == null then return true
-	problem = session.schema.uniqueClash(session.types, session.facts, triple)
-	if problem == null then return true
-	repl.say(session, "warning", "  refused: " + triple.text + ": " + problem)
-	return false
+takenFact = function(session, triple)
+	"The fact this one would take the place of, as {at, held, message}, or null when the pair is free or the schema says nothing."
+	if not session.hasIndex("types") then return null
+	if session.types == null then return null
+	return session.schema.uniqueTaken(session.types, session.facts, triple)
 end function
 
 alreadyKnown = function(session, triple)
@@ -340,12 +442,12 @@ addRule = function(session, line)
 		return
 	end if
 	added = session.Rule.make(pieces.head, pieces.body)
-	// A typed rule is the third way to introduce one, and it is the same hole as /load-rules:
-	// a head the schema marks unique(...) leaves the check with nowhere to run, so the line is
+	// A typed rule is the third way to introduce one, and the same hole as /load-rules: a head
+	// the schema marks unique(...) leaves the check with nowhere to run, so the line is
 	// refused rather than added.
-	unenforceable = session.knowledge.derivedUniques(heldTypes(session), [added])
-	if unenforceable isa error then
-		repl.say(session, "warning", "  refused: " + added.text + ": " + unenforceable.message)
+	problem = unenforceable(session, heldTypes(session), [added])
+	if problem isa error then
+		repl.say(session, "warning", "  refused: " + added.text + ": " + problem.message)
 		return
 	end if
 	session.rules.push(added)
@@ -508,10 +610,9 @@ fillMissing = function(session, options, goal, given)
 		end if
 		// A completed fact the schema refuses adds nothing, so the question stops where it
 		// is: asking for the same value again would only collect the same refusal, and the
-		// report is left standing the way an empty value leaves it. A second value for a
-		// unique(...) field is refused the same way and for the same reason.
+		// report is left standing the way an empty value leaves it. A value that takes a
+		// unique(...) field's place is not refused - it is a correction, and addFact makes it.
 		if not fitsSchema(session, filled) then return "stopped"
-		if not fitsUnique(session, filled) then return "stopped"
 		if addFact(session, filled) then changed = true
 	end for
 	if changed then return "changed"

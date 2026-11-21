@@ -265,24 +265,36 @@ number field keeps it too - but the digits typed there are the number they spell
 `has-age(?n, 24)` completes a fact the schema takes, rather than refusing `"24"` as an age.
 
 `unique(...)` around a field's type says how many values the pair takes, so
-`has-age(text, unique(number))` is one age per person: a second one is refused where it is
-typed, naming the fact that already holds the first, rather than stored beside it. The check
-is against the facts rather than the value - 17 fits an age wherever it stands - so the same
-one is applied by the facts loader to a whole file, which is why `data/schema.kb` is read
-before `data/facts.kb`. `unique(text)` in the subject position is the other direction: one
-subject per object. A predicate a rule concludes is never added, so it cannot carry
-`unique(...)`, and a schema line that marks one is refused when the program starts instead
-of loaded and quietly left unenforced.
+`has-age(text, unique(number))` is one age per person: setting a second one corrects the
+first rather than sitting beside it, and the corrected fact stands where the old one stood,
+since search tries facts in the order they are held. The check is against the facts rather
+than the value - 17 fits an age wherever it stands - so the same one is applied by the facts
+loader to a whole file, which is why `data/schema.kb` is read before `data/facts.kb`.
+`unique(text)` in the subject position is the other direction: one subject per object. A
+predicate a rule concludes is never added, so it cannot carry `unique(...)`: a schema line
+that marks one is refused when the program starts, and `/load-schema`, `/load-rules` and a
+typed rule line refuse it too, so the prompt is not a way around the check.
 
 ```
-? has-age(zed, 17)
-  refused: has-age(zed, 17): the object is already taken: has-age(zed, 24)
+? has-gender(zed, male)
+  added has-gender(zed, male)
+? has-gender(zed, female)
+  replaced has-gender(zed, male) with has-gender(zed, female)
+```
+
+A fact can also be taken out by name, wherever it stands, which is more than `/undo`'s last
+change reaches:
+
+```
+? /retract has-age(tim, 24)
+  retracted has-age(tim, 24)
 ```
 
 A fact that needs no variable at all is offered with `add it? [y/N]` rather than assumed, and
 a value left empty stops the asking with the report standing. `/undo` takes back the last
-fact the session added - at the prompt, or in the middle of a question, which puts the
-question again - so a wrong value does not stick for the rest of the run. Nothing is written back by
+change - an added fact, a value that replaced one, or a retraction - at the prompt, or in the
+middle of a question, which puts the question again, so a wrong value does not stick for the
+rest of the run. Nothing is written back by
 itself: the session adds to the arrays `src/main.ms` built, and `/save-*` is what puts a
 component back on disk when you ask it to. A rule is read from the line `Rule.text` prints, and a line that
 will not parse is refused with itself quoted. `--depth` bounds the session's search the way
@@ -292,7 +304,8 @@ it bounds a run, and `--verbose` prints the proof tree behind each answer here t
 | --- | --- |
 | `/exit` | Leave the session |
 | `/help [NAME]` | List the commands, or print one command's line |
-| `/undo` | Take back the last fact the session added |
+| `/undo` | Take back the last change: an added fact, a replacement, or a retraction |
+| `/retract <FACT>` | Take a stored fact out, wherever it stands |
 | `/facts` | List the facts the session holds |
 | `/rules` | List the rules the session holds |
 | `/depth` | Say how deep the search goes |
@@ -418,7 +431,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-453 passed, 0 failed
+464 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -434,7 +447,7 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 452 skipped
+1 passed, 0 failed, 463 skipped
 ##END {"passed":1,"failed":0,"skipped":412}
 ```
 
@@ -450,10 +463,10 @@ The parser, the logger and the repl library are their own repositories with thei
 by the same interpreter, and this suite imports none of them. It keeps one check about the
 repl library, and that one is about this repository rather than the library: `examples/notes.ms`
 is a whole program written on the library and nothing else, and `test/repl.ms` is what says so.
-The 453 cover the program itself: display and parsing (22), the knowledge data format (78), the
+The 464 cover the program itself: display and parsing (22), the knowledge data format (78), the
 predicate schema (38), the loaders (19), proofs and explanations (21), the missing-fact report
 (34), recursion and cycle handling (13), relations including the family rules (89), the session
-at the prompt (128), the notes example on the repl library (1), and the domain (10).
+at the prompt (139), the notes example on the repl library (1), and the domain (10).
 
 ## Repository layout
 
@@ -474,7 +487,7 @@ examples/notes.ms    a whole host for the repl library that is not a knowledge b
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
 src/repl/            submodule: micro-repl, the loop and its commands
-test/                the 453 checks and their runner
+test/                the 464 checks and their runner
 docs/articles/       the long-form write-up
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env
