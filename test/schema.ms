@@ -162,6 +162,15 @@ run = function(t, parser, schemaLoader, h)
 	h.check("it moves by seconds", when.addSeconds(90).str == "2019-04-01 09:31:30")
 	h.check("a time moves around midnight",
 		parser.receive("23:59:30").addSeconds(60).str == "00:00:30")
+	// The host's own dates begin in 1970, so an older one is counted here. A step back over
+	// that boundary lands on an older date too, and has to read and order like one.
+	old = parser.receive("1948-03-14")
+	h.check("a date before 1970 keeps the shape it was written in", old.str == "1948-03-14")
+	h.check("an older date moves by seconds", old.addSeconds(86400).str == "1948-03-15")
+	h.check("a step back over 1970 does not stop at it",
+		parser.receive("1970-01-01").addSeconds(-86400).str == "1969-12-31")
+	h.check("and the two sides order by their dates",
+		parser.receive("1969-12-31").compare(parser.receive("1970-01-01")) == -1)
 	h.check("it orders against its own kind",
 		when.compare(parser.receive("2019-04-01 10:00:00")) == -1 and
 			when.compare(parser.receive("2019-04-01 09:30:00")) == 0)

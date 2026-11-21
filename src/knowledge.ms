@@ -264,7 +264,7 @@ Temporal.str = function(format=null)
 			return err("a date before 1970 prints as " + defaultFormats[self.kind] +
 				", not '" + format + "'")
 		end if
-		return shapeText(self)
+		return shapeTextAt(self.value, self.kind)
 	end if
 	return _dateStr(self.value, format)
 end function
@@ -277,17 +277,13 @@ Temporal.addSeconds = function(seconds)
 		if shifted < 0 then shifted = shifted + 86400
 		return receive(_dateStr(shifted, "HH:mm:ss"), "time")
 	end if
-	// A date the host cannot hold is moved through the calendar here, since its seconds
-	// since 2000 are this module's own count.
-	if not self.hosted then
-		total = floor(self.value + seconds)
-		days = floor(total / 86400)
-		day = civilFromDays(dayOf2000 + days)
-		stamp = pad4(day.year) + "-" + pad2(day.month) + "-" + pad2(day.day)
-		if self.kind == "datetime" then stamp = stamp + " " + clockText(total - days * 86400)
-		return receive(stamp, self.kind)
-	end if
-	return receive(_dateStr(self.value + seconds, defaultFormats[self.kind]), self.kind)
+	// The result may be a date the host cannot print, either because it is older than 1970
+	// or because the step crossed back before it, so the count it holds is written out here
+	// when the host has nothing to say.
+	total = floor(self.value + seconds)
+	stamp = _dateStr(total, defaultFormats[self.kind])
+	if stamp == "" then stamp = shapeTextAt(total, self.kind)
+	return receive(stamp, self.kind)
 end function
 
 Temporal.compare = function(other)
@@ -499,12 +495,13 @@ clockText = function(seconds)
 		pad2(seconds % 60)
 end function
 
-shapeText = function(when)
-	"The one shape a kind writes, from its own parts rather than from the host."
-	if when.kind == "time" then return clockText(when.value)
-	date = pad4(when.year) + "-" + pad2(when.month) + "-" + pad2(when.day)
-	if when.kind == "date" then return date
-	return date + " " + clockText(when.hour * 3600 + when.minute * 60 + when.second)
+shapeTextAt = function(value, kind)
+	"A date the host cannot print, written from its count of seconds since 2000."
+	days = floor(value / 86400)
+	day = civilFromDays(dayOf2000 + days)
+	stamp = pad4(day.year) + "-" + pad2(day.month) + "-" + pad2(day.day)
+	if kind == "datetime" then stamp = stamp + " " + clockText(value - days * 86400)
+	return stamp
 end function
 
 
