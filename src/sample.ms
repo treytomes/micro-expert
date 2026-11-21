@@ -42,7 +42,7 @@ cli.add(cmd, {
 	"aliases": ["--nlp"],
 	"type": "flag",
 	"default": 0,
-	"description": "Say answers, and the proof tree under them, as sentences.",
+	"description": "Say answers, and the proof tree above them, as sentences.",
 })
 
 options = cli.parse(cmd, shellArgs)
@@ -133,15 +133,15 @@ runQuery = function(query)
 		return
 	end if
 	for proof in proofs
-		// --nlp says the answer rather than showing it: the predicate's dashes are the spaces
-		// of the sentence, so the query prints a line of English under its own aim.
-		print "  " + triples.speak(triples.substitute(query, proof.binds), nlp)
-		// --verbose hangs the proof tree under the answer, said the same way the answer was.
+		// --verbose gives the tree first, so each answer arrives the way it was worked out.
 		if verbose then
 			for line in triples.proofLines(proof, "  ", nlp)
 				print line
 			end for
 		end if
+		// --nlp says the answer rather than showing it: the predicate's dashes are the spaces
+		// of the sentence, so the result is a line of English either way.
+		print "  " + triples.speak(triples.substitute(query, proof.binds), nlp)
 	end for
 end function
 

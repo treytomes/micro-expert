@@ -19,8 +19,8 @@
 //       "types": types, "paths": paths, "knowledge": knowledge,
 //       "io": {"read": reader, "say": writer}}
 //
-// verbose prints the proof tree under each answer, and nlp says an answer - and the tree
-// under it - as sentences instead of facts. Both are off unless the run asked for them.
+// verbose prints the proof tree before each answer, and nlp says an answer - and the tree
+// above it - as sentences instead of facts. Both are off unless the run asked for them.
 //
 // schema is schema.ms, the module that knows the field-type format, and types is what it
 // loaded from data/schema.kb - or null for a session that checks nothing. A fact typed
@@ -527,22 +527,22 @@ askGoal = function(session, goal)
 end function
 
 showProofs = function(session, goal, proofs)
-	"Prints each answer - the proof tree behind it too, when the session is verbose."
+	"Prints each answer, the way its proof tree calls it: the tree first when the session is verbose, then the result it reaches."
 	for proof in proofs
+		// --verbose gives the steps before the answer they arrive at, so a run reads in the
+		// order the reasoning went, and the tree is said the same way the answer will be:
+		// --nlp on, facts and rules alike read as sentences.
+		if session.verbose then
+			for line in session.triples.proofLines(proof, "  ", session.nlp)
+				session.io.say(line)
+			end for
+		end if
 		// --nlp says the answer in words rather than showing it as a fact: a predicate's dashes
 		// are the spaces of the sentence it reads as. The report, /facts and the fact form the
 		// session prints without the flag stay as they are, since each of them is something to
 		// write back or read as data.
 		answer = session.triples.substitute(goal, proof.binds)
 		repl.say(session, "answer", "  " + session.triples.speak(answer, session.nlp))
-		// --verbose hangs the tree under the answer rather than putting it in the answer's
-		// place, and the tree is said the same way the answer was: --nlp on, facts and rules
-		// alike read as sentences.
-		if session.verbose then
-			for line in session.triples.proofLines(proof, "  ", session.nlp)
-				session.io.say(line)
-			end for
-		end if
 	end for
 end function
 

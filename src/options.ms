@@ -23,14 +23,14 @@ declare = function(cli, cmd)
 		"aliases": ["--verbose"],
 		"type": "flag",
 		"default": 0,
-		"description": "Print the proof tree under each answer.",
+		"description": "Print the proof tree before each answer.",
 	})
 	cli.add(cmd, {
 		"name": "nlp",
 		"aliases": ["--nlp"],
 		"type": "flag",
 		"default": 0,
-		"description": "Say answers, and the proof trees under them, as sentences.",
+		"description": "Say answers, and the proof trees above them, as sentences.",
 	})
 	cli.add(cmd, {
 		"name": "domain",

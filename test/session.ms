@@ -292,12 +292,17 @@ run = function(t, rules, host, h, schema, knowledge, library)
 
 	// ── --verbose gives the tree, --nlp says it ──────────────────────────
 
-	// Without --nlp an answer is the fact it is, and the tree under it is the same form.
+	// Without --nlp an answer is the fact it is, and the tree above it is the same form.
 	verbose = startSession(family + [], [], ["is-parent-of(?p, susan)", "walter", "quit"], null, 1)
 	h.check("a plain session says an answer as the fact it is",
 		printed(verbose.answers.lines, "  is-parent-of(walter, susan)"))
-	h.check("and prints the proof tree under it",
+	h.check("and prints the proof tree first",
 		printed(verbose.answers.lines, "  is-parent-of(walter, susan)  <- fact"))
+	// The tree is the derivation, so it comes before the result it reaches: the answer is the
+	// last line of the block, not the first.
+	h.check("with the answer on a line under its tree",
+		verbose.answers.lines.indexOf("  is-parent-of(walter, susan)  <- fact") <
+			verbose.answers.lines.indexOf("  is-parent-of(walter, susan)"))
 	verboseRule = startSession(family + [], [], [ruleLine, "is-grandparent-of(bill, ?y)"], null, 1)
 	h.check("a verbose answer names the rule behind it",
 		holds(verboseRule.answers.lines, "  <- rule is-grandparent-of(?x, ?y)"))
@@ -308,7 +313,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	saidVerbose = saying(family + [], [], ["is-parent-of(?p, susan)", "walter", "quit"], null, 1)
 	h.check("--nlp says the answer in words",
 		printed(saidVerbose.answers.lines, "  walter is parent of susan"))
-	h.check("and says the tree under it too",
+	h.check("and says the tree before it too",
 		printed(saidVerbose.answers.lines, "  walter is parent of susan  <- fact"))
 	saidRule = saying(family + [], [], [ruleLine, "is-grandparent-of(bill, ?y)"], null, 1)
 	h.check("a rule in a said tree reads as its own sentences",
