@@ -404,6 +404,9 @@ name is a shape a body checks, not a predicate a fact stores or a question asks,
 written as one, exponent and all - `1e3` is a thousand - and the digits are checked on
 both sides of the `e`, so `1e` stays text.
 
+The six built-in constraint names, and what each one does with a field that is still a
+variable, are in [docs/constraints.md](docs/constraints.md).
+
 ```prolog
 only-child-of(?x, ?y) => and(parent-of(?y, ?x), not(sibling-of(?x, ?q)))
 age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))
@@ -494,6 +497,7 @@ src/repl/            submodule: micro-repl, the loop and its commands
 test/                the 470 checks and their runner
 docs/articles/       the long-form write-up
 docs/kb-grammar.md   the .kb grammar, its constraints and its schema
+docs/constraints.md  the six built-in constraints, one by one
 vscode-knowledge/    the .kb syntax-highlighting extension
 bootstrap.bat        submodules, interpreter, .env
 bootstrap.sh         the same for Linux
