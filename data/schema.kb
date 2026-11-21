@@ -7,6 +7,9 @@
 //   number    any number, whole or fractional: 24, 24.5, -3, 1e3
 //   text      any text, which is what a person or a word is here
 //   boolean   the word true or the word false
+//   date      a calendar date, yyyy-MM-dd: 2019-04-01
+//   time      a clock time, HH:mm or HH:mm:ss: 09:30:00
+//   datetime  a date and a clock time, yyyy-MM-dd HH:mm:ss: 2019-04-01 09:30:00
 //   a|b|c     one of these words, exactly
 //   unique(t) t, and at most one such value per subject: unique(number)
 //

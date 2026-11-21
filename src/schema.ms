@@ -5,8 +5,8 @@
 //
 //   has-age(text, unique(number))
 //
-// A type is the word number, text or boolean, or a '|' list of the values allowed, such
-// as male|female.
+// A type is the word number, text, boolean, date, time or datetime, or a '|' list of the
+// values allowed, such as male|female.
 //
 // unique(...) around one field's type says that field takes at most one value for each of
 // the other: one age per person rather than a list of them. It is checked against the
@@ -67,4 +67,17 @@ end function
 derivedUniques = function(types, rules)
 	"Says which unique(...) sits on a predicate a rule concludes, as an error, or null when none does."
 	return knowledge.derivedUniques(types, rules)
+end function
+
+// The object the three date types mean. A fact keeps its value as text, and receive turns
+// a fitting text into a Temporal, which formats, moves and orders it:
+//
+//   when = schema.receive("2019-04-01 09:30:00")
+//   print when.str("HH:mm")
+
+Temporal = knowledge.Temporal
+
+receive = function(text, kind=null)
+	"Reads a date, time or datetime text into a Temporal, or says what is wrong with it."
+	return knowledge.receive(text, kind)
 end function

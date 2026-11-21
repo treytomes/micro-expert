@@ -114,6 +114,68 @@ run = function(t, parser, schemaLoader, h)
 	h.check("a field that is not unique takes a second value",
 		parser.uniqueClash(likes, [spo("zed", "likes", "tea")], spo("zed", "likes", "coffee")) == null)
 
+	// ── Dates, times and datetimes ───────────────────────────────────────────
+
+	dated = parser.parseSchema([
+		"founded-on(text, date)",
+		"opens-at(text, time)",
+		"seen-at(text, datetime)",
+		"born-on(text, unique(date))",
+	])
+	h.check("date, time and datetime are field types", dated["opens-at"][1] == "time")
+	h.check("a calendar date fits",
+		parser.schemaMisfit(dated, spo("acme", "founded-on", "2019-04-01")) == null)
+	h.check("a date is not a value list",
+		parser.schemaMisfit(dated, spo("acme", "founded-on", "date")) ==
+			"the object should be a date")
+	h.check("a day the calendar does not have is refused",
+		parser.schemaMisfit(dated, spo("acme", "founded-on", "2019-02-30")) ==
+			"the object should be a date")
+	h.check("a date written another way is refused",
+		parser.schemaMisfit(dated, spo("acme", "founded-on", "3/15/2019")) ==
+			"the object should be a date")
+	h.check("a clock time fits",
+		parser.schemaMisfit(dated, spo("acme", "opens-at", "09:30:00")) == null)
+	h.check("a clock time may leave the seconds off",
+		parser.schemaMisfit(dated, spo("acme", "opens-at", "09:30")) == null)
+	h.check("there is no minute 60",
+		parser.schemaMisfit(dated, spo("acme", "opens-at", "09:60")) ==
+			"the object should be a time")
+	h.check("a date and a time together fit a datetime",
+		parser.schemaMisfit(dated, spo("acme", "seen-at", "2019-04-01 09:30:00")) == null)
+	h.check("a date alone is not a datetime",
+		parser.schemaMisfit(dated, spo("acme", "seen-at", "2019-04-01")) ==
+			"the object should be a date and time")
+	h.check("unique(...) wraps a date as it wraps any type",
+		parser.schemaMisfit(dated, spo("acme", "born-on", "2019-04-01")) == null)
+
+	// The text is what a fact stores; the Temporal is what it means. One object reads all
+	// three types, so a value can be formatted, moved and ordered without going back to text.
+	when = parser.receive("2019-04-01 09:30:00")
+	h.check("a fitting text is read into a Temporal", when isa parser.Temporal)
+	h.check("it keeps its shape and its parts",
+		when.kind == "datetime" and when.year == 2019 and when.month == 4 and
+			when.day == 1 and when.hour == 9 and when.minute == 30 and when.second == 0)
+	h.check("it formats itself in the type's form", when.str == "2019-04-01 09:30:00")
+	h.check("and in any format asked for", when.str("HH:mm") == "09:30")
+	h.check("it moves by seconds", when.addSeconds(90).str == "2019-04-01 09:31:30")
+	h.check("a time moves around midnight",
+		parser.receive("23:59:30").addSeconds(60).str == "00:00:30")
+	h.check("it orders against its own kind",
+		when.compare(parser.receive("2019-04-01 10:00:00")) == -1 and
+			when.compare(parser.receive("2019-04-01 09:30:00")) == 0)
+	h.check("a bare time has no date",
+		parser.receive("09:30:00").year == null and parser.receive("09:30:00").day == null)
+	h.check("a datetime is written with a space, not a T",
+		parser.receive("2019-04-01T09:30:00") isa error)
+	h.check("another kind is not compared", when.compare(parser.receive("09:30:00")) isa error)
+	h.check("the kind is read off the text",
+		parser.receive("2019-04-01").kind == "date" and
+			parser.receive("09:30").kind == "time" and parser.receive("09:30").str == "09:30:00")
+	h.check("a text of no kind is refused", parser.receive("nonsense") isa error)
+	h.check("the schema module reads a value into the same kind of object",
+		schemaLoader.receive("2019-04-01") isa schemaLoader.Temporal)
+
 	// ── The file the program ships ───────────────────────────────────────────
 
 	shipped = schemaLoader.build()

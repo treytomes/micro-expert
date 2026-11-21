@@ -39,7 +39,8 @@
 //   has-age(text, unique(number))
 //
 // one line per predicate, stored or derived, giving the type of each field in the order
-// a fact writes them. A type is number, text, boolean, or a '|' list of the values allowed. The
+// a fact writes them. A type is number, text, boolean, date, time, datetime, or a '|'
+// list of the values allowed. The
 // prompt checks what is typed, and what is asked, against it, so a fact no rule could
 // ever reach is refused at the door; the solver never reads it, and a predicate it does
 // not name is accepted as written.
@@ -205,6 +206,9 @@ fieldFits = function(term, type)
 	// a fact; MiniScript's own true and false are the numbers 1 and 0, so they belong to
 	// number rather than here.
 	if type == "boolean" then return term == "true" or term == "false"
+	// A date, time or datetime is text in one shape, and the reader that builds the object
+	// is what says whether it is one, so the check and the object agree.
+	if dateTypes.indexOf(type) != null then return not (receive(term, type) isa error)
 	return type.split("|").indexOf(term) != null
 end function
 
@@ -214,8 +218,193 @@ typeText = function(type)
 	if type == "number" then return "a number"
 	if type == "text" then return "text"
 	if type == "boolean" then return "true or false"
+	if type == "date" then return "a date"
+	if type == "time" then return "a time"
+	if type == "datetime" then return "a date and time"
 	return "one of: " + type.split("|").join(", ")
 end function
+
+// ── Dates, times and datetimes ───────────────────────────────────────────────
+// A field may be typed date, time or datetime, and a fact stores one as text in the one
+// shape its type fixes:
+//
+//   2019-04-01             date
+//   09:30:00               time
+//   2019-04-01 09:30:00    datetime
+//
+// The shape is strict where the host's parser is not: _dateVal reads 3/15/2024 and
+// 2021-02-30 alike, one loose and one impossible, so the text is read here as digits
+// first and then held against the calendar by reading the value back. A value that fits
+// is a Temporal - the fact keeps the text, and this is what the text means:
+//
+//   import "schema"
+//   when = schema.receive("2019-04-01 09:30:00")
+//   when.str("HH:mm")                            // 09:30
+//   when.addSeconds(90).str                      // 2019-04-01 09:31:30
+//   when.compare(schema.receive("2019-04-02"))   // -1
+
+dateTypes = ["date", "time", "datetime"]
+
+defaultFormats = {
+	"date": "yyyy-MM-dd",
+	"time": "HH:mm:ss",
+	"datetime": "yyyy-MM-dd HH:mm:ss",
+}
+
+Temporal = {}
+
+Temporal.str = function(format=null)
+	"Formats the value; a time reads from the epoch's midnight, so HH:mm:ss is its clock."
+	if format == null then format = defaultFormats[self.kind]
+	return _dateStr(self.value, format)
+end function
+
+Temporal.addSeconds = function(seconds)
+	"A new value this many seconds later; a time wraps around midnight, a date keeps its day."
+	if not (seconds isa number) then return err("addSeconds needs a number of seconds: " + str(seconds))
+	if self.kind == "time" then
+		shifted = (self.value + seconds) % 86400
+		if shifted < 0 then shifted = shifted + 86400
+		return receive(_dateStr(shifted, "HH:mm:ss"), "time")
+	end if
+	return receive(_dateStr(self.value + seconds, defaultFormats[self.kind]), self.kind)
+end function
+
+Temporal.compare = function(other)
+	"Orders two values of one kind: -1, 0 or 1, or an error when the kinds differ."
+	if not (other isa Temporal) then return err("compare needs another date, time or datetime")
+	if other.kind != self.kind then
+		return err("cannot compare a " + self.kind + " with a " + other.kind)
+	end if
+	if self.value < other.value then return -1
+	if self.value > other.value then return 1
+	return 0
+end function
+
+receive = function(text, kind=null)
+	"Reads a date, time or datetime text into a Temporal, or says what is wrong with it."
+	if not (text isa string) then return err("a date, time or datetime is text: " + str(text))
+	if kind == null then kind = kindOf(text)
+	if kind == null then return err("not a date, a time or a datetime: " + text)
+	if dateTypes.indexOf(kind) == null then return err("not a date, time or datetime type: " + kind)
+	parts = null
+	if kind == "date" then
+		parts = dateParts(text)
+	else if kind == "time" then
+		parts = timeParts(text)
+	else
+		parts = dateTimeParts(text)
+	end if
+	if parts isa error then return parts
+	return assemble(kind, parts)
+end function
+
+kindOf = function(text)
+	"Says which of the three a text is shaped like, or null when it is none."
+	hasDate = text.indexOf("-") != null
+	hasTime = text.indexOf(":") != null
+	if hasDate and hasTime then return "datetime"
+	if hasDate then return "date"
+	if hasTime then return "time"
+	return null
+end function
+
+assemble = function(kind, parts)
+	"Builds the object a kind's reader found."
+	when = new Temporal
+	when.kind = kind
+	when.value = parts.value
+	when.year = parts.year
+	when.month = parts.month
+	when.day = parts.day
+	when.hour = parts.hour
+	when.minute = parts.minute
+	when.second = parts.second
+	return when
+end function
+
+dateParts = function(text)
+	"Reads yyyy-MM-dd into its value and parts, or says how the text is not a date."
+	pieces = text.split("-")
+	if pieces.len != 3 then return err("a date is written yyyy-MM-dd: " + text)
+	if pieces[0].len != 4 or pieces[1].len != 2 or pieces[2].len != 2 or
+		not allDigits(pieces[0]) or not allDigits(pieces[1]) or not allDigits(pieces[2]) then
+		return err("a date is written yyyy-MM-dd: " + text)
+	end if
+	year = val(pieces[0])
+	month = val(pieces[1])
+	day = val(pieces[2])
+	if month < 1 or month > 12 then return err("there is no month " + pieces[1] + ": " + text)
+	if day < 1 or day > 31 then return err("there is no day " + pieces[2] + ": " + text)
+	value = _dateVal(text)
+	if value isa error then return err("not a date: " + text)
+	// The host rolls an impossible day forward, so the day is read back rather than
+	// trusted: 2021-02-30 would otherwise pass for March 2nd in a schema's clothing.
+	if _dateStr(value, "yyyy-MM-dd") != text then return err("there is no such date: " + text)
+	return {"text": text, "value": value, "year": year, "month": month, "day": day,
+		"hour": null, "minute": null, "second": null}
+end function
+
+timeParts = function(text)
+	"Reads HH:mm or HH:mm:ss into its value and parts, or says how the text is not a time."
+	pieces = text.split(":")
+	if pieces.len != 2 and pieces.len != 3 then
+		return err("a time is written HH:mm or HH:mm:ss: " + text)
+	end if
+	secondText = "00"
+	if pieces.len == 3 then secondText = pieces[2]
+	if pieces[0].len != 2 or pieces[1].len != 2 or secondText.len != 2 or
+		not allDigits(pieces[0]) or not allDigits(pieces[1]) or not allDigits(secondText) then
+		return err("a time is written HH:mm or HH:mm:ss: " + text)
+	end if
+	hour = val(pieces[0])
+	minute = val(pieces[1])
+	second = val(secondText)
+	if hour > 23 then return err("there is no hour " + pieces[0] + ": " + text)
+	if minute > 59 then return err("there is no minute " + pieces[1] + ": " + text)
+	if second > 59 then return err("there is no second " + secondText + ": " + text)
+	return {"text": pad2(hour) + ":" + pad2(minute) + ":" + pad2(second),
+		"value": hour * 3600 + minute * 60 + second,
+		"year": null, "month": null, "day": null,
+		"hour": hour, "minute": minute, "second": second}
+end function
+
+dateTimeParts = function(text)
+	"Reads yyyy-MM-dd HH:mm:ss into its value and parts, or says what is wrong."
+	at = text.indexOf(" ")
+	if at == null then return err("a datetime is written yyyy-MM-dd HH:mm:ss: " + text)
+	date = dateParts(text[:at])
+	if date isa error then return date
+	clock = timeParts(text[at + 1:])
+	if clock isa error then return clock
+	stamp = date.text + " " + clock.text
+	value = _dateVal(stamp)
+	if value isa error then return err("not a date and time: " + stamp)
+	// The same reading back, for the same reason: a clock time a daylight-saving jump skips
+	// is not the time it was written as.
+	if _dateStr(value, "yyyy-MM-dd HH:mm:ss") != stamp then
+		return err("there is no such date and time: " + stamp)
+	end if
+	return {"text": stamp, "value": value, "year": date.year, "month": date.month,
+		"day": date.day, "hour": clock.hour, "minute": clock.minute, "second": clock.second}
+end function
+
+allDigits = function(text)
+	"Says whether every character is a decimal digit, and there is at least one."
+	if text.len == 0 then return false
+	for c in text
+		if "0123456789".indexOf(c) == null then return false
+	end for
+	return true
+end function
+
+pad2 = function(n)
+	"Two digits, the width a time's parts are written in."
+	text = str(n)
+	if text.len >= 2 then return text
+	return "0" + text
+end function
+
 
 // ── One value per subject ────────────────────────────────────────────────────
 // unique(...) is the schema's one statement about how many values a pair may take, and it
