@@ -194,10 +194,12 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 	writeFile(repeatedPath, ["has-age(zed, 24)", "has-age(zed, 17)"])
 	repeated = factsLoader.build(t, repeatedPath, uniqueTypes)
 	file.delete(repeatedPath)
-	h.check("a facts file that gives one pair two values is refused",
-		repeated isa error and
-			repeated.message.indexOf("has-age(zed, 17): the object is already taken: has-age(zed, 24)") != null)
-	if repeated isa error then print "      " + repeated.message
+	refusedIt = repeated isa error and
+		repeated.message.indexOf("has-age(zed, 17): the object is already taken: has-age(zed, 24)") != null
+	h.check("a facts file that gives one pair two values is refused", refusedIt)
+	// Printed only when the refusal came back as something else, so a passing run says nothing
+	// between its own lines and a failing one shows what the reader actually answered.
+	if not refusedIt and repeated isa error then print "      " + repeated.message
 	pairPath = scratch("pair.kb")
 	writeFile(pairPath, ["has-age(zed, 24)", "has-age(tim, 17)"])
 	oneEach = factsLoader.build(t, pairPath, uniqueTypes)
