@@ -321,7 +321,8 @@ repo writes one.
 | `src/datetimes.ms` | `receive` and `Temporal`, the date, time and datetime values behind those types |
 | `src/triples.ms` | `termOf` and `isNumber`, the reading of one term |
 | `test/knowledge.ms` | 78 checks on the format and its writer |
-| `test/schema.ms` | 38 checks on the schema, the field check and the one-value rule |
+| `test/schema.ms` | 42 checks on the schema format, the field check and the one-value rule |
+| `test/datetimes.ms` | 31 checks on the three date types and the value a text is read into |
 | `vscode-knowledge/` | the same shape as a TextMate grammar, for highlighting only |
 
 A refusal names the entry it came from, `line N: ...`, where `N` is the first physical line
