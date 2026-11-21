@@ -7,11 +7,11 @@ A little expert system for MiniScript 2: 54 facts about one imaginary family, fo
 ```prolog
 ? is-uncle-of(bill, ?p)
   bill is uncle of anna
-  is-uncle-of(bill, anna)  <- rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
-    is-parent-of(george, anna)  <- fact
-    is-sibling-of(bill, george)  <- rule is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
-      is-parent-of(walter, bill)  <- fact
-      is-parent-of(walter, george)  <- fact
+  bill is uncle of anna  <- rule ?x is uncle of ?y <- ?p is parent of ?y, ?x is sibling of ?p, ?x has gender male
+    george is parent of anna  <- fact
+    bill is sibling of george  <- rule ?x is sibling of ?y <- ?p is parent of ?x, ?p is parent of ?y, not-equal(?x, ?y)
+      walter is parent of bill  <- fact
+      walter is parent of george  <- fact
     ...
   ...
 ```
@@ -55,7 +55,7 @@ The last row is the honest one. This program cannot read *"who are Bill's nephew
 What a rules engine buys you, concretely, in an era of cheap text generation:
 
 - **Auditability.** Every claim has a proof you can print. There is no "the model said so" step to defend to a reviewer, an auditor, or yourself in six months.
-- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 490 assertions and they either pass or they don't.
+- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 495 assertions and they either pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility, scheduling constraints, device diagnostics, family relationships — questions where the rule is the requirement and being consistently right matters more than being fluent.
 - **Knowledge as a reviewed artifact.** Adding a rule is a five-line pull request with a test. There is no training run, and nothing else silently changes.
 - **No data leaving the machine.** The facts are the data, and they are text files.
@@ -131,22 +131,22 @@ fact would change that.
 
 **Cycles.** A rule like `married-to(?y, ?x) <- married-to(?x, ?y)` can cheerfully call itself forever. The search therefore keeps the chain of goals on the current branch and refuses to re-enter a goal it is already inside, comparing goals with variables renamed away so that `?x` and `?x_7` are recognized as the same goal.
 
-**Every derivation is kept.** Ask `is-sibling-of(bill, george)` and one answer comes back carrying two derivations — one through Walter, one through Doris — because both are true and a reasoner that silently drops one is hiding information. `--verbose` shows them, sentence first and the tree under it:
+**Every derivation is kept.** Ask `is-sibling-of(bill, george)` and one answer comes back carrying two derivations — one through Walter, one through Doris — because both are true and a reasoner that silently drops one is hiding information. `--verbose --nlp` shows them, sentence first and the tree said under it:
 
 ```prolog
-$ micro-expert --verbose
+$ micro-expert --verbose --nlp
 Verbose run: depth 8
 ? is-uncle-of(bill, ?p)
   bill is uncle of anna
-  is-uncle-of(bill, anna)  <- rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
-    is-parent-of(george, anna)  <- fact
-    is-sibling-of(bill, george)  <- rule is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
-      is-parent-of(walter, bill)  <- fact
-      is-parent-of(walter, george)  <- fact
-    is-sibling-of(bill, george)  <- rule is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
-      is-parent-of(doris, bill)  <- fact
-      is-parent-of(doris, george)  <- fact
-    has-gender(bill, male)  <- fact
+  bill is uncle of anna  <- rule ?x is uncle of ?y <- ?p is parent of ?y, ?x is sibling of ?p, ?x has gender male
+    george is parent of anna  <- fact
+    bill is sibling of george  <- rule ?x is sibling of ?y <- ?p is parent of ?x, ?p is parent of ?y, not-equal(?x, ?y)
+      walter is parent of bill  <- fact
+      walter is parent of george  <- fact
+    bill is sibling of george  <- rule ?x is sibling of ?y <- ?p is parent of ?x, ?p is parent of ?y, not-equal(?x, ?y)
+      doris is parent of bill  <- fact
+      doris is parent of george  <- fact
+    bill has gender male  <- fact
 ```
 
 Each line is either `<- fact` or `<- rule ...`; nothing else is allowed to be a reason.
@@ -205,7 +205,7 @@ ENTRY_POINT=./src/main.ms
 `micro-expert.bat` reads `.env`, forwards every argument to the entry point, and passes the script's exit code back. Opening it puts you at a prompt: the program is the session, `data/` is already loaded, and every line you type is answered against those facts and rules. Then:
 
 ```plaintext
-> micro-expert
+> micro-expert --nlp
 [INF] micro-expert: micro-expert 0.2.0 starting
 [INF] micro-expert: Command-line arguments (0): (none)
 ...
@@ -226,7 +226,8 @@ Type a fact, a question, or a rule as 'head <- conditions'. /help lists the comm
 | Option | Meaning |
 | --- | --- |
 | `--depth <NUM>` | Maximum backward-chaining depth, default `8`; `0` is facts only |
-| `--verbose` | Print the proof tree behind each answer |
+| `--verbose` | Print the proof tree under each answer |
+| `--nlp` | Say answers, and the trees under them, as sentences |
 | `--domain <DIR>` | Folder holding `facts.kb`, `rules.kb` and `schema.kb`, default `data` |
 | `--facts <FILE>` | Facts file, in place of the domain's `facts.kb` |
 | `--rules <FILE>` | Rules file, in place of the domain's `rules.kb` |
@@ -249,7 +250,7 @@ Type a fact, a question, or a rule as 'head <- conditions'. /help lists the comm
 **Type a fact or a rule** at the same prompt and it joins the search. One line has one meaning: a ground line adds a fact, a line with a variable asks a question, a line with `<-` adds a rule, and a line starting with `/` is a command for the session (`/help`, `/facts`, `/rules`, `/undo`, `/exit`, and the six `/save-*` and `/load-*` commands that write a component back where it came from or read one in its place).
 
 ```plaintext
-> micro-expert
+> micro-expert --nlp
 Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
 ? is-parent-of(?p, susan)
   no solution found at depth 8
@@ -267,7 +268,7 @@ Type a fact, a question, or a rule as 'head <- conditions'. /help lists the comm
 
 A question with no answer reads the report above, asks for the fact that would let a rule reach one, adds it, and asks again - the loop the report was written for. It asks for a rule's fact before the query's own shape, since asserting the answer proves nothing; it shows the fact it is filling, with the values given so far in it, and the report above reads the same way; and it asks one variable at a time, so a missing `is-parent-of(?p, ?q)` takes two answers. A rule's fact is filled in by the variables it brings itself, so `is-parent-of(?p', ?p)` asks for `?p'` and not again for `?p`, which the question already named; a fact that is still incomplete once its own variables are filled is shown with what is left over and not added, rather than the answer being written in as though it had been found, and the answers given are carried to the rest of that rule's facts, so a value is never asked for twice; a fact the session can already prove needs nothing added, so it drops out of the report too. A whole fact typed where a value is asked for is a fact too, so the answer can still be asserted by fiat when that is what you want: the session adds it and asks again from there, while a line that parses as a fact but still holds a variable is refused rather than stored as a value. A fact with no variable left is offered with `add it? [y/N]` rather than assumed, and a value left empty stops the asking and leaves the report standing. A fact and a question are both held to `data/schema.kb`: a question that names a value no fact could store is refused before the search, and an answer that completes a refused fact stops the question instead of being asked for again. `/undo` takes back the last fact the session added - at the prompt or in the middle of a question, which asks it again - so a wrong value does not stick for the rest of the run. Nothing is written back until you ask: the session adds to the arrays `main.ms` built, and `/save-*` is what puts a component back on disk.
 
-Adding `--verbose` prints the proof tree under each answer here too, exactly as in the example above.
+Adding `--verbose` prints the proof tree under each answer here too, exactly as in the example above, and `--nlp` says the answers and those trees in words - the prompt above was run with it.
 
 A rule typed at the prompt is read from the line `Rule.text` prints, which is why that parser lives in `triples.ms` and returns the pieces `Rule.make` takes rather than a rule: the engine stays free of the Rule class. The data files have their own parser, `src/knowledge.ms`, built the same way, with a fact as a bare `predicate(subject, object)` and a rule's `=>` in place of `<-`.
 
@@ -277,12 +278,12 @@ The session paints from the same style table as the report, so `NO_COLOR` turns 
 
 ```plaintext
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-490 passed, 0 failed
+495 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it for the session or paste the path in its place.
 
-The 490 checks are split by area: display and parsing (32), the knowledge data format (81), the predicate schema (40), the loaders (19), proofs and explanations (21), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (89), the session at the prompt (150), the notes example on the repl library (1), and the domain (10). The parser, the logger and the repl library are submodules with suites of their own (32, 56 and 52 checks), run from their own folders. One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
+The 495 checks are split by area: display and parsing (32), the knowledge data format (81), the predicate schema (40), the loaders (19), proofs and explanations (23), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (89), the session at the prompt (153), the notes example on the repl library (1), and the domain (10). The parser, the logger and the repl library are submodules with suites of their own (32, 56 and 52 checks), run from their own folders. One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
 
 ## Where an LLM fits
 

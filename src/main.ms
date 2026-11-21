@@ -52,7 +52,13 @@ cli.add(cmd, {
 	"aliases": ["--verbose"],
 	"type": "flag",
 	"default": 0,
-	"description": "Print extra progress detail.",
+	"description": "Print the proof tree under each answer.",
+})
+cli.add(cmd, {
+	"name": "nlp",
+	"aliases": ["--nlp"],
+	"type": "flag",
+	"description": "Say answers, and the proof tree under them, as sentences.",
 })
 cli.add(cmd, {
 	"name": "domain",
@@ -251,8 +257,9 @@ end for
 // ── A session at the prompt ──────────────────────────────────────────────────
 // The program is this session: it takes facts, rules and questions. It starts from
 // the arrays above and adds to them in memory, so what the prompt learns lasts for
-// the run and no source file is touched. --depth bounds its search, and --verbose
-// prints the proof tree behind each answer.
+// the run and no source file is touched. --depth bounds its search, --verbose prints the
+// proof tree under each answer, and --nlp says each answer as a sentence instead of a fact -
+// the tree under it too, so a run reads as one account rather than two forms.
 
 replSession = function()
 	"The session, drawn from the facts and rules already loaded."
@@ -263,6 +270,7 @@ replSession = function()
 		"rules": rules,
 		"depth": options.values.depth,
 		"verbose": options.values.verbose,
+		"nlp": options.values.nlp,
 		"style": reportStyle(),
 		"schema": globals["schema"],
 		"types": types,

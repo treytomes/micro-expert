@@ -44,6 +44,14 @@ run = function(t, rules, h)
 	h.check("tree line three", lines[2] == "child(susan, bill)  <- rule child(?x, ?y) <- guardian(?y, ?x)")
 	h.check("tree line four", lines[3] == "  guardian(bill, susan)  <- fact")
 
+	// The same tree said as sentences: --nlp asks proofLines for the words, so the fact and
+	// the rule behind it are both read in the form an answer is said in.
+	said = t.proofLines(answers[0], "", 1)
+	h.check("a said tree turns a fact into its sentence",
+		said[1] == "  bill parent susan  <- fact")
+	h.check("and says the rule it came from the same way",
+		said[0] == "susan child bill  <- rule ?x child ?y <- ?y parent ?x")
+
 	// The same fact listed twice is still one answer, with both derivations.
 	twice = [spo("bill", "parent", "susan"), spo("bill", "parent", "susan")]
 	duplicated = t.proveGoals(spo(v("x"), "parent", v("y")), twice, [], 0)

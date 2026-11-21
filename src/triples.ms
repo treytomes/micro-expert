@@ -688,31 +688,54 @@ mergeAnswer = function(results, goal, binds, reason)
 	results.byText[key].reasons.push(reason)
 end function
 
-reasonText = function(reason)
-	"Where one derivation came from: a fact, or the rule that concluded it."
+reasonText = function(reason, nlp=0)
+	"Where one derivation came from: a fact, or the rule that concluded it - said as sentences when nlp asks for them."
 	if reason.rule == null then return "fact"
+	if nlp then return "rule " + nlRuleText(reason.rule)
 	return "rule " + reason.rule.text
 end function
 
-proofLines = function(answer, indent="")
-	"Describes every derivation of an answer, with the conditions behind each."
+nlRuleText = function(rule)
+	"Says a rule the way its parts answer: the head as a sentence, and so the triples of its body, since a constraint has no sentence to be said in."
+	conditions = []
+	for condition in rule.body
+		conditions.push(nlConditionText(condition))
+	end for
+	if conditions.len == 0 then return rule.head.sentence + " <- (no conditions)"
+	return rule.head.sentence + " <- " + conditions.join(", ")
+end function
+
+nlConditionText = function(condition)
+	"Says one condition of a rule body: a triple becomes its sentence, and a constraint or a grouping keeps the form it is written in."
+	if condition isa SpoTriple then return condition.sentence
+	return condition.text
+end function
+
+proofLines = function(answer, indent="", nlp=0)
+	"Describes every derivation of an answer, with the conditions behind each, said as sentences when nlp asks for them."
 	lines = []
-	appendDerivations(answer.goal, answer.binds, answer.reasons, indent, lines)
+	appendDerivations(answer.goal, answer.binds, answer.reasons, indent, lines, nlp)
 	return lines
 end function
 
-appendDerivations = function(goal, binds, reasons, indent, lines)
+appendDerivations = function(goal, binds, reasons, indent, lines, nlp=0)
 	"Appends each derivation's line, then the block behind each of its conditions."
 	for reason in reasons
-		lines.push(indent + substitute(goal, binds).text + "  <- " + reasonText(reason))
-		appendConditions(reason.conditions, indent + "  ", lines)
+		line = substitute(goal, binds)
+		if nlp then
+			line = line.sentence
+		else
+			line = line.text
+		end if
+		lines.push(indent + line + "  <- " + reasonText(reason, nlp))
+		appendConditions(reason.conditions, indent + "  ", lines, nlp)
 	end for
 end function
 
-appendConditions = function(conditions, indent, lines)
+appendConditions = function(conditions, indent, lines, nlp=0)
 	"Appends the block behind each proved condition, in order."
 	for condition in conditions
-		appendDerivations(condition.goal, condition.binds, condition.reasons, indent, lines)
+		appendDerivations(condition.goal, condition.binds, condition.reasons, indent, lines, nlp)
 	end for
 end function
 

@@ -160,8 +160,8 @@ number; a later one may open with a digit, which is how `has-1-child` is written
 `parent_of` and `parent of` are not.
 
 The rule is not about the search - nothing in unification or proof cares what a predicate is
-called. It is about saying a result: an answer prints as a sentence, and the sentence is the
-name with its dashes opened to spaces, so `has-uncle(oliver, zed)` answers
+called. It is about saying a result: with `--nlp` an answer is said as a sentence, and the
+sentence is the name with its dashes opened to spaces, so `has-uncle(oliver, zed)` is said
 `oliver has uncle zed`. The name is the words, so there is no second table saying what each
 predicate means, and a name no sentence could be made of is refused where it is read: in a
 facts or rules file, in a schema line, and at the prompt. `?p(bill, susan)` is the one thing

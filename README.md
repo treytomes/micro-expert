@@ -73,8 +73,27 @@ entry point, and pass the script's exit code back.
 [INF] micro-expert: Command-line arguments (0): (none)
 [INF] micro-expert: depth:      8
 [INF] micro-expert: verbose:    0
+[INF] micro-expert: nlp:        0
 [INF] micro-expert: log-level:  information
 Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
+? is-uncle-of(bill, ?p)
+  is-uncle-of(bill, anna)
+  is-uncle-of(bill, mark)
+  is-uncle-of(bill, clara)
+  is-uncle-of(bill, jack)
+  is-uncle-of(bill, nina)
+  is-uncle-of(bill, oliver)
+[INF] micro-expert: micro-expert exiting with code 0
+```
+
+(timestamps trimmed for width; the fact and rule dump `--log-level debug` adds is left out)
+
+An answer is the fact that proves it. `--nlp` says each one instead: a predicate is named in
+sections joined by dashes, and the sentence is that name with the dashes opened to spaces, so
+`has-uncle(oliver, zed)` is said `oliver has uncle zed`.
+
+```
+> micro-expert --nlp
 ? is-uncle-of(bill, ?p)
   bill is uncle of anna
   bill is uncle of mark
@@ -82,33 +101,29 @@ Type a fact, a question, or a rule as 'head <- conditions'. /help lists the comm
   bill is uncle of jack
   bill is uncle of nina
   bill is uncle of oliver
-[INF] micro-expert: micro-expert exiting with code 0
 ```
 
-(timestamps trimmed for width; the fact and rule dump `--log-level debug` adds is left out)
+The name is where the words are - there is no second table saying what a predicate means -
+which is why the shipped family names its predicates as verbs and the prepositions they need:
+`has-age`, `married-to`, `is-uncle-of`, so an answer reads `bill is uncle of anna`. The
+report, `/facts` and `/rules` keep the fact form either way, since each of them is something
+to write back or read as data.
 
-That is the answer set, said rather than shown: a predicate is named in sections joined by
-dashes, and a sentence is that name with the dashes opened to spaces, so
-`has-uncle(oliver, zed)` answers `oliver has uncle zed`. The name is where the words are -
-there is no second table saying what a predicate means - which is why the shipped family
-names its predicates as verbs and the prepositions they need: `has-age`, `married-to`,
-`is-uncle-of`, so an answer reads `bill is uncle of anna`. The fact form stays wherever it is
-something to write back or read as data: the missing-fact report, `/facts` and `/rules`, and
-the proof tree below.
-
-`--verbose` adds the proof tree under each one, so the answer is said and its reason is
-printed beneath it:
+`--verbose` prints the proof tree under each answer, and `--nlp` says every line of it: the
+facts by the same dashes-to-spaces rule, and the rule behind them as the sentences of its head
+and of each condition - a constraint such as `not-equal(?x, ?y)` is the one thing left as
+written, since it has no sentence to be said in.
 
 ```
-> micro-expert --verbose
+> micro-expert --verbose --nlp
 Verbose run: depth 8
 ? is-uncle-of(bill, ?p)
   bill is uncle of anna
-  is-uncle-of(bill, anna)  <- rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
-    is-parent-of(george, anna)  <- fact
-    is-sibling-of(bill, george)  <- rule is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
-      is-parent-of(walter, bill)  <- fact
-      is-parent-of(walter, george)  <- fact
+  bill is uncle of anna  <- rule ?x is uncle of ?y <- ?p is parent of ?y, ?x is sibling of ?p, ?x has gender male
+    george is parent of anna  <- fact
+    bill is sibling of george  <- rule ?x is sibling of ?y <- ?p is parent of ?x, ?p is parent of ?y, not-equal(?x, ?y)
+      walter is parent of bill  <- fact
+      walter is parent of george  <- fact
     ...
   ...
 ```
@@ -118,7 +133,8 @@ Verbose run: depth 8
 | Option | Meaning |
 | --- | --- |
 | `--depth <NUM>` | Maximum backward-chaining depth, default `8`; `0` is facts only |
-| `--verbose` | Say the answer and print its proof tree under it |
+| `--verbose` | Print the proof tree under each answer |
+| `--nlp` | Say answers, and the trees under them, as sentences |
 | `--domain <DIR>` | Folder holding `facts.kb`, `rules.kb` and `schema.kb`, default `data` |
 | `--facts <FILE>` | Facts file, in place of the domain's `facts.kb` |
 | `--rules <FILE>` | Rules file, in place of the domain's `rules.kb` |
@@ -172,7 +188,7 @@ Ask it at the prompt:
 
 ```
 ? is-grandpa-of(?who, tim)
-  walter is grandpa of tim
+  is-grandpa-of(walter, tim)
 ```
 
 Every predicate has the same shape - `relation(?x, ?y)` reads "?x is the relation of ?y" -
@@ -189,7 +205,7 @@ adds a fact, a line with a variable asks a question, a line with `<-` adds a rul
 starting with `/` is a command for the session itself.
 
 ```
-> micro-expert
+> micro-expert --nlp
 Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
 ? is-parent-of(?p, susan)
   no solution found at depth 8
@@ -313,7 +329,8 @@ rest of the run. Nothing is written back by
 itself: the session adds to the arrays `src/main.ms` built, and `/save-*` is what puts a
 component back on disk when you ask it to. A rule is read from the line `Rule.text` prints, and a line that
 will not parse is refused with itself quoted. `--depth` bounds the session's search the way
-it bounds a run, and `--verbose` prints the proof tree under each answer here too.
+it bounds a run, `--verbose` prints the proof tree under each answer here too, and `--nlp` says
+the answers and those trees in words.
 
 | Command | Meaning |
 | --- | --- |
@@ -456,7 +473,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-490 passed, 0 failed
+495 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -472,8 +489,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 489 skipped
-##END {"passed":1,"failed":0,"skipped":489}
+1 passed, 0 failed, 494 skipped
+##END {"passed":1,"failed":0,"skipped":494}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -488,10 +505,10 @@ The parser, the logger and the repl library are their own repositories with thei
 by the same interpreter, and this suite imports none of them. It keeps one check about the
 repl library, and that one is about this repository rather than the library: `examples/notes.ms`
 is a whole program written on the library and nothing else, and `test/repl.ms` is what says so.
-The 490 cover the program itself: display and parsing (32), the knowledge data format (81), the
-predicate schema (40), the loaders (19), proofs and explanations (21), the missing-fact report
+The 495 cover the program itself: display and parsing (32), the knowledge data format (81), the
+predicate schema (40), the loaders (19), proofs and explanations (23), the missing-fact report
 (34), recursion and cycle handling (13), relations including the family rules (89), the session
-at the prompt (150), the notes example on the repl library (1), and the domain (10).
+at the prompt (153), the notes example on the repl library (1), and the domain (10).
 
 ## Repository layout
 
@@ -512,7 +529,7 @@ examples/notes.ms    a whole host for the repl library that is not a knowledge b
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
 src/repl/            submodule: micro-repl, the loop and its commands
-test/                the 490 checks and their runner
+test/                the 495 checks and their runner
 docs/articles/       the long-form write-up
 docs/kb-grammar.md   the .kb grammar, its constraints and its schema
 docs/constraints.md  the six built-in constraints, one by one

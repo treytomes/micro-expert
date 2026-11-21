@@ -68,7 +68,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// ── A scripted session ───────────────────────────────────────────────────
 
 	// A session over a script of typed lines, recording what it printed and asked.
-	startSession = function(facts, ruleList, script, style=null, verbose=0, types=null, paths=null)
+	startSession = function(facts, ruleList, script, style=null, verbose=0, types=null, paths=null, nlp=0)
 		if paths == null then paths = {}
 		answers = {"lines": [], "asked": [], "at": 0}
 		reader = function(question)
@@ -81,17 +81,24 @@ run = function(t, rules, host, h, schema, knowledge, library)
 			answers.lines.push(line)
 		end function
 		session = {"triples": t, "Rule": rules.Rule, "facts": facts, "rules": ruleList,
-			"depth": 8, "verbose": verbose, "style": style, "schema": schema, "types": types,
+			"depth": 8, "verbose": verbose, "nlp": nlp, "style": style, "schema": schema, "types": types,
 			"paths": paths, "knowledge": knowledge,
 			"io": {"read": @reader, "say": @writer}}
 		host.run(session)
 		return {"session": session, "answers": answers}
 	end function
 
+	// The same session with --nlp on. Most checks below read answers as sentences, since that
+	// is what the flag is for; the fact form the program shows by default is checked in the
+	// --verbose block, where the two forms sit closest together.
+	saying = function(facts, ruleList, script, style=null, verbose=0, types=null, paths=null)
+		return startSession(facts, ruleList, script, style, verbose, types, paths, 1)
+	end function
+
 	family = [spo("bill", "is-parent-of", "tim"), spo("tim", "is-parent-of", "anna")]
 
 	// A question nothing answers, and the one value it asks for.
-	asked = startSession(family + [], [], ["is-parent-of(?p, susan)", "walter", "quit"])
+	asked = saying(family + [], [], ["is-parent-of(?p, susan)", "walter", "quit"])
 	lines = asked.answers.lines
 	h.check("the session says where the commands are", lines[0].indexOf("/help") != null)
 	h.check("a question with no answer says so",
@@ -109,7 +116,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("the fact stays in the session", asked.session.facts.len == 3)
 
 	// A missing fact with two variables is asked about one at a time.
-	pair = startSession(family + [], [], ["is-aunt-of(?p, ?q)", "doris", "nina", "quit"])
+	pair = saying(family + [], [], ["is-aunt-of(?p, ?q)", "doris", "nina", "quit"])
 	h.check("a two-variable fact is asked for a variable at a time",
 		pair.answers.asked[1] == "  ?p = " and pair.answers.asked[2] == "  ?q = ")
 	h.check("both answers make the one fact",
@@ -119,7 +126,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 
 	// A rule typed at the prompt joins the search.
 	ruleLine = "is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)"
-	ruled = startSession(family + [], [], [ruleLine, "is-grandparent-of(?p, ?y)"])
+	ruled = saying(family + [], [], [ruleLine, "is-grandparent-of(?p, ?y)"])
 	h.check("a rule typed at the prompt is added",
 		printed(ruled.answers.lines, "  added rule " + ruleLine))
 	h.check("the new rule answers the next question",
@@ -159,7 +166,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	uncleRule = rules.Rule.make(spo(v("x"), "is-uncle-of", v("y")),
 		[spo(v("p"), "is-parent-of", v("y")), spo(v("x"), "is-sibling-of", v("p")),
 			spo(v("x"), "has-gender", "male")])
-	uncle = startSession(family + [], [uncleRule],
+	uncle = saying(family + [], [uncleRule],
 		["is-uncle-of(?p, susan)", "george", "alfonso", "y"])
 	uncleLines = uncle.answers.lines
 	uncleAsked = uncle.answers.asked
@@ -189,7 +196,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// that rule's conditions already hold: naming the sibling lets the next pass ask for the
 	// one fact really missing, instead of the session giving up because nothing was added.
 	apart = family + [spo("bill", "is-sibling-of", "george"), spo("bill", "has-gender", "male")]
-	tangled = startSession(apart + [], [uncleRule], ["is-uncle-of(bill, ?p)", "george", "zed", "quit"])
+	tangled = saying(apart + [], [uncleRule], ["is-uncle-of(bill, ?p)", "george", "zed", "quit"])
 	h.check("a rule's fact is asked about for the variables it introduces",
 		printed(tangled.answers.lines, "      is-parent-of(?p', ?p)") and
 			tangled.answers.asked[1] == "  ?p' = ")
@@ -212,7 +219,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	kin = [spo("henry", "is-parent-of", "oliver"), spo("henry", "is-parent-of", "clara"),
 		spo("walter", "is-parent-of", "bill"), spo("walter", "is-parent-of", "george"),
 		spo("oliver", "has-gender", "male")]
-	derivable = startSession(kin + [], [siblingRule, uncleRule],
+	derivable = saying(kin + [], [siblingRule, uncleRule],
 		["is-uncle-of(oliver, ?y)", "clara", "zed", "quit"])
 	h.check("a derivable condition is not offered as a fact to add",
 		not holds(derivable.answers.asked, "add it?"))
@@ -231,7 +238,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 
 	// What was given is remembered for as long as the report stands, so the question that
 	// comes round again shows the fact with the value in it and asks only what is left.
-	remembered = startSession(apart + [], [uncleRule],
+	remembered = saying(apart + [], [uncleRule],
 		["is-uncle-of(bill, ?p)", "sam", "y", "alfonso"])
 	h.check("a value given once is not asked for a second time",
 		printed(remembered.answers.lines, "  is-parent-of(sam, ?p)") and
@@ -268,7 +275,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// Answering by fiat is deliberate but still there: a whole fact typed where a value is
 	// asked for is a fact, with the standing any typed fact has, and the question starts
 	// again from it.
-	fiat = startSession(family + [], [uncleRule], ["is-uncle-of(bill, ?p)", "is-uncle-of(bill, zed)"])
+	fiat = saying(family + [], [uncleRule], ["is-uncle-of(bill, ?p)", "is-uncle-of(bill, zed)"])
 	h.check("a fact typed instead of a value is added, and answers the question",
 		printed(fiat.answers.lines, "  added is-uncle-of(bill, zed)") and
 			fiat.answers.lines[fiat.answers.lines.len - 1] == "  bill is uncle of zed")
@@ -283,16 +290,30 @@ run = function(t, rules, host, h, schema, knowledge, library)
 			refused.answers.asked.len == 4 and refused.answers.asked[2] == "  ?p = " and
 			printed(refused.answers.lines, "  added is-parent-of(walter, susan)"))
 
-	// ── --verbose gives the tree behind each answer, as a run does ──────────
+	// ── --verbose gives the tree, --nlp says it ──────────────────────────
 
+	// Without --nlp an answer is the fact it is, and the tree under it is the same form.
 	verbose = startSession(family + [], [], ["is-parent-of(?p, susan)", "walter", "quit"], null, 1)
-	h.check("a verbose session still says the answer in words",
-		printed(verbose.answers.lines, "  walter is parent of susan"))
+	h.check("a plain session says an answer as the fact it is",
+		printed(verbose.answers.lines, "  is-parent-of(walter, susan)"))
 	h.check("and prints the proof tree under it",
 		printed(verbose.answers.lines, "  is-parent-of(walter, susan)  <- fact"))
 	verboseRule = startSession(family + [], [], [ruleLine, "is-grandparent-of(bill, ?y)"], null, 1)
 	h.check("a verbose answer names the rule behind it",
 		holds(verboseRule.answers.lines, "  <- rule is-grandparent-of(?x, ?y)"))
+
+	// With --nlp the answer is a sentence and so is every line of the tree: the facts keep
+	// their dashes opened, and the rule behind them is said the same way, from its head to
+	// the conditions it asks for. A constraint has no sentence, so it stays as written.
+	saidVerbose = saying(family + [], [], ["is-parent-of(?p, susan)", "walter", "quit"], null, 1)
+	h.check("--nlp says the answer in words",
+		printed(saidVerbose.answers.lines, "  walter is parent of susan"))
+	h.check("and says the tree under it too",
+		printed(saidVerbose.answers.lines, "  walter is parent of susan  <- fact"))
+	saidRule = saying(family + [], [], [ruleLine, "is-grandparent-of(bill, ?y)"], null, 1)
+	h.check("a rule in a said tree reads as its own sentences",
+		holds(saidRule.answers.lines,
+			"  <- rule ?x is grandparent of ?y <- ?x is parent of ?p, ?p is parent of ?y"))
 
 	// ── Slash commands ──────────────────────────────────────────────────────
 
@@ -427,7 +448,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// ── Painting is the same style table, so it is opt-in the same way ──────
 
 	mark = {"prompt": "<p>", "added": "<a>", "answer": "<n>", "warning": "<w>", "normal": "</>"}
-	painted = startSession(family + [], [], ["is-parent-of(?p, susan)", "walter", "quit"], mark)
+	painted = saying(family + [], [], ["is-parent-of(?p, susan)", "walter", "quit"], mark)
 	h.check("a painted prompt opens and closes", painted.answers.asked[0] == "<p>? </>")
 	h.check("a painted gap warning closes its line",
 		printed(painted.answers.lines, "<w>  no solution found at depth 8</>"))
@@ -440,7 +461,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 
 	// An age is stored as a number, so a number typed in a question has to meet one:
 	// the prompt reads a field with the same term parser the loaders use.
-	aged = startSession([spo("bill", "has-age", 54)], [], ["has-age(?p, 54)"])
+	aged = saying([spo("bill", "has-age", 54)], [], ["has-age(?p, 54)"])
 	h.check("a number typed in a question meets the fact it was stored as",
 		printed(aged.answers.lines, "  bill has age 54"))
 
@@ -463,7 +484,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// number beside the value itself. Text and numbers keep the prompt they always had.
 
 	genderTypes = {"has-gender": ["text", "male|female"]}
-	chosen = startSession([], [], ["has-gender(zed, ?g)", "2"], null, 0, genderTypes)
+	chosen = saying([], [], ["has-gender(zed, ?g)", "2"], null, 0, genderTypes)
 	chosenLines = chosen.answers.lines
 	h.check("an enum field is shown as a numbered list",
 		printed(chosenLines, "  1) male") and printed(chosenLines, "  2) female"))
@@ -549,7 +570,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// field's value is corrected rather than duplicated. Nobody has 30, so the question is open
 	// on who does, and the person named for it already has an age of their own - which the
 	// answer takes the place of, and the question is then answered by the fact it left.
-	clash = startSession([spo("zed", "has-age", 24)], [], ["has-age(?x, 30)", "zed"], null, 0, uniqueAge)
+	clash = saying([spo("zed", "has-age", 24)], [], ["has-age(?x, 30)", "zed"], null, 0, uniqueAge)
 	h.check("a prompted value takes the field's old value out",
 		printed(clash.answers.lines, "  replaced has-age(zed, 24) with has-age(zed, 30)"))
 	h.check("and the question is answered by the fact it left",
@@ -688,7 +709,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// A loaded rule joins the search, which is the point of keeping the format writeable.
 	rulePath = scratch("loaded-rules.kb")
 	writeFile(rulePath, ["is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)"])
-	loadedRules = startSession(family + [], [],
+	loadedRules = saying(family + [], [],
 		["/load-rules " + quoted(rulePath), "is-grandparent-of(bill, ?who)"], null, 0, null, {})
 	file.delete(rulePath)
 	h.check("/load-rules replaces the rules with the file's", loadedRules.session.rules.len == 1 and

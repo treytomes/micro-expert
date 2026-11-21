@@ -6,11 +6,12 @@
 //
 //   miniscript src/sample.ms
 //   miniscript src/sample.ms --verbose
+//   miniscript src/sample.ms --nlp
 //   miniscript src/sample.ms --depth 1
 //
 // What it does is what any host of the engine does: import triples.ms, build the
 // knowledge base with that copy of it, and ask. It declares its own options with the
-// same cli library, because --depth and --verbose change what an answer reads like.
+// same cli library, because --depth, --verbose and --nlp change what an answer reads like.
 
 import "cli/cli"
 import "triples"
@@ -36,6 +37,13 @@ cli.add(cmd, {
 	"default": 0,
 	"description": "Print the proof tree behind each answer.",
 })
+cli.add(cmd, {
+	"name": "nlp",
+	"aliases": ["--nlp"],
+	"type": "flag",
+	"default": 0,
+	"description": "Say answers, and the proof tree under them, as sentences.",
+})
 
 options = cli.parse(cmd, shellArgs)
 
@@ -57,6 +65,7 @@ end if
 
 depth = options.values.depth
 verbose = options.values.verbose
+nlp = options.values.nlp
 
 // ── Shorthands ───────────────────────────────────────────────────────────────
 // Globals, so the questions at the bottom read the way the facts are written.
@@ -124,12 +133,17 @@ runQuery = function(query)
 		return
 	end if
 	for proof in proofs
-		// The answer is said rather than shown: the predicate's dashes are the spaces of the
-		// sentence, so the query prints a line of English under its own aim. --verbose hangs
-		// the proof tree under that sentence rather than printing it in the sentence's place.
-		print "  " + triples.substitute(query, proof.binds).sentence
+		// --nlp says the answer rather than showing it: the predicate's dashes are the spaces
+		// of the sentence, so the query prints a line of English under its own aim.
+		answer = triples.substitute(query, proof.binds)
+		if nlp then
+			print "  " + answer.sentence
+		else
+			print "  " + answer.text
+		end if
+		// --verbose hangs the proof tree under the answer, said the same way the answer was.
 		if verbose then
-			for line in triples.proofLines(proof, "  ")
+			for line in triples.proofLines(proof, "  ", nlp)
 				print line
 			end for
 		end if
