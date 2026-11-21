@@ -10,6 +10,7 @@
     { "include": "#numbers" },
     { "include": "#grouping" },
     { "include": "#predicate" },
+    { "include": "#field-types" },
     { "include": "#punctuation" }
   ],
   "repository": {
@@ -36,6 +37,10 @@
     "predicate": {
       "match": "\\b[A-Za-z_][A-Za-z0-9_-]*(?=\\s*\\()",
       "name": "entity.name.function.predicate.micro-expert-kb"
+    },
+    "field-types": {
+      "match": "\\b(?:datetime|date|time|number|text|boolean)\\b",
+      "name": "storage.type.micro-expert-kb"
     },
     "punctuation": {
       "match": "[(),]",
