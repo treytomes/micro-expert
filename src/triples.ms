@@ -219,8 +219,8 @@ end function
 // A rule body is a list of goals, and it may also hold constraints: conditions that are
 // checked against the bindings rather than proved by search. They are written as calls
 // like everything else - not-equal(?x, ?y), equal(?n, 18), less-than-or-equal(?n, 18),
-// age(?b, ?n) - and their names are reserved, so no fact and no question can use one as a
-// predicate.
+// years-since(?b, ?n) - and their names are reserved, so no fact and no question can use one
+// as a predicate.
 
 // not-equal and equal read their two terms as they are, whatever type they hold: not-equal
 // asks that they differ, equal that they are the same one. Their names are reserved like a
@@ -300,17 +300,18 @@ comparisonCall = function(symbol)
 	return symbol
 end function
 
-// age is the one constraint that computes: it reads a birthdate and the age that date
-// stands for on the day the search runs, and binds the side that is still a variable. It is
-// what lets a rule work out an age, which the goals alone cannot do - a goal proves a fact,
-// and a comparison only reads numbers that are already there.
+// years-since is the one constraint that computes: it reads a date and the whole years
+// between it and the day the search runs, and binds the side that is still a variable. It is
+// what lets a rule work out a value, which the goals alone cannot do - a goal proves a fact,
+// and a comparison only reads numbers that are already there. An age is one use of it, a
+// birthdate being a date like any other.
 //
 // The day is the host's today unless a caller pins one, which is what the suite does so a
 // check cannot quietly change on somebody's birthday:
 //
 //   triples.today = {"year": 2019, "month": 4, "day": 1}
 
-ageName = "age"
+sinceName = "years-since"
 
 today = null
 
@@ -321,10 +322,10 @@ dayToday = function
 	return {"year": val(parts[0]), "month": val(parts[1]), "day": val(parts[2])}
 end function
 
-ageYears = function(birthdate, on)
-	"The whole years from a yyyy-MM-dd birthdate to a day, or null when that is no birthdate or no age yet."
-	if not (birthdate isa string) then return null
-	parts = birthdate.split("-")
+yearsSince = function(when, on)
+	"The whole years from a yyyy-MM-dd date to a day, or null when that is not a date or it has not arrived yet."
+	if not (when isa string) then return null
+	parts = when.split("-")
 	if parts.len != 3 then return null
 	if parts[0].len != 4 or parts[1].len != 2 or parts[2].len != 2 then return null
 	if not digitsOnly(parts[0]) or not digitsOnly(parts[1]) or not digitsOnly(parts[2]) then return null
@@ -366,28 +367,28 @@ leapYear = function(year)
 	return year % 400 == 0
 end function
 
-Age = {}
+YearsSince = {}
 
-Age.make = function(birthdate, age)
-	"Builds a 'this birthdate is this age on the day the search runs' constraint."
-	c = new Age
-	c.birthdate = birthdate
-	c.age = age
+YearsSince.make = function(date, years)
+	"Builds a 'this date is this many years before the day the search runs' constraint."
+	c = new YearsSince
+	c.date = date
+	c.years = years
 	return c
 end function
 
-Age.text = function
-	"Says how the constraint reads: age(?b, ?a)."
-	return ageName + "(" + termText(self.birthdate) + ", " + termText(self.age) + ")"
+YearsSince.text = function
+	"Says how the constraint reads: years-since(2019-04-01, ?n)."
+	return sinceName + "(" + termText(self.date) + ", " + termText(self.years) + ")"
 end function
 
-ageBinds = function(constraint, binds)
-	"The bindings that make the age the birthdate's, or null when the branch ends."
-	birthdate = substitute(constraint.birthdate, binds)
-	wanted = substitute(constraint.age, binds)
-	years = ageYears(birthdate, dayToday())
+yearsSinceBinds = function(constraint, binds)
+	"The bindings that make the years the date's, or null when the branch ends."
+	date = substitute(constraint.date, binds)
+	wanted = substitute(constraint.years, binds)
+	years = yearsSince(date, dayToday())
 	if years == null then return null
-	if wanted isa Var then return unifyTerms(constraint.age, years, binds)
+	if wanted isa Var then return unifyTerms(constraint.years, years, binds)
 	if not (wanted isa number) then return null
 	if wanted != years then return null
 	return binds
@@ -396,7 +397,7 @@ end function
 isConstraint = function(term)
 	"Says whether a term names a constraint, which a body checks rather than a line storing or asking it."
 	if not (term isa string) then return false
-	return term == notEqualName or term == equalName or term == ageName or
+	return term == notEqualName or term == equalName or term == sinceName or
 		comparisonNames.hasIndex(term) != 0
 end function
 
@@ -433,7 +434,7 @@ end function
 applyConstraint = function(constraint, binds)
 	"The bindings a constraint leaves, or null when the branch ends: the ones it was given, unless it bound something."
 	if constraint isa Equal then return equalBinds(constraint, binds)
-	if constraint isa Age then return ageBinds(constraint, binds)
+	if constraint isa YearsSince then return yearsSinceBinds(constraint, binds)
 	if holdsConstraint(constraint, binds) then return binds
 	return null
 end function
@@ -530,9 +531,9 @@ end function
 
 renameConstraint = function(constraint, suffix)
 	"Copies a constraint, renaming the variables it mentions."
-	if constraint isa Age then
-		return Age.make(renameTerm(constraint.birthdate, suffix),
-			renameTerm(constraint.age, suffix))
+	if constraint isa YearsSince then
+		return YearsSince.make(renameTerm(constraint.date, suffix),
+			renameTerm(constraint.years, suffix))
 	end if
 	if constraint isa Equal then
 		return Equal.make(renameTerm(constraint.left, suffix),
@@ -907,9 +908,18 @@ bodyRequirements = function(conditions, facts, rules, depth, binds, open, newVar
 		// A constraint is checked here rather than proved, so it asks for no fact; one
 		// that binds still settles a variable for the conditions after it.
 		settled = applyConstraint(first, binds)
-		if settled == null then return []
-		return bodyRequirements(conditions[1:], facts, rules, depth, settled, open, newVars,
-			reportOpen)
+		if settled != null then
+			return bodyRequirements(conditions[1:], facts, rules, depth, settled, open, newVars,
+				reportOpen)
+		end if
+		// It may be waiting on a fact this body has already listed, which would settle the
+		// field it cannot read yet - the birthdate an age is counted from, say. It asks for
+		// nothing itself, and the fact it waits on is already in the report.
+		if promisedBy(judgeableTerms(first), binds, newVars) then
+			return bodyRequirements(conditions[1:], facts, rules, depth, binds, open, newVars,
+				reportOpen)
+		end if
+		return []
 	end if
 	options = []
 	// The bindings a condition proves carry into the conditions after it, so each of
@@ -969,6 +979,35 @@ end function
 missingFact = function(triple, settled)
 	"One fact the report mentions, and whether a fact already listed would settle it."
 	return {"triple": triple, "settled": settled}
+end function
+
+constraintTerms = function(constraint)
+	"Every field a constraint reads, in the order it writes them."
+	if constraint isa YearsSince then return [constraint.date, constraint.years]
+	return [constraint.left, constraint.right]
+end function
+
+judgeableTerms = function(constraint)
+	"Every field a constraint must read to be judged: years-since binds its second field, so only the date has to be settled first."
+	if constraint isa YearsSince then return [constraint.date]
+	return constraintTerms(constraint)
+end function
+
+promisedBy = function(terms, binds, newVars)
+	"Says whether a fact already listed would settle every field still free, so the check can only be judged once that fact exists."
+	if newVars.len == 0 then return false
+	waiting = false
+	for term in terms
+		if term isa Var then
+			value = term
+			if binds != null then value = deref(term, binds)
+			if value isa Var then
+				waiting = true
+				if newVars.hasIndex(value.name) == 0 then return false
+			end if
+		end if
+	end for
+	return waiting
 end function
 
 coveredBy = function(triple, newVars)
@@ -1297,7 +1336,7 @@ splitConditions = function(text)
 end function
 
 parseCondition = function(text, line)
-	"Reads one condition of a rule body: a triple, or a constraint such as not-equal(?x, ?y), equal(?n, 18), age(?b, ?a) or less-than-or-equal(?n, 18)."
+	"Reads one condition of a rule body: a triple, or a constraint such as not-equal(?x, ?y), equal(?n, 18), years-since(2019-04-01, ?n) or less-than-or-equal(?n, 18)."
 	text = trimSpace(text)
 	if text == "" then return err(badRule(line))
 	constraint = constraintOf(text)
@@ -1322,7 +1361,7 @@ constraintOf = function(text)
 	if left == "" or right == "" then return err(expected)
 	if name == equalName then return Equal.make(termOf(left), termOf(right))
 	if name == notEqualName then return NotEqual.make(termOf(left), termOf(right))
-	if name == ageName then return Age.make(termOf(left), termOf(right))
+	if name == sinceName then return YearsSince.make(termOf(left), termOf(right))
 	return Comparison.make(comparisonNames[name], termOf(left), termOf(right))
 end function
 

@@ -649,18 +649,18 @@ run = function(t, rules, host, h, schema, knowledge, library)
 			"  refused: less-than-or-equal(?n, 18): the predicate is a constraint, checked in a rule body rather than stored or asked") and
 			question.answers.asked.len == 2 and not holds(question.answers.lines, "no solution"))
 
-	// age is a constraint as well, and a line naming it is refused whether or not the rest of
-	// it would look like a fact about somebody's birthday.
-	agedFact = startSession([], [], ["age(tim, 24)"])
-	h.check("an age constraint cannot be stored as a fact",
-		printed(agedFact.answers.lines,
-			"  refused: age(tim, 24): the predicate is a constraint, checked in a rule body rather than stored or asked") and
-			agedFact.session.facts.len == 0)
-	agedQuestion = startSession([], [], ["age(tim, ?n)"])
-	h.check("an age constraint cannot be asked as a question",
-		printed(agedQuestion.answers.lines,
-			"  refused: age(tim, ?n): the predicate is a constraint, checked in a rule body rather than stored or asked") and
-			agedQuestion.answers.asked.len == 2 and not holds(agedQuestion.answers.lines, "no solution"))
+	// years-since is a constraint as well, and a line naming it is refused whether or not the
+	// rest of it would look like a fact about the date.
+	sinceFact = startSession([], [], ["years-since(2019-04-01, 7)"])
+	h.check("a years-since constraint cannot be stored as a fact",
+		printed(sinceFact.answers.lines,
+			"  refused: years-since(2019-04-01, 7): the predicate is a constraint, checked in a rule body rather than stored or asked") and
+			sinceFact.session.facts.len == 0)
+	sinceQuestion = startSession([], [], ["years-since(2019-04-01, ?n)"])
+	h.check("a years-since constraint cannot be asked as a question",
+		printed(sinceQuestion.answers.lines,
+			"  refused: years-since(2019-04-01, ?n): the predicate is a constraint, checked in a rule body rather than stored or asked") and
+			sinceQuestion.answers.asked.len == 2 and not holds(sinceQuestion.answers.lines, "no solution"))
 
 	// ── Saving and loading the domain's components ──────────────────────────
 	// The commands write what the session holds in the format the loaders read, so these

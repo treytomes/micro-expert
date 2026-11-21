@@ -20,7 +20,7 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 		"is-grandma-of(?x, ?y) <- is-parent-of(?p, ?y), is-parent-of(?x, ?p), has-gender(?x, female)",
 		"is-in-law-of(?x, ?y) <- or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(is-sibling-of(?x, ?p), married-to(?p, ?y)))",
 		"is-only-child-of(?x, ?y) <- is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))",
-		"has-age(?x, ?n) <- has-birthdate(?x, ?b), age(?b, ?n)",
+		"has-age(?x, ?n) <- has-birthdate(?x, ?b), years-since(?b, ?n)",
 		"belongs-to-age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)",
 		"belongs-to-age-group(?x, adult) <- has-age(?x, ?n), not(belongs-to-age-group(?x, child))",
 		"shares-age-group-with(?x, ?y) <- belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h), not-equal(?x, ?y)",

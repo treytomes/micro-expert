@@ -46,7 +46,7 @@
 // not name is accepted as written.
 //
 // unique(...) around one field's type says that field holds at most one value for each
-// of the other: has-age(text, unique(number)) is one age per person, not a list of them.
+// of the other: has-birthdate(text, unique(date)) is one birthdate per person, not a list.
 // It is a property of the pair rather than of the value - 24 fits an age wherever it
 // stands - so it is checked against the facts already held, by the prompt before it
 // stores one and by the facts loader over the whole file. A predicate a rule concludes

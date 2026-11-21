@@ -12,7 +12,7 @@ one does, what it does with a variable that is still unbound, and what it refuse
 
 ```bnf
 <constraint>       ::= <constraint-name> "(" <term> "," <term> ")"
-<constraint-name>  ::= "not-equal" | "equal" | "age"
+<constraint-name>  ::= "not-equal" | "equal" | "years-since"
                      | "less-than" | "less-than-or-equal"
                      | "greater-than" | "greater-than-or-equal"
 ```
@@ -21,7 +21,7 @@ one does, what it does with a variable that is still unbound, and what it refuse
 | --- | --- | --- | --- |
 | `not-equal` | identity | the two fields are not the same term | no |
 | `equal` | identity | the two fields are the same term | yes |
-| `age` | calendar | the first field is a date, and the second is the whole years to today | yes, the age |
+| `years-since` | calendar | the first field is a date, and the second is the whole years since it | yes, the years |
 | `less-than` | comparison | both are numbers and the left is smaller | no |
 | `less-than-or-equal` | comparison | both are numbers and the left is smaller or the same | no |
 | `greater-than` | comparison | both are numbers and the left is larger | no |
@@ -84,34 +84,40 @@ Whatever `equal` settles is visible to the conditions after it, to the answer, a
 missing-fact report — the body of `shares-age-group-with` can go looking for the second person
 with `?h` already bound to the first person's group.
 
-## `age`
+## `years-since`
 
-`age` is the one constraint that works a value out rather than only checking one:
-`age(?birthdate, ?age)` reads its first field as a date written `YYYY-MM-DD` and binds the
+`years-since` is the one constraint that works a value out rather than only checking one:
+`years-since(date, years)` reads its first field as a date written `YYYY-MM-DD` and binds the
 second to the whole years between that date and today. A birthday that has not come round yet
-this year is not counted, so the answer is the age on the day the search runs: on the 21st of
-November 2026, `age("1948-03-14", ?n)` binds `?n` to 78.
+this year is not counted, so the answer is the years on the day the search runs: on the 21st
+of November 2026, `years-since("1948-03-14", ?n)` binds `?n` to 78.
 
-The reason it is a constraint is the reason the comparisons are: a goal can only prove a
-fact, so a search can reach a birthdate but cannot write down the age it implies. The shipped
-rule is the shape that needs it:
+It is not about ages in particular. A birthdate is one date among others, and the same
+constraint counts the years since a founding, a move or a hire; the shipped rule is simply
+the one this domain needed:
 
 ```prolog
 // ?x is ?n years old on the day this runs. The birthdate is the fact and the age is
-// arithmetic, so age(...) does the counting: a goal can only prove a fact, and a
+// arithmetic, so years-since(...) does the counting: a goal can only prove a fact, and a
 // comparison only reads a number that is already there.
-has-age(?x, ?n) => and(has-birthdate(?x, ?b), age(?b, ?n))
+has-age(?x, ?n) => and(has-birthdate(?x, ?b), years-since(?b, ?n))
 ```
 
-Both fields may be ground, and then it checks: `age("1948-03-14", 78)` passes today, and
-`age("1948-03-14", 79)` does not. A first field that is not a date has no age and ends the
-branch — `age(yesterday, ?n)`, `age("1948-3-14", ?n)` and `age("2019-02-30", ?n)` all fail —
-so a birthdate that reads as a different day cannot be counted by accident. The second field
-is a number of whole years: a variable takes it, and anything else is checked against one.
+Both fields may be ground, and then it checks: `years-since("1948-03-14", 78)` passes today,
+and `years-since("1948-03-14", 79)` does not. A first field that is not a date has no years
+and ends the branch — `years-since(yesterday, ?n)`, `years-since("1948-3-14", ?n)` and
+`years-since("2019-02-30", ?n)` all fail — so a date that reads as a different day cannot be
+counted by accident. The second field is a number of whole years: a variable takes it, and
+anything else is checked against one.
+
+The report that says what a solution would need reads the same body, so a field the constraint
+cannot read yet is carried past the fact already listed that would settle it: asking for
+`has-age(zed, ?n)` with nothing about zed offers a `has-birthdate(zed, ?b)` to add, as well as
+the fact shaped like the goal.
 
 A date before 1970 is counted like any other, since the calendar is read here rather than by
-the host, whose own dates begin in that year: walter's `1948-03-14` is an age and not a
-refusal. **Today** is the host's clock unless `triples.today` is pinned to a table of `year`,
+the host, whose own dates begin in that year: walter's `1948-03-14` is a count of years and not
+a refusal. **Today** is the host's clock unless `triples.today` is pinned to a table of `year`,
 `month` and `day`; the checks pin it, so a birthday cannot quietly change a test's answer.
 
 ## Comparisons
@@ -200,7 +206,7 @@ puts the line number in front, the same way it reports any other broken entry. I
 
 | File | What it holds |
 | --- | --- |
-| `src/triples.ms` | the constraints section: the seven names, `NotEqual`, `Equal`, `Age`, `Comparison`, `comparisonHolds`, `holdsConstraint`, `applyConstraint`, `renameConstraint` |
+| `src/triples.ms` | the constraints section: the seven names, `NotEqual`, `Equal`, `YearsSince`, `Comparison`, `comparisonHolds`, `holdsConstraint`, `applyConstraint`, `renameConstraint` |
 | `src/knowledge.ms` | `parseCondition` and `constraintOf`, which read a constraint call out of a rule body |
 | `src/session.ms` | `refuseConstraint`, which keeps a constraint's name from being stored or asked at the prompt |
 | `src/rule.ms` | the body solver's use of `applyConstraint`; a constraint adds no proof step |

@@ -52,7 +52,7 @@ a character that is not a space or a tab.
 
 <constraint-name>  ::= "not-equal"
                      | "equal"
-                     | "age"
+                     | "years-since"
                      | "less-than"
                      | "less-than-or-equal"
                      | "greater-than"
@@ -224,7 +224,7 @@ is-only-child-of(?x, ?y) => and(is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))
 
 ```bnf
 <constraint>       ::= <constraint-name> <field-list>
-<constraint-name>  ::= "not-equal" | "equal" | "age"
+<constraint-name>  ::= "not-equal" | "equal" | "years-since"
                      | "less-than" | "less-than-or-equal"
                      | "greater-than" | "greater-than-or-equal"
 ```
@@ -234,8 +234,9 @@ search, and it is written as a call so that a body keeps one shape. It takes exa
 fields, both non-empty: `not-equal(?x)` and `equal(?n)` are refused.
 
 `not-equal` and `equal` read their fields as they are, whatever type they hold; `equal` can
-also bind a field that is still a variable. `age` reads its first field as a `YYYY-MM-DD`
-date and binds the second to the years since it. The four comparisons read arithmetically and
+also bind a field that is still a variable. `years-since` reads its first field as a
+`YYYY-MM-DD` date and binds the second to the whole years since it. The four comparisons read
+arithmetically and
 need a number on each side, so a name never passes for a zero.
 
 ```prolog
