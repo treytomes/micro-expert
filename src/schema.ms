@@ -28,6 +28,7 @@
 // with the family rather than standing in its way.
 
 import "knowledge"
+import "datetimes"
 
 build = function(path=null)
 	"Reads the schema file at path - data/schema.kb when none is named - and returns {predicate: [field type, field type]}, or an error."
@@ -69,15 +70,16 @@ derivedUniques = function(types, rules)
 	return knowledge.derivedUniques(types, rules)
 end function
 
-// The object the three date types mean. A fact keeps its value as text, and receive turns
-// a fitting text into a Temporal, which formats, moves and orders it:
+// The object the three date types mean. A fact keeps its value as text, and datetimes.ms's
+// receive turns a fitting text into a Temporal, which formats, moves and orders it. The
+// reader is handed on here so a caller holding a fact's text never needs a second import:
 //
 //   when = schema.receive("2019-04-01 09:30:00")
 //   print when.str("HH:mm")
 
-Temporal = knowledge.Temporal
+Temporal = datetimes.Temporal
 
 receive = function(text, kind=null)
 	"Reads a date, time or datetime text into a Temporal, or says what is wrong with it."
-	return knowledge.receive(text, kind)
+	return datetimes.receive(text, kind)
 end function

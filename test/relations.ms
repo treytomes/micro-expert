@@ -428,6 +428,16 @@ run = function(t, rules, h)
 	h.check("the report offers the fact a comparison is waiting on",
 		olderLines.indexOf("through rule older-than(?x, ?n)") != null and
 			olderLines.indexOf("has-age(zed, ?n)") != null)
+	// A constraint that binds settles a field a later check reads, so the deferral has to
+	// carry that promise too: years-since cannot give ?n a value until the birthdate exists,
+	// and the comparison after it waits on that same birthdate rather than ending the branch.
+	birthdayRule = rule(spo(v("x"), "over-65", v("n")),
+		[spo(v("x"), "has-birthdate", v("b")), t.YearsSince.make(v("b"), v("n")),
+			t.Comparison.make(">", v("n"), 65)])
+	birthdayLines = t.neededFactLines(spo("zed", "over-65", v("n")), [], [birthdayRule], 3).join("|")
+	h.check("the report offers the birthdate a computed comparison is waiting on",
+		birthdayLines.indexOf("through rule over-65(?x, ?n)") != null and
+			birthdayLines.indexOf("has-birthdate(zed, ?b)") != null)
 	t.today = savedToday
 
 	// ── A body that compares numbers ────────────────────────────────────────

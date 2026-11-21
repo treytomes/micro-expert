@@ -295,7 +295,7 @@ number field keeps it too - but the digits typed there are the number they spell
 A field can also be typed `date`, `time` or `datetime`, and then a fact stores one as text
 in the one shape the type fixes - `2019-04-01`, `09:30:00`, `2019-04-01 09:30:00`. A value
 written any other way, or a day the calendar does not have, is refused like any other misfit.
-`src/knowledge.ms` can read a fitting value into a `Temporal`, which formats it, moves it by
+`src/datetimes.ms` can read a fitting value into a `Temporal`, which formats it, moves it by
 seconds and orders it against another of its kind, so a script working with a stored fact
 has the value and not only its text.
 
@@ -482,7 +482,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-553 passed, 0 failed
+554 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -498,8 +498,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 552 skipped
-##END {"passed":1,"failed":0,"skipped":552}
+1 passed, 0 failed, 553 skipped
+##END {"passed":1,"failed":0,"skipped":553}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -514,9 +514,9 @@ The parser, the logger and the repl library are their own repositories with thei
 by the same interpreter, and this suite imports none of them. It keeps one check about the
 repl library, and that one is about this repository rather than the library: `examples/notes.ms`
 is a whole program written on the library and nothing else, and `test/repl.ms` is what says so.
-The 553 cover the program itself: display and parsing (32), the knowledge data format (81), the
+The 554 cover the program itself: display and parsing (32), the knowledge data format (81), the
 predicate schema (73), the loaders (19), proofs and explanations (23), the missing-fact report
-(34), recursion and cycle handling (13), relations including the family rules (103), the session
+(34), recursion and cycle handling (13), relations including the family rules (104), the session
 at the prompt (158), the notes example on the repl library (1), the command line (6), and the domain (10).
 
 ## Repository layout
@@ -528,6 +528,7 @@ src/session.ms       the session's knowledge side: facts, rules, questions
 src/triples.ms       the solver: terms, unification, search, proofs
 src/rule.ms          the Rule class
 src/knowledge.ms     the reader and writer for the facts, rules and schema data
+src/datetimes.ms     the date, time and datetime types, and the calendar behind them
 src/facts.ms         loads the facts
 src/rules.ms         loads the rules
 src/schema.ms        loads the field types
@@ -539,7 +540,7 @@ examples/notes.ms    a whole host for the repl library that is not a knowledge b
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
 src/repl/            submodule: micro-repl, the loop and its commands
-test/                the 553 checks and their runner
+test/                the 554 checks and their runner
 docs/articles/       the long-form write-up
 docs/kb-grammar.md   the .kb grammar, its constraints and its schema
 docs/constraints.md  the seven built-in constraints, one by one

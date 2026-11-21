@@ -13,6 +13,11 @@
 //   // child(?x, ?y)
 //   print triples.unify(triples.SpoTriple.parse("child(?x, ?y)"),
 //       triples.SpoTriple.parse("child(susan, bill)"))   // {"x": "susan", "y": "bill"}
+//
+// The calendar a date is counted on is datetimes.ms's, imported here for the two readings a
+// constraint makes of one: the digits a date is written with, and the length of its month.
+
+import "datetimes"
 
 // ── List combinators ─────────────────────────────────────────────────────────
 // Small list operations, so the functions below can say what they do with a list
@@ -328,43 +333,19 @@ yearsSince = function(text, on)
 	parts = text.split("-")
 	if parts.len != 3 then return null
 	if parts[0].len != 4 or parts[1].len != 2 or parts[2].len != 2 then return null
-	if not digitsOnly(parts[0]) or not digitsOnly(parts[1]) or not digitsOnly(parts[2]) then return null
+	if not datetimes.allDigits(parts[0]) or not datetimes.allDigits(parts[1]) or
+		not datetimes.allDigits(parts[2]) then return null
 	year = val(parts[0])
 	month = val(parts[1])
 	day = val(parts[2])
-	// The calendar is read here rather than by the host, whose dates begin in 1970 and
+	// The calendar is datetimes.ms's rather than the host's, whose dates begin in 1970 and
 	// would roll 2019-02-30 forward like any other impossible day.
 	if year < 1 or month < 1 or month > 12 then return null
-	if day < 1 or day > daysInMonth(year, month) then return null
+	if day < 1 or day > datetimes.daysInMonth(year, month) then return null
 	years = on.year - year
 	if on.month < month or (on.month == month and on.day < day) then years = years - 1
 	if years < 0 then return null
 	return years
-end function
-
-digitsOnly = function(text)
-	"Says whether every character is a decimal digit."
-	for c in text
-		if "0123456789".indexOf(c) == null then return false
-	end for
-	return true
-end function
-
-daysInMonth = function(year, month)
-	"How many days a calendar month has, February counting its leap day."
-	if month == 2 then
-		if leapYear(year) then return 29
-		return 28
-	end if
-	if month == 4 or month == 6 or month == 9 or month == 11 then return 30
-	return 31
-end function
-
-leapYear = function(year)
-	"Every fourth year, but not every hundredth, except every four hundredth."
-	if year % 4 != 0 then return false
-	if year % 100 != 0 then return true
-	return year % 400 == 0
 end function
 
 YearsSince = {}
@@ -914,10 +895,13 @@ bodyRequirements = function(conditions, facts, rules, depth, binds, open, newVar
 		end if
 		// It may be waiting on a fact this body has already listed, which would settle the
 		// field it cannot read yet - the birthdate an age is counted from, say. It asks for
-		// nothing itself, and the fact it waits on is already in the report.
+		// nothing itself, and the fact it waits on is already in the report. One that binds
+		// settles a field of its own once it can be judged, so a condition after it waiting on
+		// that field waits on the same fact: years-since gives ?n a value, and a comparison
+		// reading ?n is carried along rather than ending the branch.
 		if promisedBy(constraintTerms(first), binds, newVars) then
-			return bodyRequirements(conditions[1:], facts, rules, depth, binds, open, newVars,
-				reportOpen)
+			return bodyRequirements(conditions[1:], facts, rules, depth, binds, open,
+				promiseVars(newVars, settles(first)), reportOpen)
 		end if
 		return []
 	end if
@@ -987,6 +971,12 @@ constraintTerms = function(constraint)
 	return [constraint.left, constraint.right]
 end function
 
+settles = function(constraint)
+	"The fields a constraint binds once it can be judged: years-since's years, and nothing for the others."
+	if constraint isa YearsSince then return [constraint.years]
+	return []
+end function
+
 promisedBy = function(terms, binds, newVars)
 	"Says whether a fact already listed would settle every field still free, so the check can only be judged once that fact exists."
 	waiting = false
@@ -995,7 +985,12 @@ promisedBy = function(terms, binds, newVars)
 			value = substitute(term, binds)
 			if value isa Var then
 				waiting = true
-				if newVars.hasIndex(value.name) == 0 then return false
+				// A rule's variables are renamed and the head is unified with the goal's, so one free
+				// variable can stand under two names here: the one the constraint writes and the one
+				// it derefs to. Either of them promised is the same promise.
+				if newVars.hasIndex(term.name) == 0 and newVars.hasIndex(value.name) == 0 then
+					return false
+				end if
 			end if
 		end if
 	end for
@@ -1012,11 +1007,18 @@ end function
 
 extendVars = function(newVars, needs)
 	"The variables these missing facts would bind, added to the ones already promised."
-	extended = newVars + {}
+	terms = []
 	for need in needs
-		for part in need.triple.parts
-			if part isa Var then extended[part.name] = 1
-		end for
+		terms = terms + need.triple.parts
+	end for
+	return promiseVars(newVars, terms)
+end function
+
+promiseVars = function(newVars, terms)
+	"The variables these terms would bind, added to the ones already promised."
+	extended = newVars + {}
+	for term in terms
+		if term isa Var then extended[term.name] = 1
 	end for
 	return extended
 end function

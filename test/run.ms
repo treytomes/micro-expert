@@ -21,11 +21,30 @@
 // contains, so it imports none of theirs; the single check it keeps about the library is in
 // test/repl.ms, and it is about this repository's notes example rather than the library.
 
+// The program's own modules load first, with src/ on the import path: the solver and the data
+// reader reach datetimes.ms by bare import, rules.ms and facts.ms name their neighbours the
+// same way, and session.ms reaches the repl library likewise, since a
+// two-segment import inside a module binds no name. The interpreter resolves a bare import
+// inside a module against the entry folder, which is this one, so without the path none of
+// those would be found. The library loads before the session, as src/session.ms requires; its
+// header says why. The path is put back afterwards, so the case modules below load as they
+// would alone.
+savedImportPath = env["MS_IMPORT_PATH"]
+env["MS_IMPORT_PATH"] = "src"
+import "cli/cli"
+import "repl/repl"
 import "../src/triples"
 import "../src/rule"
 import "../src/knowledge"
+import "../src/datetimes"
 import "../src/domain"
 import "../src/options"
+import "../src/session"
+import "../src/rules"
+import "../src/facts"
+import "../src/schema"
+env["MS_IMPORT_PATH"] = savedImportPath
+
 import "harness"
 import "display"
 import "proofs"
@@ -80,26 +99,14 @@ replCases = globals["repl"]
 // knowledge.ms is the parser behind the data files, aliased away for the same reason:
 // `knowledge` is this suite's own case module for it.
 parser = globals["../src/knowledge"]
+// datetimes.ms is the date, time and datetime types the schema reads and the age constraint
+// counts on, aliased away from this suite's `schema` case module.
+dates = globals["../src/datetimes"]
 // domain.ms places the three data files a run reads; it is aliased away from the case
 // module below, which is named domain.ms too.
 domainModule = globals["../src/domain"]
 // options.ms is the program's option table; `options` is this suite's case module for it.
 optionsModule = globals["../src/options"]
-
-// rules.ms and facts.ms name their neighbours by bare import, which the interpreter resolves
-// against the entry folder, so src/ goes on the import path for those loads; session.ms reaches
-// the repl library the same way, since a two-segment import inside a module binds no name. The
-// library loads first, as src/session.ms requires; its header says why. The path is put
-// back afterwards, so the suite leaves the environment as it found it.
-savedImportPath = env["MS_IMPORT_PATH"]
-env["MS_IMPORT_PATH"] = "src"
-import "cli/cli"
-import "repl/repl"
-import "../src/session"
-import "../src/rules"
-import "../src/facts"
-import "../src/schema"
-env["MS_IMPORT_PATH"] = savedImportPath
 
 // The library and the session module, both loaded by the block above.
 replLibrary = globals["repl/repl"]
@@ -156,7 +163,7 @@ recursion.run(triples, rules, harness)
 relations.run(triples, rules, harness)
 sessionCases.run(triples, rules, sessionModule, harness, schemaLoader, parser, replLibrary)
 replCases.run(harness)
-schema.run(triples, parser, schemaLoader, harness)
+schema.run(triples, parser, dates, schemaLoader, harness)
 loaders.run(triples, rulesLoader, factsLoader, schemaLoader, harness)
 globals["domain"].run(domainModule, harness)
 globals["options"].run(cliLibrary, optionsModule, harness)

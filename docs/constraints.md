@@ -113,10 +113,16 @@ anything else is checked against one.
 The report that says what a solution would need reads the same body, so a field the constraint
 cannot read yet is carried past the fact already listed that would settle it: asking for
 `has-age(zed, ?n)` with nothing about zed offers a `has-birthdate(zed, ?b)` to add, as well as
-the fact shaped like the goal.
+the fact shaped like the goal. A condition after it that reads the years keeps the same
+promise, since the constraint settles them once that fact exists:
 
-A date before 1970 is counted like any other, since the calendar is read here rather than by
-the host, whose own dates begin in that year: walter's `1948-03-14` is a count of years and not
+```prolog
+// The age is worked out and then compared, and the report names the birthdate, not nothing.
+over-65(?x, ?n) => and(has-birthdate(?x, ?b), years-since(?b, ?n), greater-than(?n, 65))
+```
+
+A date before 1970 is counted like any other, since the calendar is counted rather than taken
+from the host, whose own dates begin in that year: walter's `1948-03-14` is a count of years and not
 a refusal. **Today** is the host's clock unless `triples.today` is pinned to a table of `year`,
 `month` and `day`; the checks pin it, so a birthday cannot quietly change a test's answer.
 
@@ -146,10 +152,12 @@ belongs-to-age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 1
 A comparison on a variable that a later condition would have bound cannot wait: it is checked
 where it stands, so it ends the branch. The same is true in the report that says what a
 solution would need — the comparison is checked against what is known, and with its field
-still free the branch is gone, so the rule is never offered. `equal` does not have that
-problem, because it binds rather than checks. A field a fact *earlier* in the body would
-settle is the one exception: the report carries the check past that fact instead of ending
-the branch, which is how a missing age names the birthdate.
+still free the branch is gone, so that body is not offered as a way to answer. `equal` does
+not have that problem, because it binds rather than checks. Two kinds of field are the
+exception, both settled by a fact the body has already listed: the report carries the check
+past that fact instead of ending the branch, which is how a missing age names the birthdate,
+and a field `years-since` *binds* waits the same way, since the years are settled once the
+date it reads exists.
 
 ## Constraint and grouping
 
@@ -210,6 +218,7 @@ puts the line number in front, the same way it reports any other broken entry. I
 | --- | --- |
 | `src/triples.ms` | the constraints section: the seven names, `NotEqual`, `Equal`, `YearsSince`, `Comparison`, `comparisonHolds`, `holdsConstraint`, `applyConstraint`, `renameConstraint` |
 | `src/knowledge.ms` | `parseCondition` and `constraintOf`, which read a constraint call out of a rule body |
+| `src/datetimes.ms` | the date, time and datetime types, and the calendar `years-since` counts on |
 | `src/session.ms` | `refuseConstraint`, which keeps a constraint's name from being stored or asked at the prompt |
 | `src/rule.ms` | the body solver's use of `applyConstraint`; a constraint adds no proof step |
 | `test/relations.ms` | the checks behind the binding, arithmetic and proof-tree behaviour |
