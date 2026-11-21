@@ -136,8 +136,9 @@ run = function(t, parser, schemaLoader, h)
 			"the object should be a date")
 	h.check("a clock time fits",
 		parser.schemaMisfit(dated, spo("acme", "opens-at", "09:30:00")) == null)
-	h.check("a clock time may leave the seconds off",
-		parser.schemaMisfit(dated, spo("acme", "opens-at", "09:30")) == null)
+	h.check("a time is written to the second",
+		parser.schemaMisfit(dated, spo("acme", "opens-at", "09:30")) ==
+			"the object should be a time")
 	h.check("there is no minute 60",
 		parser.schemaMisfit(dated, spo("acme", "opens-at", "09:60")) ==
 			"the object should be a time")
@@ -170,8 +171,7 @@ run = function(t, parser, schemaLoader, h)
 		parser.receive("2019-04-01T09:30:00") isa error)
 	h.check("another kind is not compared", when.compare(parser.receive("09:30:00")) isa error)
 	h.check("the kind is read off the text",
-		parser.receive("2019-04-01").kind == "date" and
-			parser.receive("09:30").kind == "time" and parser.receive("09:30").str == "09:30:00")
+		parser.receive("2019-04-01").kind == "date" and parser.receive("09:30:00").kind == "time")
 	h.check("a text of no kind is refused", parser.receive("nonsense") isa error)
 	h.check("the schema module reads a value into the same kind of object",
 		schemaLoader.receive("2019-04-01") isa schemaLoader.Temporal)

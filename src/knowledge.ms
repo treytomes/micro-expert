@@ -346,16 +346,15 @@ dateParts = function(text)
 end function
 
 timeParts = function(text)
-	"Reads HH:mm or HH:mm:ss into its value and parts, or says how the text is not a time."
+	"Reads HH:mm:ss into its value and parts, or says how the text is not a time."
 	pieces = text.split(":")
-	if pieces.len != 2 and pieces.len != 3 then
-		return err("a time is written HH:mm or HH:mm:ss: " + text)
-	end if
-	secondText = "00"
-	if pieces.len == 3 then secondText = pieces[2]
+	// To the second, so one clock time has one spelling: 09:30 and 09:30:00 would
+	// otherwise be two values a unique(time) field could hold for the same subject.
+	if pieces.len != 3 then return err("a time is written HH:mm:ss: " + text)
+	secondText = pieces[2]
 	if pieces[0].len != 2 or pieces[1].len != 2 or secondText.len != 2 or
 		not allDigits(pieces[0]) or not allDigits(pieces[1]) or not allDigits(secondText) then
-		return err("a time is written HH:mm or HH:mm:ss: " + text)
+		return err("a time is written HH:mm:ss: " + text)
 	end if
 	hour = val(pieces[0])
 	minute = val(pieces[1])

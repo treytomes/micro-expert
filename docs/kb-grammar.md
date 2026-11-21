@@ -254,7 +254,7 @@ shares-age-group-with(?x, ?y) => and(belongs-to-age-group(?x, ?g), equal(?g, ?h)
 ```
 
 One line per predicate, giving the type of each field in the order a fact writes them.
-Exactly two field types, both non-empty. A type is one of four things:
+Exactly two field types, both non-empty. A type is one of these:
 
 | Type | What fits it |
 | --- | --- |
@@ -262,15 +262,17 @@ Exactly two field types, both non-empty. A type is one of four things:
 | `text` | any text |
 | `boolean` | the word `true` or the word `false` |
 | `date` | a calendar date, `yyyy-MM-dd`: `2019-04-01` |
-| `time` | a clock time, `HH:mm` or `HH:mm:ss`: `09:30:00` |
+| `time` | a clock time, `HH:mm:ss`: `09:30:00` |
 | `datetime` | a date and a clock time, `yyyy-MM-dd HH:mm:ss`: `2019-04-01 09:30:00` |
 | `a\|b\|c` | one of these words, exactly |
 | `unique(t)` | a value of type `t`, and at most one of them per subject |
 
 The three date types keep their value as text in the fact, in the one shape the type
 fixes, and a value written any other way - or a day the calendar does not have - is
-refused like any other misfit. `src/knowledge.ms` reads a fitting value into a `Temporal`,
-which formats it, moves it by seconds and orders it against another of its kind.
+refused like any other misfit. A time is written to the second, so one clock time has one
+spelling and a `unique(time)` field cannot hold both `09:30` and `09:30:00` for one
+subject. `src/knowledge.ms` reads a fitting value into a `Temporal`, which formats it, moves
+it by seconds and orders it against another of its kind.
 
 ```prolog
 is-parent-of(text, text)
