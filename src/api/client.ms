@@ -1,28 +1,23 @@
-// client.ms — the API layer for geocode.maps.co and Open-Meteo: one HTTP request path, one
-// set of parameter checks, and an endpoint table for each service.
-//
-// It is one file because of how imports work here: a module imported by another module has
-// its imports discarded, so a layer split across files could not reach its own transport.
-// The sections below are the split the layer would have had.
+// client.ms — what both API programs share: one HTTP request path, one set of parameter
+// checks, and the cli library's declarations.
 //
 //   1. Transport      query strings, curl, the HTTP status, JSON, .env settings
 //   2. Parameters     names, types, ranges, required fields, one validator
-//   3. geocode.maps.co   /search, /reverse, /lookup and every parameter each accepts
-//   4. Open-Meteo     23 endpoints and every parameter each accepts
-//   5. Arguments      one reading of --name value, --name=value and --no-name
+//   3. Arguments      the cli library's declarations, and the split into options and words
 //
-// The Open-Meteo pages for UKMO, MeteoSwiss, KNMI, DMI, ItaliaMeteo, GeoSphere Austria and
-// CHMI Aladin are model presets on the forecast endpoint (models=ukmo_seamless and so on),
-// not endpoints of their own; so are the Ensemble Mean and Google WeatherNext pages. They
-// are reached through the models parameter, which every forecast endpoint accepts.
+// The two services live beside this file, one each: geocode.ms holds geocode.maps.co's three
+// endpoints and openmeteo.ms holds Open-Meteo's twenty-three. Neither can import this file -
+// this interpreter discards the imports of an imported module - so a program imports both and
+// hands them this module's map, which they call through: api.validate, api.get. The endpoint
+// tables are still the whole surface of each service; validate passes a name a table does not
+// list through untouched, for the parts the services extend without notice.
 //
 // Both services answer with JSON by default, and every request returns the same map:
 //
 //   {"ok": 1, "status": 200, "body": "...", "json": {...}, "url": "...", "error": null}
 //
 // A refused request is ok: 0 with the HTTP status and, when the service sent one, its own
-// "reason". Variable and model lists are passed through untouched: those are the parts the
-// services extend without notice, and the layer should not be the reason one is missing.
+// "reason".
 
 
 import "json"
@@ -234,6 +229,24 @@ findSetting = function(settingName)
 end function
 
 
+keyFrom = function(options, settingName)
+	"The caller's key when one was given, otherwise the environment or the nearest .env."
+	for candidate in ["apiKey", "api_key", "apikey"]
+		if options.hasIndex(candidate) then
+			value = options[candidate]
+			if value != null then return value
+		end if
+	end for
+	return findSetting(settingName)
+end function
+
+
+failure = function(message)
+	"The map a request answers with when it never went out: nothing but the message."
+	return {"ok": 0, "status": null, "body": "", "json": null, "url": "", "error": message}
+end function
+
+
 // ══ 2. Parameters ═══════════════════════════════════════════════════════════
 // An endpoint is a map with "params", a list of parameter specs. A spec is a map with
 // "name" and "type", and optionally "min", "max", "values", "required", "default",
@@ -327,6 +340,8 @@ coerce = function(paramSpec, value)
 
 	if kind == "int" or kind == "number" then
 		text = trimText(str(value))
+		// A number the table lets nan stand in for, such as a panel tilt, keeps the word.
+		if text.lower == "nan" and paramSpec.hasIndex("allowNan") then return {"ok": 1, "value": "nan"}
 		if not text.isNumeric then
 			if kind == "int" then return {"ok": 0, "problem": "must be a whole number"}
 			return {"ok": 0, "problem": "must be a number"}
@@ -359,17 +374,25 @@ coerce = function(paramSpec, value)
 				if text == "" then return {"ok": 0, "problem": "must not contain an empty value"}
 				clean.push text
 			else
-				if text.lower == "nan" and paramSpec.hasIndex("allowNan") then
-					clean.push "nan"
-					continue
-				end if
-				if not text.isNumeric then
-					return {"ok": 0, "problem": "must be a number or a comma-separated list of numbers"}
-				end if
-				number = val(text)
-				problem = rangeProblem(paramSpec, number)
-				if problem != null then return {"ok": 0, "problem": problem}
-				clean.push str(number)
+				// A list option gives one value per occurrence, and each may still be a
+				// comma-separated run, so both spellings of several coordinates arrive here.
+				for part in text.split(",")
+					part = trimText(part)
+					if part == "" then
+						return {"ok": 0, "problem": "must not contain an empty value"}
+					end if
+					if part.lower == "nan" and paramSpec.hasIndex("allowNan") then
+						clean.push "nan"
+						continue
+					end if
+					if not part.isNumeric then
+						return {"ok": 0, "problem": "must be a number or a comma-separated list of numbers"}
+					end if
+					number = val(part)
+					problem = rangeProblem(paramSpec, number)
+					if problem != null then return {"ok": 0, "problem": problem}
+					clean.push str(number)
+				end for
 			end if
 		end for
 		return {"ok": 1, "value": clean.join(",")}
@@ -438,498 +461,226 @@ validate = function(spec, options={})
 end function
 
 
-// ══ 3. geocode.maps.co ══════════════════════════════════════════════════════
-// Three GET endpoints, each with its own parameters; the tables are the whole surface.
-
-geocodeKeyName = "GEOCODE_MAPS_API_KEY"
-geocodeBase = "https://geocode.maps.co"
-geocodeFormats = ["json", "jsonv2", "xml", "geojson", "geocodejson"]
-
-geocodeEndpoints = {
-	"search": {
-		"path": "/search",
-		"doc": "An address, or a set of structured fields, to coordinates and a display name.",
-		"params": [
-			{"name": "q", "type": "text", "doc": "Free-form query, e.g. ""Eiffel Tower""."},
-			{"name": "amenity", "type": "text", "doc": "Place of interest, attraction or business name."},
-			{"name": "street", "type": "text", "doc": "House number and street."},
-			{"name": "city", "type": "text", "doc": "City name."},
-			{"name": "county", "type": "text", "doc": "County or district."},
-			{"name": "state", "type": "text", "doc": "State or region."},
-			{"name": "country", "type": "text", "doc": "Country name."},
-			{"name": "postalcode", "type": "text", "doc": "Postal code."},
-			{"name": "addressdetails", "type": "bool", "default": 1, "doc": "Include a structured address."},
-			{"name": "extratags", "type": "bool", "default": 1, "doc": "Include the extra OSM tags."},
-			{"name": "namedetails", "type": "bool", "default": 1, "doc": "Include name variants."},
-			{"name": "limit", "type": "int", "min": 0, "max": 40, "default": 10, "doc": "Most results to return, 0 to 40."},
-			{"name": "countrycodes", "type": "text", "doc": "Restrict to these country codes."},
-			{"name": "viewbox", "type": "text", "doc": "Bias the search with this bounding box."},
-			{"name": "bounded", "type": "bool", "default": 0, "doc": "Restrict the results to the viewbox."},
-			{"name": "dedupe", "type": "bool", "default": 1, "doc": "Drop duplicate OSM results."},
-			{"name": "format", "type": "enum", "values": geocodeFormats, "default": "json", "doc": "Reply format."},
-			{"name": "accept-language", "type": "text", "doc": "Language the names come back in, e.g. en or fr."},
-		],
-	},
-	"reverse": {
-		"path": "/reverse",
-		"doc": "A coordinate to the nearest address, as one result.",
-		"params": [
-			{"name": "lat", "type": "number", "min": -90, "max": 90, "required": 1, "doc": "Latitude."},
-			{"name": "lon", "type": "number", "min": -180, "max": 180, "required": 1, "doc": "Longitude."},
-			{"name": "addressdetails", "type": "bool", "default": 1, "doc": "Include a structured address."},
-			{"name": "extratags", "type": "bool", "default": 1, "doc": "Include the extra OSM tags."},
-			{"name": "namedetails", "type": "bool", "default": 1, "doc": "Include name variants."},
-			{"name": "zoom", "type": "int", "min": 3, "max": 18, "doc": "Detail level, 3 to 18."},
-			{"name": "format", "type": "enum", "values": geocodeFormats, "default": "json", "doc": "Reply format."},
-			{"name": "accept-language", "type": "text", "doc": "Language the names come back in."},
-		],
-	},
-	"lookup": {
-		"path": "/lookup",
-		"doc": "The details of objects named by OSM ID.",
-		"params": [
-			{"name": "osm_ids", "type": "csv", "required": 1, "doc": "Comma-separated IDs with a type prefix, e.g. R253832,W175905."},
-			{"name": "addressdetails", "type": "bool", "default": 1, "doc": "Include a structured address."},
-			{"name": "extratags", "type": "bool", "default": 1, "doc": "Include the extra OSM tags."},
-			{"name": "namedetails", "type": "bool", "default": 1, "doc": "Include name variants."},
-			{"name": "polygon_geojson", "type": "bool", "default": 0, "doc": "Include the polygon as GeoJSON."},
-			{"name": "polygon_kml", "type": "bool", "default": 0, "doc": "Include the polygon as KML."},
-			{"name": "polygon_svg", "type": "bool", "default": 0, "doc": "Include the polygon as SVG."},
-			{"name": "polygon_text", "type": "bool", "default": 0, "doc": "Include the polygon as text."},
-			{"name": "format", "type": "enum", "values": geocodeFormats, "default": "json", "doc": "Reply format."},
-			{"name": "accept-language", "type": "text", "doc": "Language the names come back in."},
-		],
-	},
-}
-
-
-geocodeEndpointNames = function
-	"The geocoding endpoint names the table holds."
-	return geocodeEndpoints.indexes
-end function
-
-
-geocodeSpecFor = function(endpointName)
-	"The endpoint's spec, or null when the table has no such endpoint."
-	if not geocodeEndpoints.hasIndex(endpointName) then return null
-	return geocodeEndpoints[endpointName]
-end function
-
-
-geocodeFindKey = function
-	"The key from the environment first, then from the nearest .env."
-	return findSetting(geocodeKeyName)
-end function
-
-
-geocodeFetch = function(endpointName, options={})
-	"One request to a geocoding endpoint, with the key added and hidden from the url."
-	spec = geocodeSpecFor(endpointName)
-	if spec == null then
-		return {"ok": 0, "status": null, "body": "", "json": null, "url": "", "error": "Unknown endpoint " + quote(endpointName) + "."}
-	end if
-	checked = validate(spec, options)
-	if not checked.ok then
-		return {"ok": 0, "status": null, "body": "", "json": null, "url": "", "error": "Invalid " + endpointName + " request: " + checked.problems.join("; ")}
-	end if
-
-	params = checked.params
-	key = null
-	for candidate in ["apiKey", "api_key", "apikey"]
-		if options.hasIndex(candidate) then
-			if key == null then key = options[candidate]
-		end if
-	end for
-	if key == null then key = geocodeFindKey
-
-	// The key travels as the api_key parameter, which the service accepts. The
-	// Authorization header its documentation also names answers 401, so there is no
-	// header path here to fall back to.
-	if key != null then params.api_key = key
-
-	url = urlFor(geocodeBase + spec.path, params)
-	result = get(url)
-	result.url = redactUrl(url, ["api_key"])
-	return result
-end function
-
-
-geocodeSearch = function(options={})
-	return geocodeFetch("search", options)
-end function
-
-geocodeReverse = function(options={})
-	return geocodeFetch("reverse", options)
-end function
-
-geocodeLookup = function(options={})
-	return geocodeFetch("lookup", options)
-end function
-
-
-// ══ 4. Open-Meteo ═══════════════════════════════════════════════════════════
-// Each API is its own host and its own parameter list; the tables below are that surface.
-
-openMeteoKeyName = "OPEN_METEO_API_KEY"
-
-latitudeSpec = {"name": "latitude", "type": "coordinates", "min": -90, "max": 90, "required": 1,
-	"doc": "WGS84 latitude; a comma-separated list asks for several locations."}
-longitudeSpec = {"name": "longitude", "type": "coordinates", "min": -180, "max": 180, "required": 1,
-	"doc": "WGS84 longitude; as many values as there are latitudes."}
-elevationSpec = {"name": "elevation", "type": "coordinates", "min": -1000, "max": 9000, "allowNan": 1,
-	"doc": "Elevation used for downscaling, or nan to disable downscaling."}
-tiltSpec = {"name": "tilt", "type": "number", "min": 0, "max": 90, "allowNan": 1,
-	"doc": "Panel tilt for global_tilted_irradiance, or nan for a tracker."}
-azimuthSpec = {"name": "azimuth", "type": "number", "min": -180, "max": 180, "allowNan": 1,
-	"doc": "Panel azimuth for global_tilted_irradiance, 0 south and negative east."}
-
-hourlySpec = {"name": "hourly", "type": "csv", "doc": "Hourly variables, comma separated."}
-dailySpec = {"name": "daily", "type": "csv", "doc": "Daily variables, comma separated."}
-dailyRequiredSpec = {"name": "daily", "type": "csv", "required": 1, "doc": "Daily variables, comma separated."}
-currentSpec = {"name": "current", "type": "csv", "doc": "Variables to report as current conditions."}
-minutely15Spec = {"name": "minutely_15", "type": "csv", "doc": "15-minutely variables."}
-weeklySpec = {"name": "weekly", "type": "csv", "doc": "Weekly seasonal variables."}
-monthlySpec = {"name": "monthly", "type": "csv", "doc": "Monthly seasonal variables."}
-
-temperatureUnitSpec = {"name": "temperature_unit", "type": "enum", "values": ["celsius", "fahrenheit"], "doc": "Temperature unit."}
-windSpeedUnitSpec = {"name": "wind_speed_unit", "type": "enum", "values": ["kmh", "ms", "mph", "kn"], "doc": "Wind speed unit."}
-precipitationUnitSpec = {"name": "precipitation_unit", "type": "enum", "values": ["mm", "inch"], "doc": "Precipitation unit."}
-lengthUnitSpec = {"name": "length_unit", "type": "enum", "values": ["metric", "imperial"], "doc": "Wave height unit."}
-
-timeformatSpec = {"name": "timeformat", "type": "enum", "values": ["iso8601", "unixtime"], "doc": "Timestamp format."}
-timezoneSpec = {"name": "timezone", "type": "text", "doc": "Time zone name, or auto to resolve it from the coordinates."}
-
-pastDaysSpec = {"name": "past_days", "type": "int", "min": 0, "doc": "Days before today to include."}
-pastHoursSpec = {"name": "past_hours", "type": "int", "min": 1, "doc": "Hours before now to include."}
-forecastHoursSpec = {"name": "forecast_hours", "type": "int", "min": 1, "doc": "Hours from now to include."}
-pastMinutely15Spec = {"name": "past_minutely_15", "type": "int", "min": 1, "doc": "15-minute steps before now to include."}
-forecastMinutely15Spec = {"name": "forecast_minutely_15", "type": "int", "min": 1, "doc": "15-minute steps from now to include."}
-
-startDateSpec = {"name": "start_date", "type": "date", "doc": "First day of the interval, yyyy-mm-dd."}
-endDateSpec = {"name": "end_date", "type": "date", "doc": "Last day of the interval, yyyy-mm-dd."}
-startDateRequiredSpec = {"name": "start_date", "type": "date", "required": 1, "doc": "First day of the interval, yyyy-mm-dd."}
-endDateRequiredSpec = {"name": "end_date", "type": "date", "required": 1, "doc": "Last day of the interval, yyyy-mm-dd."}
-startHourSpec = {"name": "start_hour", "type": "datetime", "doc": "First hour of the interval, yyyy-mm-ddThh:mm."}
-endHourSpec = {"name": "end_hour", "type": "datetime", "doc": "Last hour of the interval, yyyy-mm-ddThh:mm."}
-startMinutely15Spec = {"name": "start_minutely_15", "type": "datetime", "doc": "First 15-minute step, yyyy-mm-ddThh:mm."}
-endMinutely15Spec = {"name": "end_minutely_15", "type": "datetime", "doc": "Last 15-minute step, yyyy-mm-ddThh:mm."}
-
-modelsSpec = {"name": "models", "type": "csv", "doc": "Model names, comma separated; auto combines the best ones."}
-modelsRequiredSpec = {"name": "models", "type": "csv", "required": 1, "doc": "Model names, comma separated."}
-cellSelectionSpec = {"name": "cell_selection", "type": "enum", "values": ["land", "sea", "nearest"], "doc": "Which grid cell to prefer."}
-temporalResolutionSpec = {"name": "temporal_resolution", "type": "text", "doc": "native, hourly, or a minute interval such as minutely_15."}
-ensembleSpec = {"name": "ensemble", "type": "bool", "doc": "Return every forecast ensemble member."}
-domainsSpec = {"name": "domains", "type": "enum", "values": ["auto", "cams_europe", "cams_global"], "doc": "Air quality domain."}
-runSpec = {"name": "run", "type": "datetime", "doc": "Model run to read, yyyy-mm-ddThh:mm."}
-runRequiredSpec = {"name": "run", "type": "datetime", "required": 1, "doc": "Model run to read, yyyy-mm-ddThh:mm."}
-
-formatSpec = {"name": "format", "type": "enum", "values": ["json", "csv", "xlsx"], "doc": "Reply format."}
-geocodingFormatSpec = {"name": "format", "type": "enum", "values": ["json", "protobuf"], "doc": "Reply format."}
-openMeteoKeySpec = {"name": "apikey", "type": "text", "doc": "Commercial API key; also read from OPEN_METEO_API_KEY."}
-
-placeNameSpec = {"name": "name", "type": "text", "required": 1, "doc": "Place name or postal code, optionally with a country after a comma."}
-countSpec = {"name": "count", "type": "int", "min": 1, "max": 100, "doc": "Number of results, 1 to 100."}
-languageSpec = {"name": "language", "type": "text", "doc": "Language for the results, e.g. en, de, fr."}
-countryCodeSpec = {"name": "countryCode", "type": "text", "doc": "ISO 3166-1 alpha-2 country code to filter by."}
-locationIdSpec = {"name": "id", "type": "int", "required": 1, "doc": "Location id from a geocoding result."}
-
-
-forecastDaysSpec = function(maximum)
-	"forecast_days, bounded by the endpoint's own maximum."
-	return {"name": "forecast_days", "type": "int", "min": 0, "max": maximum, "doc": "Forecast days, 0 to " + maximum + "."}
-end function
-
-
-locationParameters = [latitudeSpec, longitudeSpec]
-variableParameters = [hourlySpec, dailySpec, currentSpec, minutely15Spec]
-unitParameters = [temperatureUnitSpec, windSpeedUnitSpec, precipitationUnitSpec]
-timeParameters = [timeformatSpec, timezoneSpec]
-windowParameters = [pastDaysSpec, forecastDaysSpec(16), pastHoursSpec, forecastHoursSpec, pastMinutely15Spec, forecastMinutely15Spec]
-dateParameters = [startDateSpec, endDateSpec, startHourSpec, endHourSpec, startMinutely15Spec, endMinutely15Spec]
-outputParameters = [formatSpec, openMeteoKeySpec]
-
-// What the per-model forecast endpoints take: the forecast surface without the model switch,
-// because the host is the model.
-modelSurface = locationParameters + [elevationSpec] + variableParameters + unitParameters + timeParameters + windowParameters + dateParameters + outputParameters
-
-openMeteoEndpoints = {
-	"forecast": {
-		"host": "api.open-meteo.com",
-		"path": "/v1/forecast",
-		"doc": "Up to 16 days of forecast and 92 past days, combined from the best models.",
-		"params": locationParameters + [elevationSpec, tiltSpec, azimuthSpec] + variableParameters + unitParameters + timeParameters + windowParameters + dateParameters + [modelsSpec, cellSelectionSpec] + outputParameters,
-	},
-	"historical": {
-		"host": "archive-api.open-meteo.com",
-		"path": "/v1/archive",
-		"doc": "Reanalysis weather from 1940 up to a few days ago.",
-		"params": locationParameters + [elevationSpec, tiltSpec, azimuthSpec, startDateRequiredSpec, endDateRequiredSpec, hourlySpec, dailySpec] + unitParameters + timeParameters + [modelsSpec, cellSelectionSpec] + outputParameters,
-	},
-	"historical-forecast": {
-		"host": "historical-forecast-api.open-meteo.com",
-		"path": "/v1/forecast",
-		"doc": "Archived forecasts as they were issued, for a past interval.",
-		"params": locationParameters + [elevationSpec, startDateRequiredSpec, endDateRequiredSpec] + variableParameters + unitParameters + timeParameters + [modelsSpec, cellSelectionSpec] + outputParameters,
-	},
-	"previous-runs": {
-		"host": "previous-runs-api.open-meteo.com",
-		"path": "/v1/forecast",
-		"doc": "Earlier runs of the models, to compare a forecast with what came before it.",
-		"params": locationParameters + [elevationSpec] + variableParameters + unitParameters + timeParameters + [pastDaysSpec, forecastDaysSpec(16), runSpec] + dateParameters + [modelsSpec, cellSelectionSpec] + outputParameters,
-	},
-	"single-runs": {
-		"host": "single-runs-api.open-meteo.com",
-		"path": "/v1/forecast",
-		"doc": "One named model run; run is required.",
-		"params": locationParameters + [elevationSpec, runRequiredSpec] + variableParameters + unitParameters + timeParameters + [modelsSpec, cellSelectionSpec] + outputParameters,
-	},
-	"ensemble": {
-		"host": "ensemble-api.open-meteo.com",
-		"path": "/v1/ensemble",
-		"doc": "One forecast per ensemble member for up to 35 days; models is required.",
-		"params": locationParameters + [elevationSpec, tiltSpec, azimuthSpec, hourlySpec, dailySpec] + unitParameters + timeParameters + [pastDaysSpec, forecastDaysSpec(35)] + dateParameters + [modelsRequiredSpec, cellSelectionSpec] + outputParameters,
-	},
-	"seasonal": {
-		"host": "seasonal-api.open-meteo.com",
-		"path": "/v1/seasonal",
-		"doc": "Six-hourly seasonal forecast to seven months, with weekly and monthly summaries.",
-		"params": locationParameters + [elevationSpec] + [hourlySpec, dailySpec, weeklySpec, monthlySpec] + unitParameters + timeParameters + [pastDaysSpec, forecastDaysSpec(210)] + dateParameters + [modelsSpec, cellSelectionSpec] + outputParameters,
-	},
-	"climate": {
-		"host": "climate-api.open-meteo.com",
-		"path": "/v1/climate",
-		"doc": "Daily climate-model projections from 1950 to 2050.",
-		"params": locationParameters + [startDateRequiredSpec, endDateRequiredSpec, dailyRequiredSpec, modelsRequiredSpec] + unitParameters + [cellSelectionSpec] + outputParameters,
-	},
-	"marine": {
-		"host": "marine-api.open-meteo.com",
-		"path": "/v1/marine",
-		"doc": "Wave, swell, sea level, current and sea surface temperature forecasts.",
-		"params": locationParameters + [hourlySpec, dailySpec, currentSpec] + [temperatureUnitSpec, windSpeedUnitSpec, lengthUnitSpec] + timeParameters + [pastDaysSpec, forecastDaysSpec(8), pastHoursSpec, forecastHoursSpec] + dateParameters + [cellSelectionSpec] + outputParameters,
-	},
-	"air-quality": {
-		"host": "air-quality-api.open-meteo.com",
-		"path": "/v1/air-quality",
-		"doc": "CAMS pollutants, aerosols, UV index and pollen, European or global.",
-		"params": locationParameters + [hourlySpec, currentSpec, domainsSpec] + timeParameters + [pastDaysSpec, forecastDaysSpec(7), pastHoursSpec, forecastHoursSpec] + dateParameters + outputParameters,
-	},
-	"flood": {
-		"host": "flood-api.open-meteo.com",
-		"path": "/v1/flood",
-		"doc": "River discharge from 1984, with a seven-month ensemble forecast.",
-		"params": locationParameters + [dailySpec] + timeParameters + [pastDaysSpec, forecastDaysSpec(210), startDateSpec, endDateSpec, ensembleSpec, cellSelectionSpec] + outputParameters,
-	},
-	"elevation": {
-		"host": "api.open-meteo.com",
-		"path": "/v1/elevation",
-		"doc": "Terrain elevation from the 90-metre Copernicus DEM, up to 100 points.",
-		"params": locationParameters + [openMeteoKeySpec],
-	},
-	"satellite": {
-		"host": "satellite-api.open-meteo.com",
-		"path": "/v1/archive",
-		"doc": "Solar radiation from geostationary satellites, as an archive.",
-		"params": locationParameters + [hourlySpec, tiltSpec, azimuthSpec, modelsSpec, temporalResolutionSpec, startDateSpec, endDateSpec, timeformatSpec, timezoneSpec, formatSpec, openMeteoKeySpec],
-	},
-	"geocoding": {
-		"host": "geocoding-api.open-meteo.com",
-		"path": "/v1/search",
-		"doc": "Place names and postal codes to coordinates, time zone and population.",
-		"params": [placeNameSpec, countSpec, geocodingFormatSpec, languageSpec, countryCodeSpec, openMeteoKeySpec],
-	},
-	"geocoding-lookup": {
-		"host": "geocoding-api.open-meteo.com",
-		"path": "/v1/get",
-		"doc": "One location by the id a geocoding result gave.",
-		"params": [locationIdSpec, geocodingFormatSpec, languageSpec, openMeteoKeySpec],
-	},
-	"dwd": {
-		"host": "api.open-meteo.com",
-		"path": "/v1/dwd-icon",
-		"doc": "DWD ICON, the German model, on the forecast surface.",
-		"params": modelSurface,
-	},
-	"gfs": {
-		"host": "api.open-meteo.com",
-		"path": "/v1/gfs",
-		"doc": "NOAA GFS, the American model, on the forecast surface.",
-		"params": modelSurface,
-	},
-	"meteofrance": {
-		"host": "api.open-meteo.com",
-		"path": "/v1/meteofrance",
-		"doc": "Meteo-France AROME and ARPEGE on the forecast surface.",
-		"params": modelSurface,
-	},
-	"ecmwf": {
-		"host": "api.open-meteo.com",
-		"path": "/v1/ecmwf",
-		"doc": "ECMWF IFS and AIFS on the forecast surface.",
-		"params": modelSurface,
-	},
-	"jma": {
-		"host": "api.open-meteo.com",
-		"path": "/v1/jma",
-		"doc": "JMA, the Japanese model, on the forecast surface.",
-		"params": modelSurface,
-	},
-	"gem": {
-		"host": "api.open-meteo.com",
-		"path": "/v1/gem",
-		"doc": "GEM, the Canadian model, on the forecast surface.",
-		"params": modelSurface,
-	},
-	"cma": {
-		"host": "api.open-meteo.com",
-		"path": "/v1/cma",
-		"doc": "CMA, the Chinese model, on the forecast surface.",
-		"params": modelSurface,
-	},
-	"metno": {
-		"host": "api.open-meteo.com",
-		"path": "/v1/metno",
-		"doc": "MET Norway, the Nordic model, on the forecast surface.",
-		"params": modelSurface,
-	},
-}
-
-
-openMeteoEndpointNames = function
-	"The Open-Meteo endpoint names the table holds."
-	return openMeteoEndpoints.indexes
-end function
-
-
-openMeteoSpecFor = function(endpointName)
-	"The endpoint's spec, or null when the table has no such endpoint."
-	if not openMeteoEndpoints.hasIndex(endpointName) then return null
-	return openMeteoEndpoints[endpointName]
-end function
-
-
-openMeteoFindKey = function
-	"The commercial key, when the environment or the nearest .env has one."
-	return findSetting(openMeteoKeyName)
-end function
-
-
-openMeteoFetch = function(endpointName, options={})
-	"One request to an Open-Meteo endpoint, with the key added and hidden from the url."
-	spec = openMeteoSpecFor(endpointName)
-	if spec == null then
-		return {"ok": 0, "status": null, "body": "", "json": null, "url": "", "error": "Unknown endpoint " + quote(endpointName) + "."}
-	end if
-	checked = validate(spec, options)
-	if not checked.ok then
-		return {"ok": 0, "status": null, "body": "", "json": null, "url": "", "error": "Invalid " + endpointName + " request: " + checked.problems.join("; ")}
-	end if
-
-	params = checked.params
-	key = null
-	for candidate in ["apiKey", "api_key", "apikey"]
-		if options.hasIndex(candidate) then
-			if key == null then key = options[candidate]
-		end if
-	end for
-	if key == null then key = openMeteoFindKey
-	if key != null then params.apikey = key
-
-	// A commercial account is served from customer-<host>.
-	commercial = 0
-	if options.hasIndex("customer") then
-		setting = coerce({"name": "customer", "type": "bool"}, options.customer)
-		if setting.ok then commercial = (setting.value == "true")
-	end if
-	host = spec.host
-	if commercial then host = "customer-" + host
-
-	url = urlFor("https://" + host + spec.path, params)
-	result = get(url)
-	result.url = redactUrl(url, ["apikey"])
-	return result
-end function
-
-
-// ══ 5. Arguments ════════════════════════════════════════════════════════════
-// Both programs read their command line the same way: --name value, --name=value, a bare
-// --name meaning true, --no-name meaning false, dashes or underscores in the name, and a
-// name given twice collected so queryString can join it as a list. Anything else is a
-// word, which each program interprets for itself.
+// ══ 3. Arguments ════════════════════════════════════════════════════════════════
+// The command lines are the cli library's: a program declares its own switches, the
+// service's parameters are declared from its own table, and the library reads both,
+// generates --help and --version, and names the mistake. What is left here is the seam -
+// a table as cli declarations, and the split between the options the library parses and the
+// bare words a program reads itself, such as the endpoint to ask or the place to look for.
 //
-// A program's own switches are named in the flags list, which keeps them out of the
-// parameters: --url and --compact are not URL parameters, and must not be sent as ones.
-// parseArguments answers {options, words, flags, problems}; flags is a map whose keys are
-// the switches that were given, so a caller tests with hasIndex.
+// A parameter is declared as the cli type that reads it best: a number as number, a list of
+// values as list so that a repeated --hourly collects them, and everything else - text,
+// dates, enumerations, booleans - as string, because the service's table knows what each one
+// takes and says so before the request is made. A boolean keeps its written forms: --name
+// alone means true, --name false says so, and --no-name means false.
+//
+// A parameter the table does not declare is refused by name rather than sent, which is what
+// a parser is for; one a service adds later becomes available by adding it to the table. Each
+// service's fetch still passes an unknown name through untouched, for callers that do not go
+// through a program's command line.
 
-programArguments = function
-	"The arguments after the program name, as a list."
-	arguments = []
-	if shellArgs.len > 1 then
-		for i in range(1, shellArgs.len - 1)
-			arguments.push shellArgs[i]
-		end for
-	end if
-	return arguments
+
+// ── A table as declarations ──────────────────────────────────────────────────
+
+optionType = function(paramSpec)
+	"The cli type that reads this parameter: number, list, or string."
+	// nan is a value these take, and the number type would refuse it before the table does.
+	if paramSpec.hasIndex("allowNan") then return "string"
+	if paramSpec.type == "int" or paramSpec.type == "number" then return "number"
+	if paramSpec.type == "csv" or paramSpec.type == "coordinates" then return "list"
+	return "string"
 end function
 
 
-asList = function(existing, value)
-	"existing with value added, as a list either way."
-	if existing isa list then
-		existing.push value
-		return existing
+optionDescription = function(paramSpec, markRequired=1)
+	"The help text for a parameter: what it takes, then what the API says it is for."
+	note = ""
+	if paramSpec.type == "bool" then
+		note = "true or false"
+	else if paramSpec.type == "enum" then
+		note = paramSpec.values.join(", ")
 	end if
-	return [existing, value]
-end function
-
-
-parseArguments = function(arguments, flags=[])
-	"{options, words, flags, problems} read from a program's arguments."
-	options = {}
-	words = []
-	chosen = {}
-	problems = []
-	i = 0
-	while i < arguments.len
-		argument = arguments[i]
-		if argument[:2] == "--" then
-			body = argument[2:]
-			value = null
-			equals = body.indexOf("=")
-			if equals != null then
-				value = body[equals + 1:]
-				body = body[:equals]
-			else if i + 1 < arguments.len then
-				following = arguments[i + 1]
-				if following[:2] != "--" then
-					value = following
-					i = i + 1
-				end if
-			end if
-			if body == "" then
-				problems.push "-- needs a parameter name"
-			else if flags.indexOf(normalKey(body)) != null then
-				if value == null then value = "true"
-				chosen[normalKey(body)] = value
-			else
-				paramName = body.replace("-", "_")
-				if paramName[:3] == "no_" and value == null then
-					paramName = paramName[3:]
-					value = "false"
-				end if
-				if value == null then value = "true"
-				if options.hasIndex(paramName) then
-					options[paramName] = asList(options[paramName], value)
-				else
-					options[paramName] = value
-				end if
-			end if
-		else if argument == "-h" then
-			chosen.help = "true"
-		else
-			words.push argument
+	text = paramSpec.doc
+	if note != "" then text = text + " (" + note + ")"
+	if markRequired then
+		if paramSpec.hasIndex("required") then
+			if paramSpec.required then text = text + " Required."
 		end if
-		i = i + 1
+	end if
+	return text
+end function
+
+
+addParameter = function(cli, cmd, paramSpec, markRequired=1)
+	"Declares one API parameter on a command the cli library made."
+	return cli.add(cmd, {
+		"name": paramSpec.name,
+		"aliases": ["--" + paramSpec.name.replace("_", "-")],
+		"type": optionType(paramSpec),
+		"description": optionDescription(paramSpec, markRequired),
+	})
+end function
+
+
+addParameters = function(cli, cmd, spec, markRequired=1)
+	"Declares every parameter an endpoint's table names, in the table's order."
+	for paramSpec in spec.params
+		addParameter(cli, cmd, paramSpec, markRequired)
+	end for
+	return cmd
+end function
+
+
+unionSpec = function(specs)
+	"One parameter list holding every name the given tables name, once, in order."
+	merged = {"params": []}
+	for spec in specs
+		for paramSpec in spec.params
+			if matchParam(merged, paramSpec.name) == null then merged.params.push paramSpec
+		end for
+	end for
+	return merged
+end function
+
+
+// ── Options and words ───────────────────────────────────────────────────────
+// The library reads options and refuses anything else, while these programs also take
+// words: the endpoint to ask, the place to search for. The split happens before the library
+// sees the arguments, and it is also where the shell's quotes are put back together and
+// where --no-name becomes --name false.
+
+wholeArguments = function(arguments)
+	"One token per argument, with a value the shell split across quotes made whole."
+	tokens = []
+	index = 0
+	while index < arguments.len
+		joined = joinedQuotes(arguments, index, arguments[index])
+		tokens.push joined.text
+		index = joined.next
 	end while
-	return {"options": options, "words": words, "flags": chosen, "problems": problems}
+	return tokens
+end function
+
+
+joinedQuotes = function(arguments, index, text)
+	"Extends text with the arguments after it until its quotes close: {text, next}."
+	if not hasOpenQuote(text) or index + 1 >= arguments.len then
+		return {"text": text, "next": index + 1}
+	end if
+	return joinedQuotes(arguments, index + 1, text + " " + arguments[index + 1])
+end function
+
+
+hasOpenQuote = function(text)
+	"True when text holds an odd number of double quotes, i.e. ends quoted."
+	count = 0
+	for c in text
+		if c == quoteMark then count = count + 1
+	end for
+	return count % 2
+end function
+
+
+optionTypes = function(cmd)
+	"Every spelling of every option a command declares, mapped to its type."
+	types = {}
+	for option in cmd.options
+		for alias in option.aliases
+			types[alias] = option.type
+		end for
+	end for
+	// The library adds these two to every command without declaring them here.
+	for alias in ["--help", "-h", "--version", "-v"]
+		types[alias] = "flag"
+	end for
+	return types
+end function
+
+
+startsOption = function(token)
+	"True for a token the library reads as an option rather than as a value."
+	if token[:2] == "--" then return true
+	return token == "-h" or token == "-v"
+end function
+
+
+canonicalOption = function(token)
+	"An option with its underscores spelled as dashes; a value after = is left alone."
+	equals = token.indexOf("=")
+	if equals == null then return token.replace("_", "-")
+	return token[:equals].replace("_", "-") + token[equals:]
+end function
+
+
+booleanNames = function(spec)
+	"The parameter names whose table entry takes true or false."
+	names = []
+	if spec == null then return names
+	for paramSpec in spec.params
+		if paramSpec.type == "bool" then names.push normalKey(paramSpec.name)
+	end for
+	return names
+end function
+
+
+splitArguments = function(arguments, cmd, spec=null)
+	"Options for cli.parse, and the bare words a program reads itself."
+	tokens = wholeArguments(arguments)
+	types = optionTypes(cmd)
+	booleans = booleanNames(spec)
+	options = []
+	words = []
+	index = 0
+	while index < tokens.len
+		index = takeArgument(tokens, index, types, booleans, options, words)
+	end while
+	return {"options": options, "words": words}
+end function
+
+
+takeArgument = function(tokens, index, types, booleans, options, words)
+	"Sorts one argument, with the value it needs, into options or words: the next index."
+	token = tokens[index]
+	if not startsOption(token) then
+		words.push token
+		return index + 1
+	end if
+	// --no-name is how a false boolean is spelled; the library only knows --name.
+	if token[:5] == "--no-" then
+		name = canonicalOption("--" + token[5:])
+		if booleans.indexOf(normalKey(name)) != null then
+			options.push name
+			options.push "false"
+			return index + 1
+		end if
+	end if
+	name = canonicalOption(token)
+	options.push name
+	if token.indexOf("=") != null then return index + 1
+	if not types.hasIndex(name) then return index + 1
+	if types[name] == "flag" then return index + 1
+	if index + 1 < tokens.len then
+		if not startsOption(tokens[index + 1]) then
+			options.push tokens[index + 1]
+			return index + 2
+		end if
+	end if
+	// A boolean with nothing after it means true; anything else is the library's to refuse.
+	if booleans.indexOf(normalKey(name)) != null then options.push "true"
+	return index + 1
+end function
+
+
+apiOptions = function(values, switches=[])
+	"Only the values that were given: the library fills in a default for every option."
+	options = {}
+	for kv in values
+		if switches.indexOf(kv.key) != null then continue
+		if kv.value == null then continue
+		if kv.value isa list then
+			if kv.value.len == 0 then continue
+		end if
+		options[kv.key] = kv.value
+	end for
+	return options
 end function

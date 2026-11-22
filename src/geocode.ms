@@ -9,48 +9,80 @@
 //   ./3rd-party/miniscript-linux/miniscript src/geocode.ms reverse 48.8584 2.2945
 //   ./3rd-party/miniscript-linux/miniscript src/geocode.ms lookup R253832,W175905
 //   ./3rd-party/miniscript-linux/miniscript src/geocode.ms --json --limit 3 "Paris, Texas"
+//   ./3rd-party/miniscript-linux/miniscript src/geocode.ms --help
 //
 // A bare query searches, so the first form and "search "Eiffel Tower"" mean the same thing;
-// the other two subcommands name the other two endpoints. The arguments after the subcommand
-// are joined with spaces for a search, and are a latitude and longitude or a list of OSM IDs
-// otherwise. Every other parameter the endpoint documents works as --name value, with
-// underscores or dashes: --limit, --countrycodes, --zoom, --polygon-geojson, and so on.
+// the other two subcommands name the other two endpoints. The words after the subcommand are
+// joined with spaces for a search, and are a latitude and longitude or a list of OSM IDs
+// otherwise. Every parameter the endpoints document is an option, with underscores or dashes
+// in its name: --limit, --countrycodes, --zoom, --polygon-geojson, and so on. --help lists
+// them all - generated from the same table the request is checked against - so a parameter
+// that was misspelt is named rather than sent, and a value outside the range the table gives
+// never leaves the program.
 //
 // --json prints the API's own JSON instead of the summary. Errors go to stdout with a
-// non-zero exit status: a missing key, nothing to search with, a failed request, or a reply
-// that is not what the endpoint documents. The key is never printed - the URL is built and
-// handed to curl, not shown.
+// non-zero exit status: a missing key, nothing to search with, an option the parser cannot
+// read, a failed request, or a reply that is not what the endpoint documents. The key is
+// never printed - the URL is built and handed to curl, not shown.
 
 
+import "cli/cli"
 import "api/client"
+import "api/geocode"
 import "json"
 
+cli = globals["cli/cli"]
 client = globals["api/client"]
+geo = globals["api/geocode"]
 
 scriptName = "geocode.ms"
 if shellArgs.len > 0 then scriptName = file.name(shellArgs[0])
 
-
-usageLine = function
-	"One line saying how to run this."
-	return "Usage: miniscript " + scriptName + " <place or address>"
-end function
+version = "1.0.0"
 
 
-usageText = function
-	"The whole usage, for a bare run or --help."
+description = function
+	"The lines under the command name in --help: which words name which endpoint."
 	lines = []
-	lines.push usageLine
-	lines.push "       miniscript " + scriptName + " reverse <latitude> <longitude>"
-	lines.push "       miniscript " + scriptName + " lookup <osm ids>"
+	lines.push "Asks geocode.maps.co about a place, a coordinate or an OSM id."
 	lines.push ""
-	lines.push "Searches geocode.maps.co and prints each match. A bare query searches; reverse turns"
-	lines.push "a coordinate into the nearest address, and lookup takes comma-separated OSM IDs such"
-	lines.push "as R253832. Any parameter the endpoint documents works as --name value, spelled with"
-	lines.push "dashes or underscores, and --json prints the API's own JSON instead of the summary."
+	lines.push "  " + scriptName + " <place or address>                   search"
+	lines.push "  " + scriptName + " reverse <latitude> <longitude>       reverse"
+	lines.push "  " + scriptName + " lookup <R253832,W175905>             lookup"
+	lines.push ""
+	lines.push "The words after the endpoint are joined with spaces for a search. Every"
+	lines.push "parameter the endpoints document is an option; a boolean is --name,"
+	lines.push "--name false or --no-name, and --json prints the API's own JSON."
 	return lines.join(char(10))
 end function
 
+
+cmd = cli.newCommand(scriptName, version, description())
+
+
+refuse = function(message)
+	"Reports a mistake and stops, pointing at the generated help."
+	print "error: " + message
+	print "Run " + cmd.name + " --help for usage."
+	exit 1
+end function
+
+
+cli.add(cmd, {
+	"name": "json",
+	"aliases": ["--json"],
+	"type": "flag",
+	"description": "Print the API's own JSON instead of the summary.",
+})
+
+// The three endpoints' parameters, once each: a name one endpoint takes and another does
+// not is still declared, because the words decide where the request goes. Required fields
+// are left to the request, since reverse alone needs --lat and --lon.
+surface = geo.surface(client)
+client.addParameters(cli, cmd, surface, 0)
+
+
+// ── One result ───────────────────────────────────────────────────────────────
 
 nameOf = function(item)
 	"The name a result is known by, whichever field the endpoint used."
@@ -116,39 +148,36 @@ end function
 
 // ── The question ─────────────────────────────────────────────────────────────
 
-arguments = []
-if shellArgs.len > 1 then
-	for i in range(1, shellArgs.len - 1)
-		arguments.push shellArgs[i]
-	end for
-end if
+arguments = shellArgs[1:]
 
 if arguments.len == 0 then
-	print usageText
+	print cli.helpText(cmd)
 	exit 1
 end if
 
-parsed = client.parseArguments(arguments, ["json", "help"])
-if parsed.problems.len > 0 then
-	for problem in parsed.problems
-		print "error: " + problem
-	end for
-	exit 1
-end if
-if parsed.flags.hasIndex("help") then
-	print usageText
+// cli reads the options; what it leaves over is the endpoint and the words after it.
+split = client.splitArguments(arguments, cmd, surface)
+parsed = cli.parse(cmd, [shellArgs[0]] + split.options)
+
+if parsed.help then
+	print cli.helpText(cmd)
 	exit 0
 end if
-showJson = parsed.flags.hasIndex("json")
-words = parsed.words
-options = parsed.options
+if parsed.version then
+	print cli.versionLine(cmd)
+	exit 0
+end if
+if not parsed.ok then refuse(parsed.error)
+
+showJson = parsed.values.json
+options = client.apiOptions(parsed.values, ["json"])
 
 mode = "search"
-rest = words
-if words.len > 0 then
-	if words[0] == "search" or words[0] == "reverse" or words[0] == "lookup" then
-		mode = words[0]
-		rest = words[1:]
+rest = split.words
+if split.words.len > 0 then
+	if ["search", "reverse", "lookup"].indexOf(split.words[0]) != null then
+		mode = split.words[0]
+		rest = split.words[1:]
 	end if
 end if
 
@@ -158,34 +187,22 @@ if mode == "search" then
 	for field in ["amenity", "street", "city", "county", "state", "country", "postalcode"]
 		if options.hasIndex(field) then searchable = 1
 	end for
-	if not searchable then
-		print "The place or address cannot be blank."
-		print usageLine
-		exit 1
-	end if
+	if not searchable then refuse("a search needs a place or address.")
 	if query != "" and not options.hasIndex("q") then options.q = query
 else if mode == "reverse" then
 	if rest.len >= 2 then
 		options.lat = rest[0]
 		options.lon = rest[1]
 	end if
-	if not options.hasIndex("lat") or not options.hasIndex("lon") then
-		print "reverse needs a latitude and a longitude."
-		print usageLine
-		exit 1
-	end if
+	if not options.hasIndex("lat") or not options.hasIndex("lon") then refuse("reverse needs a latitude and a longitude.")
 else if mode == "lookup" then
 	if rest.len > 0 then options.osm_ids = rest.join(",")
-	if not options.hasIndex("osm_ids") then
-		print "lookup needs at least one OSM ID, such as R253832."
-		print usageLine
-		exit 1
-	end if
+	if not options.hasIndex("osm_ids") then refuse("lookup needs at least one OSM ID, such as R253832.")
 end if
 
-apiKey = client.geocodeFindKey
+apiKey = client.findSetting(geo.keyName)
 if apiKey == null then
-	print "No " + client.geocodeKeyName + " found."
+	print "error: no " + geo.keyName + " found."
 	print "Put it in the .env beside the runner, or export it, then try again."
 	exit 1
 end if
@@ -194,7 +211,7 @@ options.apiKey = apiKey
 
 // ── The reply ────────────────────────────────────────────────────────────────
 
-result = client.geocodeFetch(mode, options)
+result = geo.fetch(client, mode, options)
 if not result.ok then
 	print result.error
 	exit 1
@@ -244,7 +261,9 @@ header = reply.len + " result" + "s" * (reply.len != 1)
 if mode == "search" then
 	if options.hasIndex("q") then header = header + " for " + char(34) + options.q + char(34)
 else if mode == "lookup" then
-	header = header + " for " + options.osm_ids
+	ids = options.osm_ids
+	if ids isa list then ids = ids.join(",")
+	header = header + " for " + ids
 end if
 print header + ":"
 
