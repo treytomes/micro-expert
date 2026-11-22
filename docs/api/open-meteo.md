@@ -343,14 +343,21 @@ parenthesis and no `//`. Weather data strains that harder than a geocoder result
   compact shape above puts place and instant in the subject and the variable in the predicate,
   which is one fact per number and makes every same-instant join free. It cannot join two places at
   one instant, because the instant is buried in the subject beside the place. The way out is to
-  reify the reading and write four facts about it:
+  reify the reading and write its parts as facts of their own:
 
   ```prolog
   is-reading-of(berlin@2026-11-22T00:00, berlin)
   is-reading-at(berlin@2026-11-22T00:00, 2026-11-22T00:00)
   measures(berlin@2026-11-22T00:00, temperature_2m)
+  has-height(berlin@2026-11-22T00:00, 2)
   has-value(berlin@2026-11-22T00:00, 4.1)
   ```
+
+  `has-height` is the fact this shape can have and the compact one cannot: there the height is in
+  the predicate name, `has-temperature-2m`, and a name cannot be taken apart, so no rule can
+  compare two heights or ask at which one a value was read. Here it is a field, and a `number`
+  field compares. The variable's own name still ends in `2m`, so the fact repeats what the name
+  says rather than adding to it - which is the price of the shape, not a mistake in it.
 
   and then the join the compact shape could not make is one rule:
 
@@ -360,13 +367,13 @@ parenthesis and no `//`. Weather data strains that harder than a geocoder result
 
   `equal(?t, ?v)` is what says both readings are of one instant, since each instant was reached by
   its own fact; it is the same trick as `shares-city-with` in the geocoder's vocabulary. The cost
-  is real - four facts per number instead of one, so a day of one variable goes from 24 facts to
-  96 - and the variable changes spelling between the shapes: `temperature_2m` as the reply writes it
-  when it stands in a field, `has-temperature-2m` when it names the predicate. Those five
+  is real - five facts per number instead of one, so a day of one variable goes from 24 facts to
+  120 - and the variable changes spelling between the shapes: `temperature_2m` as the reply writes
+  it when it stands in a field, `has-temperature-2m` when it names the predicate. Those six
   predicates need schema lines of their own in a file written this way
   (`is-reading-of(text, text)`, `is-reading-at(text, text)`, `measures(text, text)`,
-  `has-value(text, number)`, `warmer-than(text, text)`); they are not part of the compact
-  vocabulary.
+  `has-height(text, number)`, `has-value(text, number)`, `warmer-than(text, text)`); they are not
+  part of the compact vocabulary.
 - **A value has no unit in it.** `4.1` does not say celsius, and a `number` field cannot. The unit
   is one fact per variable, which is enough until a second fetch asks for `--temperature-unit
   fahrenheit` and lands in the same folder: nothing then compares the two values, and nothing
