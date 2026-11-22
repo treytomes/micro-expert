@@ -85,6 +85,234 @@ them. The layer hands the parsed JSON through as the service sent it, so they st
 fields above are the `json`/`jsonv2` shape; `geocodejson` moves them under
 `features[].properties.geocoding`.
 
+## The reply as triples
+
+The knowledge base in this repository stores one statement per line, `predicate(subject, object)`,
+and [the `.kb` grammar](../wiki/kb-grammar.md) is the exact format. A geocoder result is the same
+shape - one object with a dozen named properties - so a reply converts to facts almost without
+interpretation, and the field table above is close to the schema those facts want. What follows is
+the vocabulary worth keeping, the rules that vocabulary makes possible, and the parts of a result
+that a two-field fact cannot hold.
+
+### The subject
+
+A fact names its subject as a term, so a result needs a key. The OSM object is the one to use:
+`osm_type` and `osm_id` joined into one text term, `way/5013364`. It is the identity other data
+shares - the same object has a Wikidata item, a history in OpenStreetMap, and an entry in any
+other geocoder - and it survives a re-query, which is what makes `/lookup --osm-ids W5013364`
+the way to refresh a subject already held.
+
+`place_id` is the service's own id and belongs in a property rather than in the key: it is
+internal to geocode.maps.co, nothing outside the service refers to it, and it can change when the
+index behind it is rebuilt. A name is not a key either - `Tour Eiffel`, `Eiffel Tower` and
+`Tour de Fer` are one object, and two unrelated objects can share one.
+
+The object as the subject also merges duplicate answers for free: two searches that return the
+same `osm_type` and `osm_id` write facts about one subject, so `dedupe=0`, a second language and a
+second query all add properties rather than copies. That is why `unique(...)` belongs on
+`has-latitude`, `has-longitude` and the address parts, and not on `has-name`, where a second name
+is a second fact about the same object rather than a mistake.
+
+### A vocabulary for one result
+
+| Predicate | Comes from | Field types |
+| --- | --- | --- |
+| `has-name(?p, Tour Eiffel)` | `name` | `text, text` |
+| `has-name-in-fr(?p, Tour Eiffel)` | `namedetails` key `name:fr` | `text, text` |
+| `has-latitude(?p, 48.8582599)` | `lat` | `text, unique(number)` |
+| `has-longitude(?p, 2.2945006)` | `lon` | `text, unique(number)` |
+| `has-south-latitude`, `has-north-latitude` | `boundingbox[0]`, `[1]` | `text, unique(number)` |
+| `has-west-longitude`, `has-east-longitude` | `boundingbox[2]`, `[3]` | `text, unique(number)` |
+| `has-osm-class(?p, man_made)` | `class` | `text, text` |
+| `has-osm-type(?p, tower)` | `type` | `text, text` |
+| `has-address-type(?p, man_made)` | `addresstype` | `text, text` |
+| `has-place-rank(?p, 30)` | `place_rank` | `text, unique(number)` |
+| `has-importance(?p, 0.6199831475570641)` | `importance` | `text, unique(number)` |
+| `has-place-id(?p, 119141919)` | `place_id` | `text, unique(number)` |
+| `has-house-number(?p, "5")` | `address.house_number` | `text, unique(text)` |
+| `has-road`, `has-city`, `has-county`, `has-state` | `address.<part>` | `text, unique(text)` |
+| `has-postcode(?p, "75007")` | `address.postcode` | `text, unique(text)` |
+| `has-country(?p, France)`, `has-country-code(?p, fr)` | `address.country`, `address.country_code` | `text, unique(text)` |
+| `has-wikidata(?p, Q243)` | `extratags.wikidata` | `text, unique(text)` |
+| `has-wikipedia(?p, fr:Tour Eiffel)` | `extratags.wikipedia` | `text, unique(text)` |
+| `has-fee(?p, 10-25€)` | `extratags.fee` | `text, text` |
+| `has-extra-tag(?p, fee=10-25€)` | any other `extratags` entry | `text, text` |
+| `was-answer-to(?p, Eiffel Tower)` | the query that produced the result | `text, text` |
+
+One `/search` result - the trimmed one above - then reads:
+
+```prolog
+// One result, as facts. The subject is the OSM object, so a second search adds to it.
+has-name(way/5013364, Tour Eiffel)
+has-name-in-fr(way/5013364, Tour Eiffel)
+has-latitude(way/5013364, 48.8582599)
+has-longitude(way/5013364, 2.2945006)
+has-south-latitude(way/5013364, 48.8574)
+has-north-latitude(way/5013364, 48.8590)
+has-west-longitude(way/5013364, 2.2933)
+has-east-longitude(way/5013364, 2.2956)
+has-osm-class(way/5013364, man_made)
+has-osm-type(way/5013364, tower)
+has-place-rank(way/5013364, 30)
+has-importance(way/5013364, 0.6199831475570641)
+has-place-id(way/5013364, 119141919)
+has-house-number(way/5013364, "5")
+has-road(way/5013364, Avenue Anatole France)
+has-city(way/5013364, Paris)
+has-country(way/5013364, France)
+has-country-code(way/5013364, fr)
+has-wikidata(way/5013364, Q243)
+has-wikipedia(way/5013364, fr:Tour Eiffel)
+has-fee(way/5013364, 10-25€)
+was-answer-to(way/5013364, Eiffel Tower)
+```
+
+and the three files of a domain take these schema lines, one per predicate, with both field types
+in the order a fact writes them:
+
+```prolog
+has-name(text, text)
+has-name-in-fr(text, text)
+has-latitude(text, unique(number))
+has-longitude(text, unique(number))
+has-south-latitude(text, unique(number))
+has-north-latitude(text, unique(number))
+has-west-longitude(text, unique(number))
+has-east-longitude(text, unique(number))
+has-osm-class(text, text)
+has-osm-type(text, text)
+has-place-rank(text, unique(number))
+has-importance(text, unique(number))
+has-place-id(text, unique(number))
+has-house-number(text, unique(text))
+has-road(text, unique(text))
+has-city(text, unique(text))
+has-country(text, unique(text))
+has-country-code(text, unique(text))
+has-wikidata(text, unique(text))
+has-wikipedia(text, unique(text))
+has-fee(text, text)
+was-answer-to(text, text)
+
+// What the rules conclude, and the table they read.
+country-code-of(text, text)
+is-north-of(text, text)
+is-east-of(text, text)
+is-coarser-than(text, text)
+is-more-important-than(text, text)
+shares-city-with(text, text)
+shares-osm-class-with(text, text)
+is-in-country(text, text)
+```
+
+Every line begins `text` because the subject is an OSM object, and the second type is the
+property's. The last eight type what the rules conclude and the table they read. The shipped domain
+types every predicate a rule uses, derived ones included, because that is what lets the prompt
+refuse a constant no rule could match.
+
+The address parts are the interesting typing. `5` and `75007` read as numbers wherever they
+stand, and a `text` field refuses a number - `the object should be text` - so an all-digit house
+number or postcode is written in quotes, `"5"`, which stores the quotes as part of the value. A house number such as `12b` is text already and needs none.
+
+Five of these spellings also stand on the Open-Meteo page - `has-name`, `has-latitude`,
+`has-longitude`, `has-country`, `has-country-code` - and that is deliberate rather than a
+coincidence of two pages written separately. They mean the same thing about a place whichever
+service supplied it, and both pages give them the same field types, so a domain that reads both
+geocoder results and forecasts needs one schema line and one rule for a place, not two with a
+suffix on one. What the two pages do not share is the subject: here it is an OSM object, there a
+name the writer chose, because a forecast reply carries no id. Sharing a predicate joins nothing on
+its own, so a folder holding both kinds of fact has to give one place one term in both files -
+`way/5013364` where the geocoder supplied it, and otherwise the chosen name with `has-geonames-id`
+beside it - or the shared `has-latitude` sits on two subjects and never meets.
+
+### Rules the vocabulary supports
+
+A rule joins facts the reply already wrote, and the seven built-in constraints compare them.
+Ordering and sharing are what that buys:
+
+```prolog
+// Ordering, from two numbers the body has bound.
+is-north-of(?x, ?y) => and(has-latitude(?x, ?a), has-latitude(?y, ?b), greater-than(?a, ?b))
+is-east-of(?x, ?y) => and(has-longitude(?x, ?a), has-longitude(?y, ?b), greater-than(?a, ?b))
+is-coarser-than(?x, ?y) => and(has-place-rank(?x, ?a), has-place-rank(?y, ?b), less-than(?a, ?b))
+is-more-important-than(?x, ?y) => and(has-importance(?x, ?a), has-importance(?y, ?b), greater-than(?a, ?b))
+
+// Sharing, from one text both reach: equal binds the second side to the first.
+shares-city-with(?x, ?y) => and(has-city(?x, ?c), equal(?c, ?d), has-city(?y, ?d), not-equal(?x, ?y))
+shares-osm-class-with(?x, ?y) => and(has-osm-class(?x, ?c), equal(?c, ?d), has-osm-class(?y, ?d), not-equal(?x, ?y))
+
+// The code a result carries, said as the country it names, through a table of facts.
+is-in-country(?x, ?c) => and(has-country-code(?x, ?k), country-code-of(?k, ?c))
+```
+
+That last one is the point of a code table as facts: `country-code-of(fr, France)` is one more
+line in the facts file, and a result that arrived with only `fr` can then be asked for the name.
+Nothing stores a mapping in code, which is the same reason the shipped domain's family is only
+data.
+
+The comparisons and `years-since` are all the arithmetic the engine has, and none of them adds,
+subtracts or multiplies. A rule can therefore order places - north, east, finer rank, greater
+importance - but it cannot measure the distance between two of them, keep those within a radius,
+or work out the area of a bounding box. Those have to be facts computed when the reply is read,
+`has-distance-to(way/5013364, 128)`, or answers given outside the knowledge base.
+
+Two limits are about what a missing property means. The search is negation as failure, so
+`not(has-city(?p, ?c))` holds for a place whose address came back without a city exactly as it
+holds for one in open country; read an absent property as unknown and ask for it positively.
+Text is compared exactly, so `Paris` and `paris` are two cities and so are `Paris` and
+`Paris, France`, which is why the reply's own `city` field is the one to keep rather than a split
+of `display_name`. And a longitude comparison has the dateline in the middle: 179 and -179 are
+neighbours on the globe and opposite ends of the range here.
+
+### What a two-field fact cannot hold
+
+A fact is exactly three terms, and text in a field may hold no top-level comma, no unbalanced
+parenthesis, and no `//`. That rules out some of the reply outright:
+
+- `display_name` is one line with commas in it, and a comma at the top level is what separates
+  fields, so the whole address cannot be one. The structured `address` gives the same parts in a
+  form that fits, which is the reason to keep it.
+- `licence` holds both commas and `http://`, and `//` starts a comment wherever it stands, so the
+  attribution cannot sit in any field at all. It belongs with the data file - a line in the
+  program that wrote it, or beside the folder - rather than inside the facts.
+- `boundingbox` is a list of four numbers. Four predicates keep it comparable, as above; one text
+  field such as `48.8574 48.8590 2.2933 2.2956` reads back but never compares, since a comparison
+  needs numbers.
+- `extratags` and `namedetails` are maps whose keys are not predicate names: `addr:street` has a
+  colon, `name:en` has one too, and a name section is letters and digits only. There are three
+  ways out. A predicate per key you mean to query, with the varying part as a section -
+  `has-wikidata`, `has-name-in-fr` - which is the readable one and only scales to the keys you
+  care about. A catch-all `has-extra-tag(?p, fee=10-25€)`, which keeps every pair but makes the
+  key unqueryable: it can list a place's tags, not find the places whose key is `fee`. Or nothing,
+  and the tag stays in the reply.
+- The polygons - `geojson`, `svg`, `geokml`, `text` - are nested, full of commas and parentheses,
+  and never fit a field. A fact naming where the polygon was written, `has-polygon-in(way/5013364,
+  polygons/eiffel.geojson)`, is as far as a triple goes.
+- Time and provenance have nowhere to sit. A fact uses all three terms, so "when this was read"
+  and "which service said so" have no fourth place. The options are a domain folder per snapshot,
+  or the date in the predicate name - `has-latitude-as-of-2026-11-22` is a legal name, since
+  sections after the first may hold digits - which reads badly under `--nlp` and doubles the
+  vocabulary for every property.
+- `place_rank` and `importance` are not properties of the place. The first is how coarse its level
+  in the administrative scale is and the second is the service's own ordering weight, so a rule
+  over them orders results as the geocoder would, which is useful and is not a claim about the
+  world.
+
+### From a reply to a facts file
+
+Nothing in the layer writes triples: `src/api/geocode.ms` hands the parsed JSON back and
+`src/geocode.ms` prints it. The conversion is a loop over the results - subject from `osm_type`
+and `osm_id`, one fact per property, `val` on the two coordinates because the reply writes them as
+strings, and no fact at all for a field that is absent - and the writer in `src/knowledge.ms`
+turns the facts back into `.kb` text. `--facts` or `/load-facts` then reads that file with the same
+reader the shipped domain uses, so a fetched place can be asked about beside hand-written facts in
+one query. Keeping `was-answer-to` makes that join reversible: the file says which query produced
+it, and a second run of the same query can be compared rather than merged.
+
+That loop does not exist yet: neither program writes facts, so every triple on this page was
+written by hand. The seams that leaves - and the ones the weather service and the engine leave
+beside them - are collected in [gaps to close before these APIs are knowledge](gaps.md).
+
 ## Endpoints
 
 ### `/search`
