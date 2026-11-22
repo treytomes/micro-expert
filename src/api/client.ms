@@ -30,25 +30,6 @@ defaultTimeout = 60
 statusMarker = "__http_status__"
 quoteMark = char(34)
 newline = char(10)
-whitespace = " " + char(9) + char(10) + char(13)
-
-
-trimText = function(text)
-	"Strips leading and trailing whitespace."
-	start = 0
-	finish = text.len - 1
-	while start <= finish
-		if not whitespace.contains(text[start]) then break
-		start = start + 1
-	end while
-	while finish >= start
-		if not whitespace.contains(text[finish]) then break
-		finish = finish - 1
-	end while
-	return text[start:finish + 1]
-end function
-
-
 quote = function(text)
 	"Puts a pair of double quotes around text, so a shell reads it as one word."
 	return quoteMark + text + quoteMark
@@ -113,7 +94,7 @@ get = function(url, timeout=null)
 		return result
 	end if
 	if reply.status != 0 then
-		message = trimText(reply.errors)
+		message = reply.errors.trim
 		if message == "" then message = "no message from curl"
 		result.error = "The request failed (curl exit " + reply.status + "): " + message
 		return result
@@ -124,7 +105,7 @@ get = function(url, timeout=null)
 	if output.indexOf(statusMarker) != null then
 		parts = output.split(statusMarker)
 		body = parts[:parts.len - 1].join(statusMarker)
-		result.status = val(trimText(parts[parts.len - 1]))
+		result.status = val(parts[parts.len - 1].trim)
 	end if
 	if body.len > 0 then
 		if body[-1] == newline then body = body[:body.len - 1]
@@ -153,7 +134,7 @@ get = function(url, timeout=null)
 			end if
 		end if
 		if detail == "" then
-			text = trimText(body.replace(char(13), ""))
+			text = body.replace(char(13), "").trim
 			if text != "" then detail = text[:200]
 		end if
 		message = "HTTP " + result.status
@@ -190,13 +171,13 @@ readEnvFile = function(path)
 		if line.len > 0 then
 			if line[-1] == char(13) then line = line[0:line.len - 1]
 		end if
-		line = trimText(line)
+		line = line.trim
 		if line.len == 0 then continue
 		if line[0] == "#" then continue
 		parts = line.split("=", 2)
 		if parts.len < 2 then continue
-		settingName = trimText(parts[0])
-		if settingName.len > 0 then values[settingName] = stripQuotes(trimText(parts[1]))
+		settingName = parts[0].trim
+		if settingName.len > 0 then values[settingName] = stripQuotes(parts[1].trim)
 	end for
 	return values
 end function
@@ -205,7 +186,7 @@ end function
 findSetting = function(settingName)
 	"A setting from the environment first, then from the nearest .env; null when absent."
 	if env.hasIndex(settingName) then
-		value = trimText(env[settingName])
+		value = env[settingName].trim
 		if value != "" then return value
 	end if
 	// The runner lives beside its .env, so a script named by a path finds it one level up.
@@ -221,7 +202,7 @@ findSetting = function(settingName)
 	for path in paths
 		values = readEnvFile(path)
 		if values.hasIndex(settingName) then
-			value = trimText(values[settingName])
+			value = values[settingName].trim
 			if value != "" then return value
 		end if
 	end for
@@ -339,7 +320,7 @@ coerce = function(paramSpec, value)
 	end if
 
 	if kind == "int" or kind == "number" then
-		text = trimText(str(value))
+		text = str(value).trim
 		// A number the table lets nan stand in for, such as a panel tilt, keeps the word.
 		if text.lower == "nan" and paramSpec.hasIndex("allowNan") then return {"ok": 1, "value": "nan"}
 		if not text.isNumeric then
@@ -369,7 +350,7 @@ coerce = function(paramSpec, value)
 		if items.len == 0 then return {"ok": 0, "problem": "must not be empty"}
 		clean = []
 		for item in items
-			text = trimText(str(item))
+			text = str(item).trim
 			if kind == "csv" then
 				if text == "" then return {"ok": 0, "problem": "must not contain an empty value"}
 				clean.push text
@@ -377,7 +358,7 @@ coerce = function(paramSpec, value)
 				// A list option gives one value per occurrence, and each may still be a
 				// comma-separated run, so both spellings of several coordinates arrive here.
 				for part in text.split(",")
-					part = trimText(part)
+					part = part.trim
 					if part == "" then
 						return {"ok": 0, "problem": "must not contain an empty value"}
 					end if
@@ -399,13 +380,13 @@ coerce = function(paramSpec, value)
 	end if
 
 	if kind == "date" then
-		text = trimText(str(value))
+		text = str(value).trim
 		if not isDate(text) then return {"ok": 0, "problem": "must be a date like 2026-11-21"}
 		return {"ok": 1, "value": text}
 	end if
 
 	if kind == "datetime" then
-		text = trimText(str(value))
+		text = str(value).trim
 		if not isHour(text) then return {"ok": 0, "problem": "must be a date and hour like 2026-11-21T12:00"}
 		return {"ok": 1, "value": text}
 	end if
