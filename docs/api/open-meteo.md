@@ -26,8 +26,9 @@ GET https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&hourly
   commas.
 - Units and formats default to the service's: `celsius`, `kmh`, `mm`, `iso8601` and the `GMT`
   time zone. `timezone=auto` resolves the zone from the coordinates instead.
-- A commercial key travels as `apikey`, sent by the layer from `OPEN_METEO_API_KEY` when the
-  environment or nearest `.env` has one. `customer=1` moves the request to the
+- A commercial key travels as `apikey`: `--apikey` when it is given, otherwise
+  `OPEN_METEO_API_KEY` from the environment or the nearest `.env`, which the program reads and
+  passes with every request. `customer=1` moves the request to the
   `customer-` host, `customer-api.open-meteo.com` and the like, which is where a commercial
   account is served. `customer` is the layer's own switch, not a URL parameter.
 - `format` is `json`, `csv` or `xlsx`; the geocoder takes `json` or `protobuf`. CSV and XLSX

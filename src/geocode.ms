@@ -29,11 +29,13 @@
 import "cli/cli"
 import "api/client"
 import "api/geocode"
+import "api/dotenv"
 import "json"
 
 cli = globals["cli/cli"]
 client = globals["api/client"]
 geo = globals["api/geocode"]
+dotenv = globals["api/dotenv"]
 
 scriptName = "geocode.ms"
 if shellArgs.len > 0 then scriptName = file.name(shellArgs[0])
@@ -198,7 +200,7 @@ else if mode == "lookup" then
 	if not options.hasIndex("osm_ids") then refuse("lookup needs at least one OSM ID, such as R253832.")
 end if
 
-apiKey = client.findSetting(geo.keyName)
+apiKey = dotenv.find(geo.keyName, shellArgs[0])
 if apiKey == null then
 	print "error: no " + geo.keyName + " found."
 	print "Put it in the .env beside the runner, or export it, then try again."

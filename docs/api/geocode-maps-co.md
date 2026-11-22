@@ -19,9 +19,10 @@ GET https://geocode.maps.co/search?q=Eiffel+Tower&limit=1&api_key=...
 - Every parameter is a query parameter. The layer URL-encodes names and values, drops empty
   ones, and joins a repeated `--name` with commas, so `--countrycodes de --countrycodes fr`
   becomes `countrycodes=de%2Cfr`.
-- The key is the `api_key` parameter, always added by the layer from `GEOCODE_MAPS_API_KEY` in
-  the environment or the nearest `.env`. The service's documentation also names an
-  `Authorization: Bearer` header; that path answers `401`, so the parameter is the only one
+- The key is the `api_key` parameter, added to every request. The program reads
+  `GEOCODE_MAPS_API_KEY` from the environment or the nearest `.env` and hands it to the layer,
+  which sends it and keeps it out of any URL it prints. The service's documentation also names
+  an `Authorization: Bearer` header; that path answers `401`, so the parameter is the only one
   used.
 - A name the table does not list is passed through untouched. The service adds optional
   parameters between releases, and the layer is not the place to drop one.

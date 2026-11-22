@@ -1,7 +1,7 @@
 // client.ms — what both API programs share: one HTTP request path, one set of parameter
 // checks, and the cli library's declarations.
 //
-//   1. Transport      query strings, curl, the HTTP status, JSON, .env settings
+//   1. Transport      query strings, curl, the HTTP status, JSON
 //   2. Parameters     names, types, ranges, required fields, one validator
 //   3. Arguments      the cli library's declarations, and the split into options and words
 //
@@ -148,77 +148,15 @@ get = function(url, timeout=null)
 end function
 
 
-stripQuotes = function(value)
-	"Removes one pair of matching quotes from a value read out of .env."
-	if value.len >= 2 then
-		mark = value[0]
-		if mark == char(34) then
-			if value[-1] == char(34) then return value[1:value.len - 1]
-		else if mark == char(39) then
-			if value[-1] == char(39) then return value[1:value.len - 1]
-		end if
-	end if
-	return value
-end function
-
-
-readEnvFile = function(path)
-	"Reads a .env's KEY=value lines; a missing or unreadable file is an empty map."
-	lines = file.readLines(path)
-	if lines isa error then return {}
-	values = {}
-	for line in lines
-		if line.len > 0 then
-			if line[-1] == char(13) then line = line[0:line.len - 1]
-		end if
-		line = line.trim
-		if line.len == 0 then continue
-		if line[0] == "#" then continue
-		parts = line.split("=", 2)
-		if parts.len < 2 then continue
-		settingName = parts[0].trim
-		if settingName.len > 0 then values[settingName] = stripQuotes(parts[1].trim)
-	end for
-	return values
-end function
-
-
-findSetting = function(settingName)
-	"A setting from the environment first, then from the nearest .env; null when absent."
-	if env.hasIndex(settingName) then
-		value = env[settingName].trim
-		if value != "" then return value
-	end if
-	// The runner lives beside its .env, so a script named by a path finds it one level up.
-	// The working folder is tried as well, for a script named from where it stands.
-	paths = [".env"]
-	if shellArgs.len > 0 then
-		scriptPath = shellArgs[0]
-		hasFolder = scriptPath.indexOf("/") != null
-		if not hasFolder then hasFolder = scriptPath.indexOf(char(92)) != null
-		if hasFolder then paths.push(file.child(file.parent(scriptPath), "..") + "/.env")
-	end if
-	paths.push("../.env")
-	for path in paths
-		values = readEnvFile(path)
-		if values.hasIndex(settingName) then
-			value = values[settingName].trim
-			if value != "" then return value
-		end if
-	end for
-	return null
-end function
-
-
-keyFrom = function(options, settingName)
-	"The caller's key when one was given, otherwise the environment or the nearest .env."
+keyIn = function(options)
+	"The caller's key, whichever spelling it was given under; null when none was."
 	for candidate in ["apiKey", "api_key", "apikey"]
 		if options.hasIndex(candidate) then
 			value = options[candidate]
 			if value != null then return value
 		end if
 	end for
-	return findSetting(settingName)
+	return null
 end function
 
 

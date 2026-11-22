@@ -270,7 +270,7 @@ fetch = function(api, endpointName, options={})
 	end if
 
 	params = checked.params
-	key = api.keyFrom(options, keyName)
+	key = api.keyIn(options)
 	if key != null then params.apikey = key
 
 	// A commercial account is served from customer-<host>.

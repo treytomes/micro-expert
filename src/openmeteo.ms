@@ -31,11 +31,13 @@
 import "cli/cli"
 import "api/client"
 import "api/openmeteo"
+import "api/dotenv"
 import "json"
 
 cli = globals["cli/cli"]
 client = globals["api/client"]
 om = globals["api/openmeteo"]
+dotenv = globals["api/dotenv"]
 
 scriptName = "openmeteo.ms"
 if shellArgs.len > 0 then scriptName = file.name(shellArgs[0])
@@ -124,7 +126,9 @@ end function
 resolvePlace = function(name)
 	"The coordinates of a place name: {ok, latitude, longitude, label} or {ok: 0, error}."
 	quoted = char(34) + name + char(34)
-	found = om.fetch(client, "geocoding", {"name": name, "count": 1})
+	request = {"name": name, "count": 1}
+	if apiKey != null then request.apikey = apiKey
+	found = om.fetch(client, "geocoding", request)
 	if not found.ok then
 		return {"ok": 0, "error": "could not look up " + quoted + ": " + found.error}
 	end if
@@ -236,6 +240,12 @@ end if
 options = client.apiOptions(parsed.values, ["url", "compact", "place"])
 showUrl = parsed.values.url
 compact = parsed.values.compact
+
+// The key comes from --apikey when it was given, otherwise the environment or the nearest
+// .env; either way the request reads it off the options.
+apiKey = client.keyIn(options)
+if apiKey == null then apiKey = dotenv.find(om.keyName, shellArgs[0])
+if apiKey != null then options.apikey = apiKey
 
 
 // ── The place ────────────────────────────────────────────────────────────────
