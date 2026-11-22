@@ -190,7 +190,14 @@ name with `has-geonames-id` beside it.
 
 Each variable becomes one predicate, named from the variable with its underscores turned into
 dashes - `temperature_2m` is `has-temperature-2m` - and the object is the number that series holds
-at that index:
+at that index. In `has-temperature-2m` the `2m` is the height the number is read at: air temperature
+two metres above the ground, the level a station thermometer stands at, and the same reason
+`has-wind-speed-10m` is ten. It is neither a unit nor a height above sea level - that is
+`elevation` - and not every digit in the vocabulary means the same thing: `has-pm10` counts
+micrometres and `has-temperature-2m-max` carries an aggregate. Because the height is in the name it
+is part of the predicate rather than a field, so a reading ten metres up would be
+`has-temperature-10m`, a second predicate over the same subject, and no rule can compare two
+heights or ask at which one a value was read.
 
 | Predicate | Comes from | Field types |
 | --- | --- | --- |
