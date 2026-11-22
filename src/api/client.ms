@@ -543,62 +543,17 @@ unionSpec = function(specs)
 end function
 
 
-// ── Options and words ───────────────────────────────────────────────────────
+// ── Options and words ──────────────────────────────────────────────────────
 // The library reads options and refuses anything else, while these programs also take
 // words: the endpoint to ask, the place to search for. The split happens before the library
-// sees the arguments, and it is also where the shell's quotes are put back together and
-// where --no-name becomes --name false.
-
-wholeArguments = function(arguments)
-	"One token per argument, with a value the shell split across quotes made whole."
-	tokens = []
-	index = 0
-	while index < arguments.len
-		joined = joinedQuotes(arguments, index, arguments[index])
-		tokens.push joined.text
-		index = joined.next
-	end while
-	return tokens
-end function
-
-
-joinedQuotes = function(arguments, index, text)
-	"Extends text with the arguments after it until its quotes close: {text, next}."
-	if not hasOpenQuote(text) or index + 1 >= arguments.len then
-		return {"text": text, "next": index + 1}
-	end if
-	return joinedQuotes(arguments, index + 1, text + " " + arguments[index + 1])
-end function
-
-
-hasOpenQuote = function(text)
-	"True when text holds an odd number of double quotes, i.e. ends quoted."
-	count = 0
-	for c in text
-		if c == quoteMark then count = count + 1
-	end for
-	return count % 2
-end function
-
-
-optionTypes = function(cmd)
-	"Every spelling of every option a command declares, mapped to its type."
-	types = {}
-	for option in cmd.options
-		for alias in option.aliases
-			types[alias] = option.type
-		end for
-	end for
-	// The library adds these two to every command without declaring them here.
-	for alias in ["--help", "-h", "--version", "-v"]
-		types[alias] = "flag"
-	end for
-	return types
-end function
-
+// sees the arguments, so only the sorting is here; the library still rejoins the arguments
+// the shell splits at a quote (normalizeArgs), answers which spelling means which option
+// (aliasTable), and is told apart from a word by the one test below.
 
 startsOption = function(token)
-	"True for a token the library reads as an option rather than as a value."
+	"True for a token that can only be an option here, so a value is never swallowed."
+	// A negative number such as reverse's -33.9 stays a word; the library would call it an
+	// unknown option, and it is not this split's place to complain.
 	if token[:2] == "--" then return true
 	return token == "-h" or token == "-v"
 end function
@@ -623,22 +578,22 @@ booleanNames = function(spec)
 end function
 
 
-splitArguments = function(arguments, cmd, spec=null)
+splitArguments = function(cli, shellArgs, cmd, spec=null)
 	"Options for cli.parse, and the bare words a program reads itself."
-	tokens = wholeArguments(arguments)
-	types = optionTypes(cmd)
+	tokens = cli.normalizeArgs(shellArgs)
+	byAlias = cli.aliasTable(cmd)
 	booleans = booleanNames(spec)
 	options = []
 	words = []
 	index = 0
 	while index < tokens.len
-		index = takeArgument(tokens, index, types, booleans, options, words)
+		index = takeArgument(tokens, index, byAlias, booleans, options, words)
 	end while
 	return {"options": options, "words": words}
 end function
 
 
-takeArgument = function(tokens, index, types, booleans, options, words)
+takeArgument = function(tokens, index, byAlias, booleans, options, words)
 	"Sorts one argument, with the value it needs, into options or words: the next index."
 	token = tokens[index]
 	if not startsOption(token) then
@@ -657,8 +612,8 @@ takeArgument = function(tokens, index, types, booleans, options, words)
 	name = canonicalOption(token)
 	options.push name
 	if token.indexOf("=") != null then return index + 1
-	if not types.hasIndex(name) then return index + 1
-	if types[name] == "flag" then return index + 1
+	if not byAlias.hasIndex(name) then return index + 1
+	if byAlias[name].type == "flag" then return index + 1
 	if index + 1 < tokens.len then
 		if not startsOption(tokens[index + 1]) then
 			options.push tokens[index + 1]

@@ -156,16 +156,14 @@ end function
 
 // ── The endpoint ─────────────────────────────────────────────────────────────
 
-arguments = shellArgs[1:]
-
-if arguments.len == 0 then
+if shellArgs.len <= 1 then
 	print usageText
 	exit 1
 end if
 
 // The words come first: the endpoint is named before its parameters can be declared.
 surfaceCmd = surfaceCommand()
-split = client.splitArguments(arguments, surfaceCmd, surface)
+split = client.splitArguments(cli, shellArgs, surfaceCmd, surface)
 words = split.words
 argumentText = [shellArgs[0]] + split.options
 

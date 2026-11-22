@@ -148,15 +148,13 @@ end function
 
 // ── The question ─────────────────────────────────────────────────────────────
 
-arguments = shellArgs[1:]
-
-if arguments.len == 0 then
+if shellArgs.len <= 1 then
 	print cli.helpText(cmd)
 	exit 1
 end if
 
 // cli reads the options; what it leaves over is the endpoint and the words after it.
-split = client.splitArguments(arguments, cmd, surface)
+split = client.splitArguments(cli, shellArgs, cmd, surface)
 parsed = cli.parse(cmd, [shellArgs[0]] + split.options)
 
 if parsed.help then
