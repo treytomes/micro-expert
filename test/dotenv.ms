@@ -2,7 +2,7 @@
 // empty value counting as absent.
 
 run = function(dotenv, h)
-	// The fixture sits beside this case module, wherever the suite is run from.
+	// The fixture sits beside the runner, wherever the suite is run from.
 	path = file.child(file.parent(shellArgs[0]), "settings.env")
 	values = dotenv.read(path)
 

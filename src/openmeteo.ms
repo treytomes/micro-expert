@@ -31,13 +31,13 @@
 import "cli/cli"
 import "api/client"
 import "api/openmeteo"
-import "api/dotenv"
+import "dotenv"
 import "json"
 
 cli = globals["cli/cli"]
 client = globals["api/client"]
 om = globals["api/openmeteo"]
-dotenv = globals["api/dotenv"]
+dotenv = globals["dotenv"]
 
 scriptName = "openmeteo.ms"
 if shellArgs.len > 0 then scriptName = file.name(shellArgs[0])

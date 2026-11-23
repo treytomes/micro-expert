@@ -1,11 +1,11 @@
 // dotenv.ms — KEY=value settings from the environment and from the .env beside a runner.
 //
-// A program imports this file and passes what it finds into a request, because the API layer
-// cannot import it: this interpreter discards the imports of an imported module, and
-// client.ms is itself imported by the programs. Nothing here touches the network, and nothing
-// here knows what any setting means.
+// A program imports this file and passes what it finds into a request, because this
+// interpreter discards the imports of an imported module, and api/client.ms is itself
+// imported by the programs. Nothing here touches the network, and nothing here knows what
+// any setting means.
 //
-//   dotenv = globals["api/dotenv"]
+//   dotenv = globals["dotenv"]
 //   key = dotenv.find("GEOCODE_MAPS_API_KEY", shellArgs[0])
 //
 // The environment wins over a file, so one run can be pointed elsewhere without editing the

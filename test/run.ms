@@ -3,6 +3,11 @@
 // Run: 3rd-party\miniscript-win\miniscript.exe test\run.ms
 // Exit code 0 means every check passed.
 //
+// The API layer's cases are here too: the split of a command line into options and the
+// words a program reads itself, the parameter table's checks, and the .env reader. That
+// layer is part of this program rather than a library with a suite of its own, so its cases
+// share this runner, its --file names and its totals.
+//
 // A test runner asks for part of the suite instead:
 //
 //   miniscript.exe test\run.ms --json --filter "a rule line parses" --file session.ms
@@ -46,6 +51,11 @@ import "../src/schema"
 import "../src/mermaid"
 env["MS_IMPORT_PATH"] = savedImportPath
 
+// The API layer's client reaches the bundled json and stringUtil libraries, which a src/-only
+// import path hides, so it loads here, with the .env reader beside it.
+import "../src/api/client"
+import "../src/dotenv"
+
 import "harness"
 import "display"
 import "proofs"
@@ -61,6 +71,9 @@ import "mermaid"
 import "loaders"
 import "domain"
 import "options"
+import "arguments"
+import "parameters"
+import "dotenv"
 
 // shellArgs[0] is this script, so the options start at index 1.
 wanted = {"json": 0, "filters": [], "files": []}
@@ -113,6 +126,14 @@ mermaidCases = globals["mermaid"]
 domainModule = globals["../src/domain"]
 // options.ms is the program's option table; `options` is this suite's case module for it.
 optionsModule = globals["../src/options"]
+// The API layer's shared client, for the cases about the argument split and the parameter
+// engine. `arguments` and `parameters` are this suite's case modules for it.
+apiClient = globals["../src/api/client"]
+argumentCases = globals["arguments"]
+parameterCases = globals["parameters"]
+// src/dotenv.ms reads .env files and finds settings; `dotenv` is this suite's case module.
+dotenvModule = globals["../src/dotenv"]
+dotenvCases = globals["dotenv"]
 
 // The library and the session module, both loaded by the block above.
 replLibrary = globals["repl/repl"]
@@ -138,6 +159,15 @@ if rulesLoader == null or factsLoader == null or schemaLoader == null then
 end if
 if cliLibrary == null or optionsModule == null or optionsModule.hasIndex("declare") == 0 then
 	print "error: could not import cli/cli and ../src/options"
+	exit 1
+end if
+
+if apiClient == null or apiClient.hasIndex("splitArguments") == 0 then
+	print "error: could not import ../src/api/client"
+	exit 1
+end if
+if dotenvModule == null or dotenvModule.hasIndex("find") == 0 then
+	print "error: could not import ../src/dotenv"
 	exit 1
 end if
 
@@ -182,5 +212,8 @@ mermaidCases.run(triples, mermaidModule, parser, schemaLoader, factsLoader, rule
 loaders.run(triples, rulesLoader, factsLoader, schemaLoader, harness)
 globals["domain"].run(domainModule, harness)
 globals["options"].run(cliLibrary, optionsModule, harness)
+argumentCases.run(cliLibrary, apiClient, harness)
+parameterCases.run(apiClient, harness)
+dotenvCases.run(dotenvModule, harness)
 
 harness.summary()

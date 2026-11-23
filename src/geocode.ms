@@ -29,13 +29,13 @@
 import "cli/cli"
 import "api/client"
 import "api/geocode"
-import "api/dotenv"
+import "dotenv"
 import "json"
 
 cli = globals["cli/cli"]
 client = globals["api/client"]
 geo = globals["api/geocode"]
-dotenv = globals["api/dotenv"]
+dotenv = globals["dotenv"]
 
 scriptName = "geocode.ms"
 if shellArgs.len > 0 then scriptName = file.name(shellArgs[0])
