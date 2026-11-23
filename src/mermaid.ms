@@ -308,7 +308,7 @@ svgLines = function(drawing)
 		// Held back rather than written here: every label is drawn once every line and every box
 		// is on the page, so a relation cannot run across another relation's words.
 		labels.push("  <text x='" + spot.x + "' y='" + spot.y + "' text-anchor='middle' font-size='10'" +
-			" paint-order='stroke' stroke='#ffffff' stroke-width='3' stroke-linejoin='round'" +
+			" paint-order='stroke' stroke='#ffffff' stroke-width='5' stroke-linejoin='round'" +
 			" fill='#1f2937'>" + text + "</text>")
 	end for
 	for name in drawing.nodes

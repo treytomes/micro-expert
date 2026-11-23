@@ -310,6 +310,17 @@ run = function(t, mermaid, knowledge, schemaLoader, factsLoader, rulesLoader, h)
 	end for
 	h.check("a relation along a row keeps its label in the corridor under that row, not above it",
 		inCorridor == 1)
+	// A line does still cross some labels - the corridor under the top row is a fan of them - and
+	// what keeps it from showing between the words is the halo. It has to be wider than the gap a
+	// 10px font leaves there, which is around three pixels, for the white to close across it.
+	halo = null
+	for line in shippedPicture
+		if line.indexOf("paint-order='stroke'") == null then continue
+		width = attribute(line, "stroke-width")
+		if halo == null or width < halo then halo = width
+	end for
+	h.check("every label's halo is wider than the gap between its words",
+		halo != null and halo >= 5 and holds(shippedPicture, "stroke='#ffffff'"))
 	h.check("and no label lands under a box", hidden == 0)
 	h.check("or on top of another label", crowded == 0)
 
