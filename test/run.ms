@@ -43,6 +43,7 @@ import "../src/session"
 import "../src/rules"
 import "../src/facts"
 import "../src/schema"
+import "../src/mermaid"
 env["MS_IMPORT_PATH"] = savedImportPath
 
 import "harness"
@@ -56,6 +57,7 @@ import "knowledge"
 import "datetimes"
 import "repl"
 import "schema"
+import "mermaid"
 import "loaders"
 import "domain"
 import "options"
@@ -104,6 +106,8 @@ parser = globals["../src/knowledge"]
 // aliased to `dates` and reached as `dateCases` below.
 dates = globals["../src/datetimes"]
 dateCases = globals["datetimes"]
+// The Mermaid exporter's cases, aliased away from the module they test the same way.
+mermaidCases = globals["mermaid"]
 // domain.ms places the three data files a run reads; it is aliased away from the case
 // module below, which is named domain.ms too.
 domainModule = globals["../src/domain"]
@@ -121,6 +125,8 @@ rulesLoader = globals["../src/rules"]
 factsLoader = globals["../src/facts"]
 // The schema loader, for the checks that read data/schema.kb itself.
 schemaLoader = globals["../src/schema"]
+// mermaid.ms draws the facts a session holds; `mermaid` below is this suite's case module.
+mermaidModule = globals["../src/mermaid"]
 
 if triples == null or rules == null or parser == null or replLibrary == null then
 	print "error: could not import ../src/triples, ../src/rule, ../src/knowledge and ../src/repl/repl"
@@ -132,6 +138,11 @@ if rulesLoader == null or factsLoader == null or schemaLoader == null then
 end if
 if cliLibrary == null or optionsModule == null or optionsModule.hasIndex("declare") == 0 then
 	print "error: could not import cli/cli and ../src/options"
+	exit 1
+end if
+
+if mermaidModule == null or mermaidModule.hasIndex("build") == 0 then
+	print "error: could not import ../src/mermaid"
 	exit 1
 end if
 
@@ -167,6 +178,7 @@ sessionCases.run(triples, rules, sessionModule, harness, schemaLoader, parser, r
 replCases.run(harness)
 dateCases.run(triples, parser, dates, harness)
 schema.run(triples, parser, schemaLoader, harness)
+mermaidCases.run(triples, mermaidModule, parser, schemaLoader, factsLoader, rulesLoader, harness)
 loaders.run(triples, rulesLoader, factsLoader, schemaLoader, harness)
 globals["domain"].run(domainModule, harness)
 globals["options"].run(cliLibrary, optionsModule, harness)
