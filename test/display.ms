@@ -92,4 +92,79 @@ run = function(t, h)
 	h.check("a number that prints in scientific notation reads back",
 		scientific.text == "has-age(oliver, 1E-07)" and
 			t.SpoTriple.parse(scientific.text).object == 0.0000001)
+
+	// ── Quoted values ───────────────────────────────────────────────────────
+	// A field may be written in double quotes, so a value holds what the form would
+	// otherwise read itself: a comma, a bracket, the '//' that opens a comment. The quotes
+	// are syntax, not part of the value - what they hold is read as the same text bare
+	// would be - and they appear again whenever the bare spelling would read back as
+	// something else, so what a triple displays as is a line that reads back as itself.
+
+	quote = char(34)
+	inQuotes = function(text)
+		return quote + text + quote
+	end function
+
+	town = t.SpoTriple.parse("has-home-town(guid, " + inQuotes("Dallas, TX") + ")")
+	h.check("a quoted comma stays in one field", not (town isa error) and
+		town.object == "Dallas, TX")
+	h.check("a quoted value displays in quotes, so it reads back",
+		town.text == "has-home-town(guid, " + inQuotes("Dallas, TX") + ")" and
+			t.SpoTriple.parse(town.text).text == town.text)
+
+	// Quotes promise text: a quoted value is the text bare would be when bare is text too,
+	// and a quoted number stays text where the unquoted one is the number. That is what lets
+	// an all-digit value sit in a `text` field, and what makes a number's own spelling the
+	// only one a `number` field takes.
+	bare = t.SpoTriple.parse("has-home-town(guid, Dallas)")
+	h.check("a quoted value is the value its bare spelling is",
+		t.SpoTriple.parse("has-home-town(guid, " + inQuotes("Dallas") + ")").text ==
+			bare.text)
+	h.check("and it meets the bare one",
+		t.unify(t.SpoTriple.parse("has-home-town(guid, " + inQuotes("Dallas") + ")"),
+			bare) != null)
+	h.check("a value that needs no quotes is shown without them",
+		bare.text == "has-home-town(guid, Dallas)")
+	quotedNumber = t.SpoTriple.parse("has-house-number(way/1, " + inQuotes("7") + ")")
+	h.check("a quoted number is text, not the number",
+		quotedNumber.object == "7" and not (quotedNumber.object isa number))
+	h.check("it keeps its quotes when it displays, so a file reads it as text",
+		quotedNumber.text == "has-house-number(way/1, " + inQuotes("7") + ")")
+	h.check("and a number is written bare",
+		t.SpoTriple.parse("has-age(oliver, 7)").object == 7)
+
+	bracketed = t.SpoTriple.parse("born-in(oliver, " + inQuotes("Round Rock (north)") + ")")
+	h.check("a quoted bracket stays in one field",
+		bracketed.object == "Round Rock (north)")
+	h.check("and it displays so it reads back",
+		t.SpoTriple.parse(bracketed.text).object == "Round Rock (north)")
+
+	// A subject is a value like any other, so it takes quotes the same way.
+	place = t.SpoTriple.parse(inQuotes("Dallas, TX") + " | has-resident | guid")
+	h.check("a quoted subject parses", not (place isa error) and
+		place.subject == "Dallas, TX")
+	h.check("and it displays in the call form, quoted",
+		place.text == "has-resident(" + inQuotes("Dallas, TX") + ", guid)" and
+			t.SpoTriple.parse(place.text).subject == "Dallas, TX")
+
+	// The pipe form reads a comma with no quotes at all, and the call form it displays as
+	// writes that value in quotes: this is the line a session that took the one can save.
+	unquoted = t.SpoTriple.parse("guid | has-home-town | Dallas, TX")
+	h.check("the pipe form takes a comma bare", not (unquoted isa error) and
+		unquoted.object == "Dallas, TX")
+	h.check("the line it displays as reads back",
+		t.SpoTriple.parse(unquoted.text).object == "Dallas, TX")
+
+	page = t.SpoTriple.parse("has-home-page(guid, " + inQuotes("http://example.com/x") + ")")
+	h.check("a quoted '//' is part of the value", page.object == "http://example.com/x")
+	h.check("and it displays in quotes, so a data file reads it as the value",
+		page.text == "has-home-page(guid, " + inQuotes("http://example.com/x") + ")")
+
+	// A quote that is never closed would swallow the rest of the line, so the line is
+	// refused where it is read rather than stored as a misreading.
+	h.check("an unclosed quote is refused", t.SpoTriple.parse("has-home-town(guid, " +
+		quote + "Dallas)") isa error)
+	equal = t.constraintOf("equal(?x, " + inQuotes("Dallas, TX") + ")")
+	h.check("a constraint reads a quoted field too", not (equal isa error) and
+		equal != null and equal.right == "Dallas, TX")
 end function

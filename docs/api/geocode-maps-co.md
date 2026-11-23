@@ -216,7 +216,7 @@ refuse a constant no rule could match.
 
 The address parts are the interesting typing. `5` and `75007` read as numbers wherever they
 stand, and a `text` field refuses a number - `the object should be text` - so an all-digit house
-number or postcode is written in quotes, `"5"`, which stores the quotes as part of the value. A house number such as `12b` is text already and needs none.
+number or postcode is written in quotes, `"5"`, which reads as the text `5`; the number would be refused. A house number such as `12b` is text already and needs none.
 
 Five of these spellings also stand on the Open-Meteo page - `has-name`, `has-latitude`,
 `has-longitude`, `has-country`, `has-country-code` - and that is deliberate rather than a

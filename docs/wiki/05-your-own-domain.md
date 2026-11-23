@@ -107,13 +107,15 @@ because the name is the words of the sentence.
 
 A field is a variable (`?x`), a number, or text. A number may carry a sign, a decimal point, and an
 exponent with digits on both sides of the `e`: `24`, `-3`, `.5`, `1e3`, `1E-3`. `1e`, `e3`, `-`, and
-`1.2.3` stay text, which is why a mistyped age cannot pass for a zero. Quotes have no special
-meaning: `"24"` is the text `"24"`, quotes included, and a `number` field refuses it.
+`1.2.3` stay text, which is why a mistyped age cannot pass for a zero. A field in double quotes is
+text and nothing else: `"24"` is the text `24`, so a `number` field refuses it the way it refuses a
+word, and a number is written bare.
 
-Two sequences cannot appear in a field: `//` starts a comment wherever it stands, and in a rule `=>`
-splits the head from the body. Text also cannot hold a top-level comma or an unbalanced parenthesis,
-since those decide where a field and a call end. [The `.kb` grammar](kb-grammar.md) is the exact
-reference.
+Two sequences cannot appear bare in a field: `//` starts a comment wherever it stands, and in a rule
+`=>` splits the head from the body. Bare text also cannot hold a top-level comma or an unbalanced
+parenthesis, since those decide where a field and a call end; a value holding one is written in
+quotes, `"Dallas, TX"`, which is what the quotes are for. [The `.kb` grammar](kb-grammar.md) is the
+exact reference.
 
 ## Point the program at another domain
 

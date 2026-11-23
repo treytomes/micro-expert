@@ -130,7 +130,10 @@ one. A file's line endings therefore make no difference to how it reads.
 Every field of a fact, and either side of a constraint, is one term, read by `termOf`:
 
 - `?name` is a variable — an unknown, to be bound by the search.
-- A `<number>` is a number.
+- A `<number>` is a number, and is written bare.
+- A field in double quotes is text: the quotes say where it ends, and what they hold is that
+  text, never a number or a variable — `"24"` is the text `24`, and a `number` field refuses
+  it.
 - Anything else is text: the string itself, as it stands.
 
 A number is written as one:
@@ -146,12 +149,15 @@ exponent needs a digit on each side of the `e`, the mantissa needs at least one 
 `-` may only open the number: `1e`, `e3`, `-`, `+5` and `1.2.3` all stay text, which is why
 a mistyped age is a name no rule can reach rather than a zero.
 
-Text is the rest. It has no top-level comma, since that separates fields and conditions, and
-no unbalanced parenthesis, since that decides where a call ends and where an entry
-continues. Quotes have no meaning here — `has-age(tim, "24")` is the text `"24"`, with its
-quotes, and the schema refuses it where a number belongs. Two sequences cannot appear in a
-field at all: `//`, because a comment starts there wherever it stands on the line, and, in a
-rule, `=>`, because that splits the line into head and body.
+Text is the rest. Bare, it has no top-level comma, since that separates fields and
+conditions, and no unbalanced parenthesis, since that decides where a call ends and where an
+entry continues. A value holding one of those is written in quotes, `has-home-town(guid,
+"Dallas, TX")`, and so is a value that would otherwise read as a number or a variable; the
+quotes are syntax, not part of the text, there is no escape for a double quote inside one,
+and an unclosed quote refuses the entry. So `has-age(tim, "24")` is the text `24`, and the
+schema refuses it where a number belongs. Two sequences cannot appear bare in a field: `//`,
+because a comment starts there wherever it stands on the line, and, in a rule, `=>`, because
+that splits the line into head and body; in quotes both are ordinary text.
 
 ## Predicate names
 

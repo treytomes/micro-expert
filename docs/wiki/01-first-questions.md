@@ -15,7 +15,7 @@ Run the wrapper with no options:
 [INF] micro-expert: verbose:    0
 [INF] micro-expert: nlp:        0
 [INF] micro-expert: log-level:  information
-Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
+Type a fact, a question or a rule as 'head <- conditions', or a value to see how it reads. /help lists the commands; /exit leaves.
 ?
 ```
 
@@ -36,11 +36,32 @@ The session decides what a line is from its shape.
 | `is-parent-of(walter, bill)` | A ground fact. It is added to the session. |
 | `is-grandpa-of(?who, tim)` | A question, because it holds a variable. |
 | `is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)` | A rule, because it holds `<-`. |
+| `oliver` | A value, said back the way a fact would write it. Nothing is stored. |
+| `less-than(5, 3)` | A constraint with a value in both fields: it is checked and said `true` or `false`. |
 | `/help` | A command for the session itself. |
 
-A ground line is always a fact. To ask whether something is true, leave a variable in the line and
-read the answers: if the answer set is empty, nothing proves it. Chapter 3 covers the report you get
-in that case. There is no separate "assert" command.
+A ground line whose predicate is an ordinary name is always a fact. To ask whether something is
+true, leave a variable in the line and read the answers: if the answer set is empty, nothing proves
+it. Chapter 3 covers the report you get in that case. There is no separate "assert" command.
+
+The two rows before `/help` are the exceptions, and neither one changes what the session holds. A
+line that is one term — no `(` and no `|` — is that term said back, which is how a value is checked before it goes
+into a fact:
+
+```text
+? "Dallas, TX"
+  "Dallas, TX"
+? 1e3
+  1000
+```
+
+The quotes are there because of the comma; a value that needs no quotes comes back without them, so
+`oliver` answers `oliver`. They also promise the value is text, which is how an all-digit value
+stays text: `"5"` is the text `5`, where `5` is the number.
+
+A constraint's name is a shape a rule body checks rather than a predicate, so `less-than(5, 3)` is
+checked where it stands — `false`, here — and a constraint that still holds a variable is refused,
+because a check waiting on a value belongs in a rule body. Chapter 4 covers the seven names.
 
 ## Put the variable where the unknown is
 

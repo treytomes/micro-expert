@@ -18,6 +18,12 @@ run = function(t, parser, schemaLoader, h)
 	h.check("a field type is kept as written", types["has-age"][1] == "number")
 	h.check("a list of values is one type", types["has-gender"][1] == "male|female")
 
+	// Quotes promise text, so the digits a `number` field needs have to be bare: a quoted
+	// age is text and meets the same refusal a word does.
+	quotedAge = t.SpoTriple.parse("has-age(tim, " + char(34) + "24" + char(34) + ")")
+	h.check("a quoted number is text where a number belongs",
+		not (quotedAge isa error) and parser.schemaMisfit(types, quotedAge) != null)
+
 	// unique(...) wraps one field's type, and the type inside it is what a value meets. The
 	// wrapper is kept as it was written, so the line a session saves is the line it read.
 	wrapped = parser.parseSchema([

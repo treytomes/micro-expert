@@ -176,11 +176,19 @@ missing-fact report. Only goals do either.
 ## What a constraint is not
 
 A constraint's name is a shape a body checks, not a predicate a fact stores or a question
-asks. The prompt refuses a line whose predicate is one of the seven, whether it would have been
-stored or asked:
+asks. The prompt never stores one and never asks one. A line whose fields are all values is checked
+where it stands and said `true` or `false`, in the words a fact is written with:
 
 ```
-refused: less-than-or-equal(5, 3): the predicate is a constraint, checked in a rule body rather than stored or asked
+? less-than-or-equal(5, 3)
+  false
+? years-since("1948-03-14", 78)
+  true
+```
+
+A constraint that still holds a variable is refused, since a check waiting on a value is a rule body:
+
+```
 refused: less-than-or-equal(?n, 18): the predicate is a constraint, checked in a rule body rather than stored or asked
 ```
 
@@ -189,15 +197,15 @@ is a goal to prove, not a check to make.
 
 The `.kb` readers themselves do not refuse these names — `not-equal(tim, bob)` in a facts file
 loads as a fact whose predicate is `not-equal`, and a rule head may name one — because the
-readers only see the shape of a line. The refusal is the prompt's, which is where a line is
-decided to be a fact or a question, and the shipped files never use a constraint as either.
+readers only see the shape of a line. The check is the prompt's, which is where a line is decided to
+be a fact, a question or a check, and the shipped files never use a constraint as either.
 
 ## Reading a call
 
-The call is split on its commas before the fields are read, so it is exactly two fields and
-there is no quoting: `not-equal(?x, "a, b")` has three, and the entry is refused. Spaces
-around the name and the fields are trimmed; `not-equal (?x, 1)` is accepted and reads back
-without the space.
+The call is split on its commas before the fields are read, so it is exactly two fields. A comma
+inside a quoted value is that value's, not the call's: `not-equal(?x, "a, b")` is the two fields
+`?x` and `a, b`. Spaces around the name and the fields are trimmed; `not-equal (?x, 1)` is accepted
+and reads back without the space.
 
 A malformed constraint refuses the whole entry. The rule reader reports it as a malformed
 rule — `malformed rule: expected 'head <- condition, condition': ...` — and the `.kb` reader

@@ -132,14 +132,22 @@ reloaded next run.
 
 `data/schema.kb` gives each predicate's field types. The prompt holds every fact and every question
 against it before doing anything else, so a value no fact could store is refused where it is typed.
-The object field of `has-age` is a `number`, so a quoted number is text and fails:
+The object field of `has-age` is a `number`, so a word where a number belongs fails:
+
+```text
+? has-age(?a, twenty)
+  refused: has-age(?a, twenty): the object should be a number
+```
+
+Quotes promise text, so the same digits quoted are text and are refused the same way — a `number`
+field needs a number, not a name for one:
 
 ```text
 ? has-age(?a, "27")
   refused: has-age(?a, "27"): the object should be a number
 ```
 
-Type the same digits without quotes and they are read as a number:
+A number is written bare, and a question with it finds what stores one:
 
 ```text
 ? has-age(?n, 24)
@@ -199,11 +207,14 @@ the check.
 ## A constraint is not a predicate
 
 The seven built-in constraint names are conditions you write in a rule body, not predicates you can
-store or ask. The prompt refuses either use:
+store or ask. A line with a value in every field is checked where it stands and said `true` or
+`false`; one that still holds a variable is refused:
 
 ```text
 ? less-than-or-equal(5, 3)
-  refused: less-than-or-equal(5, 3): the predicate is a constraint, checked in a rule body rather than stored or asked
+  false
+? less-than-or-equal(?n, 18)
+  refused: less-than-or-equal(?n, 18): the predicate is a constraint, checked in a rule body rather than stored or asked
 ```
 
 The names are matched exactly, so `Equal` is an ordinary predicate. The `.kb` readers themselves
@@ -218,8 +229,9 @@ Start a fresh session for each group, so the changes do not accumulate.
    answer `walter`, because the new parent fact now feeds the child rule.
 2. Ask `is-uncle-of(?p, susan)` and read the rule path. It asks for a parent of Susan, then for a
    sibling. Answer `george`, then `bill`; the answers should include `bill` and `henry`.
-3. Ask `has-age(?a, "27")` and confirm the refusal, then ask `has-age(?n, 24)` and confirm it finds
+3. Ask `has-age(?a, twenty)` and confirm the refusal, then ask `has-age(?n, 24)` and confirm it finds
    Tim.
-4. Type `less-than-or-equal(5, 3)` and confirm it is refused as a constraint.
+4. Type `less-than-or-equal(5, 3)` and confirm it is checked and said `false`, then type
+   `less-than-or-equal(?n, 18)` and confirm it is refused as a constraint that still holds a variable.
 
 Next: [4. Writing rules](04-writing-rules.md).

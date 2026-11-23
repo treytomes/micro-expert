@@ -170,6 +170,90 @@ run = function(t, knowledge, h)
 		h.check("the fact's refusal names its line", brokenFact.message.indexOf("line 2") != null)
 	end if
 
+	// ── Quoted values ────────────────────────────────────────────────────────
+	// A field may be written in double quotes, so a value holds what the format would
+	// otherwise read itself: a comma, a bracket, the '//' that opens a comment. The quotes
+	// are not part of the value, and a value that needs them is written with them, so a
+	// fact a session saves is one the file loads again.
+
+	q = char(34)
+	inQuotes = function(text)
+		return q + text + q
+	end function
+
+	towns = parseOneFact("has-home-town(guid, " + inQuotes("Dallas, TX") + ")")
+	h.check("a quoted comma is one field", not (towns isa error) and
+		towns[0].object == "Dallas, TX")
+	h.check("it reads as it was written",
+		towns[0].text == "has-home-town(guid, " + inQuotes("Dallas, TX") + ")")
+
+	// /save-facts writes facts through factsLines, and the file it writes has to load
+	// again: a value that needs quotes is the one thing the call form cannot say bare.
+	savedTowns = knowledge.factsLines(towns)
+	reloadedTowns = knowledge.parseFacts(t, savedTowns)
+	h.check("a fact with a comma survives a save and a reload",
+		not (reloadedTowns isa error) and reloadedTowns[0].object == "Dallas, TX" and
+			reloadedTowns[0].text == towns[0].text)
+
+	// The bare spelling is the same value, so a file written before quotes existed reads
+	// as it always did, and a value that needs no quotes is still written without them.
+	bareTown = parseOneFact("has-home-town(guid, Dallas)")
+	h.check("a value with no comma is written bare",
+		knowledge.factsLines(bareTown)[0] == "has-home-town(guid, Dallas)")
+	quotedTown = knowledge.parseFacts(t, ["has-home-town(guid, " + inQuotes("Dallas") + ")"])
+	h.check("a quoted value is the value its bare spelling is",
+		not (quotedTown isa error) and quotedTown[0].text == bareTown[0].text)
+
+	// The quotes promise text, so they are how an all-digit value sits in a `text` field:
+	// the number would be refused there, and the text keeps its quotes through a save.
+	houseNumber = parseOneFact("has-house-number(way/1, " + inQuotes("5") + ")")
+	h.check("a quoted number is text in a data file",
+		not (houseNumber isa error) and houseNumber[0].object == "5" and
+			not (houseNumber[0].object isa number))
+	h.check("and it is written back in quotes",
+		knowledge.factsLines(houseNumber)[0] ==
+			"has-house-number(way/1, " + inQuotes("5") + ")")
+
+	// A subject is a value like any other, so it takes quotes the same way.
+	place = parseOneFact("has-resident(" + inQuotes("Dallas, TX") + ", guid)")
+	h.check("a quoted subject parses in a data file", not (place isa error) and
+		place[0].subject == "Dallas, TX")
+	h.check("and it is written back with its quotes",
+		knowledge.factsLines(place)[0] ==
+			"has-resident(" + inQuotes("Dallas, TX") + ", guid)")
+
+	pages = parseOneFact("has-home-page(guid, " + inQuotes("http://example.com/x") + ")")
+	h.check("a quoted '//' is not a comment", not (pages isa error) and
+		pages[0].object == "http://example.com/x")
+	noted = parseOneFact("has-home-page(guid, " + inQuotes("http://example.com/x") +
+		") // where the page is")
+	h.check("a comment after a quoted value is still a comment", not (noted isa error) and
+		noted[0].object == "http://example.com/x")
+
+	nested = parseOneFact("born-in(oliver, " + inQuotes("Round Rock (north)") + ")")
+	h.check("a quoted bracket does not close the call", not (nested isa error) and
+		nested[0].object == "Round Rock (north)")
+	h.check("and it does not run on to the next line",
+		knowledge.parseFacts(t, ["born-in(oliver, " + inQuotes("Round Rock (north)") + ")",
+			"has-gender(oliver, male)"]).len == 2)
+
+	// A rule's value takes quotes too, and the arrow inside one is not the rule's arrow.
+	townRule = parseOneRule("has-town-resident(?p, ?t) => lives-in(?p, " +
+		inQuotes("Dallas, TX") + ")")
+	h.check("a quoted value in a rule body parses", not (townRule isa error) and
+		townRule[0].body[0].object == "Dallas, TX")
+	h.check("and the rule is written back so it reads again",
+		not (knowledge.parseRules(t, knowledge.rulesLines(townRule)) isa error))
+	arrowRule = parseOneRule("a(?x, ?y) => b(?x, " + inQuotes("x => y") + ")")
+	h.check("a quoted arrow is not the rule's arrow", not (arrowRule isa error) and
+		arrowRule[0].body[0].object == "x => y")
+
+	// A quote that is never closed would swallow the rest of the entry, so the entry is
+	// refused rather than read as something else.
+	openQuote = knowledge.parseFacts(t, ["has-home-town(guid, " + q + "Dallas, TX)"])
+	h.check("an unclosed quote is refused", openQuote isa error and
+		openQuote.message.indexOf("quote") != null)
+
 	// ── A condition that compares numbers ────────────────────────────────────
 
 	aged = parseOneRule("belongs-to-age-group(?x, child) => and(has-age(?x, ?n), less-than-or-equal(?n, 18))")

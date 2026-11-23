@@ -170,7 +170,7 @@ given, a one-line reminder of what to type, and the `?` prompt:
 [INF] micro-expert: verbose:    0
 [INF] micro-expert: nlp:        0
 [INF] micro-expert: log-level:  information
-Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
+Type a fact, a question or a rule as 'head <- conditions', or a value to see how it reads. /help lists the commands; /exit leaves.
 ? is-grandpa-of(?who, tim)
   walter is grandpa of tim
 ? /exit

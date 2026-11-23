@@ -209,7 +209,7 @@ ENTRY_POINT=./src/main.ms
 [INF] micro-expert: micro-expert 0.2.0 starting
 [INF] micro-expert: Command-line arguments (0): (none)
 ...
-Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
+Type a fact, a question or a rule as 'head <- conditions', or a value to see how it reads. /help lists the commands; /exit leaves.
 ? is-uncle-of(bill, ?p)
   bill is uncle of anna
   bill is uncle of mark
@@ -251,7 +251,7 @@ Type a fact, a question, or a rule as 'head <- conditions'. /help lists the comm
 
 ```plaintext
 > micro-expert --nlp
-Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
+Type a fact, a question or a rule as 'head <- conditions', or a value to see how it reads. /help lists the commands; /exit leaves.
 ? is-parent-of(?p, susan)
   no solution found at depth 8
   A solution would need one of these:

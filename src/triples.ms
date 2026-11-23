@@ -32,6 +32,108 @@ mapWith = function(items, f, arg=null)
 	return results
 end function
 
+// ── Quotes ───────────────────────────────────────────────────────────────────
+// A field may be written in double quotes: has-home-town(guid, "Dallas, TX"). The quotes
+// are syntax, not part of the value - they say where the value ends when it holds a
+// character the form would otherwise read itself (a comma, a bracket, a '|', the '//' that
+// opens a comment) - and they promise the field is text: "Dallas" is the text Dallas, and
+// "7" is the text 7, where the number is written bare. There is no escape, so a value
+// cannot hold a double quote.
+//
+// needsQuotes is the other half of the same rule: a value is written in quotes when the
+// bare spelling would read back as something else, so what a triple displays as is a line
+// that reads back as the same triple.
+
+quoteChar = char(34)
+
+isQuoted = function(text)
+	"Says whether a field is written in quotes, which are syntax and not part of its value."
+	if not (text isa string) then return false
+	return text.len >= 2 and text[:1] == quoteChar and text[-1] == quoteChar
+end function
+
+bareText = function(text)
+	"What a field spells without its quotes: the value itself when it has none."
+	if not isQuoted(text) then return text
+	return text[1:-1]
+end function
+
+balancedQuotes = function(text)
+	"Says whether every quote is closed, so an open one is refused rather than swallowing the rest of the line."
+	count = 0
+	for c in text
+		if c == quoteChar then count = count + 1
+	end for
+	return count * 0.5 == floor(count * 0.5)
+end function
+
+indexOfOutside = function(text, needle, brackets=true)
+	"Where needle first stands outside quotes and brackets, or null when it does not."
+	if text.len < needle.len then return null
+	depth = 0
+	quoted = false
+	for at in range(0, text.len - needle.len)
+		c = text[at]
+		if c == quoteChar then
+			quoted = not quoted
+		else if quoted then
+			continue
+		else if brackets and c == "(" then
+			depth = depth + 1
+		else if brackets and c == ")" then
+			depth = depth - 1
+		else if depth == 0 and text[at:at + needle.len] == needle then
+			return at
+		end if
+	end for
+	return null
+end function
+
+splitOutside = function(text, separator, brackets=true)
+	"One piece per separator that stands outside quotes and brackets."
+	pieces = []
+	current = ""
+	depth = 0
+	quoted = false
+	for c in text
+		if c == quoteChar then
+			quoted = not quoted
+		else if not quoted then
+			if brackets and c == "(" then
+				depth = depth + 1
+			else if brackets and c == ")" then
+				depth = depth - 1
+			else if c == separator and depth == 0 then
+				pieces.push(current)
+				current = ""
+				continue
+			end if
+		end if
+		current = current + c
+	end for
+	pieces.push(current)
+	return pieces
+end function
+
+needsQuotes = function(text)
+	"Says whether a value has to be written in quotes to read back as itself."
+	if not (text isa string) then return false
+	if text.len == 0 then return true
+	// A leading '?' would read as a variable, and a number-like text as a number.
+	if text[:1] == "?" then return true
+	if isNumber(text) then return true
+	// The form trims the space around a field, so a value's own edges would be lost.
+	if text != trimSpace(text) then return true
+	// Each of these means something else in one of the two forms: a comma separates
+	// fields, a bracket opens or closes a call, a '|' separates the pipe form's fields.
+	for c in text
+		if c == "," or c == "(" or c == ")" or c == "|" or c == quoteChar then return true
+	end for
+	// '//' opens a comment in a data file, and an arrow has its own meaning in a rule.
+	return text.indexOf("//") != null or text.indexOf("=>") != null or
+		text.indexOf("<-") != null
+end function
+
 // ── Var: a logic variable, written ?x ────────────────────────────────────────
 
 Var = {}
@@ -55,8 +157,9 @@ var = function(name)
 end function
 
 termText = function(term)
-	"Renders one term: a Var as '?x', anything else as it is."
+	"Renders one term: a Var as '?x', a value in quotes when it needs them, and anything else as it is."
 	if term isa Var then return term.text
+	if needsQuotes(term) then return quoteChar + term + quoteChar
 	return term
 end function
 
@@ -409,6 +512,43 @@ applyConstraint = function(constraint, binds)
 	if constraint isa YearsSince then return yearsSinceBinds(constraint, binds)
 	if holdsConstraint(constraint, binds) then return binds
 	return null
+end function
+
+// A line typed at the prompt can name a constraint instead of a predicate, and when every
+// field of it is a value the line says something that can be read off: less-than(5, 3) says
+// five is below three, which it is not, and years-since("1948-03-14", 78) says the years are
+// 78. constraintFrom turns the parsed line into the constraint a body would check, and
+// settledHolds reads it, so the prompt checks a constraint the one way a rule body does
+// rather than inventing a second reading of the names.
+
+constraintFrom = function(triple)
+	"The constraint a predicate(subject, object) line names, or null when its name is not one of the constrained ones."
+	name = triple.predicate
+	if not (name isa string) then return null
+	if name == equalName then return Equal.make(triple.subject, triple.object)
+	if name == notEqualName then return NotEqual.make(triple.subject, triple.object)
+	if name == sinceName then return YearsSince.make(triple.subject, triple.object)
+	if comparisonNames.hasIndex(name) == 0 then return null
+	return Comparison.make(comparisonNames[name], triple.subject, triple.object)
+end function
+
+settledHolds = function(constraint)
+	"Says whether a constraint whose fields are all values holds, by the reading a rule body gives it; fields still holding variables are the caller's to refuse."
+	// equal is the one that binds, and here there is nothing left to bind: two values are the
+	// same one or they are not.
+	if constraint isa Equal then return constraint.left == constraint.right
+	// years-since counts its date on the day the search runs, and a date the calendar does not
+	// have has no years at all - which a body reads as a check that failed, not as a refusal,
+	// and so does this.
+	if constraint isa YearsSince then
+		years = yearsSince(constraint.date, dayToday())
+		if years == null then return false
+		if not (constraint.years isa number) then return false
+		return years == constraint.years
+	end if
+	// A comparison with a side that is not a number fails rather than passing for a zero, and
+	// not-equal asks only that the two differ, so both are what holdsConstraint already says.
+	return holdsConstraint(constraint, null)
 end function
 
 // ── Proof search ─────────────────────────────────────────────────────────────
@@ -1156,8 +1296,8 @@ neededFactText = function(need, labels, style)
 end function
 
 shownTerm = function(term, labels, style)
-	"One field of a needed fact: a value as it is, a variable as the label the report gave it."
-	if not (term isa Var) then return term
+	"One field of a needed fact: a value as it reads, a variable as the label the report gave it."
+	if not (term isa Var) then return termText(term)
 	plain = "?" + labels[term.name]
 	shown = paint(style, "var", plain)
 	// Dimming a variable ends the paint it sits in, so a painted fact reopens it.
@@ -1182,11 +1322,15 @@ end function
 parseLine = function(line)
 	"Reads 'predicate(subject, object)' or 'subject | predicate | object', or an error."
 	text = trimSpace(line)
+	// An open quote is refused here rather than read as part of a value: it would
+	// swallow everything after it and leave a misreading of the line.
+	if not balancedQuotes(text) then return err(unclosedQuote(line))
 
 	// Text wrapped in one pair of parentheses is a call, and a call that does not
 	// fit fails loudly: falling back to the pipe form would put 'oav(bill' in the
-	// subject and quietly invent a triple.
-	if text[-1] == ")" and text.split("(").len == 2 then
+	// subject and quietly invent a triple. A '(' inside a quoted value is not the
+	// call's, so the opening one is looked for outside quotes.
+	if indexOfOutside(text, "(", false) != null and text[-1] == ")" then
 		called = parseCall(text)
 		if called == null then return err(badLine(line))
 		return called
@@ -1197,7 +1341,7 @@ end function
 
 parsePipe = function(text, line)
 	"Reads 'subject | predicate | object' into [subject, predicate, object], else an error."
-	fields = text.split("|")
+	fields = splitOutside(text, "|", false)
 	if fields.len != 3 then return err(badLine(line))
 	terms = mapWith(fields, @fieldTerm, line)
 	for term in terms
@@ -1215,17 +1359,21 @@ end function
 
 parseCall = function(text)
 	"Reads 'predicate(subject, object)' into [subject, predicate, object], else null."
-	pieces = text.split("(")
-	inner = pieces[1][:-1]
-	args = inner.split(",")
+	text = trimSpace(text)
+	openAt = indexOfOutside(text, "(", false)
+	if openAt == null then return null
+	if text[-1] != ")" then return null
+	inner = text[openAt + 1:-1]
+	args = splitOutside(inner, ",", true)
 	if args.len != 2 then return null
-	predicate = trimSpace(pieces[0])
+	predicate = trimSpace(text[:openAt])
 	if predicate == "" then return null
 	return [termOf(trimSpace(args[0])), termOf(predicate), termOf(trimSpace(args[1]))]
 end function
 
 termOf = function(text)
-	"Turns a '?x' field into a Var, a plain number into a number, and leaves every other field its text."
+	"Turns a field into a term: a quoted field is the text it holds, '?x' becomes a Var, a plain number a number, and any other field its text."
+	if isQuoted(text) then return bareText(text)
 	if text[:1] == "?" then return Var.make(text)
 	if isNumber(text) then return val(text)
 	return text
@@ -1271,6 +1419,11 @@ badLine = function(line)
 	return "malformed spo: expected 'predicate(subject, object)' or 'subject | predicate | object': " + line
 end function
 
+unclosedQuote = function(line)
+	"One message for a line whose quoted value has no closing quote."
+	return "malformed spo: a quoted value has no closing quote: " + line
+end function
+
 // ── Rules as text ─────────────────────────────────────────────────────────────
 // Rule.text prints a rule as 'head <- condition, condition', and the functions here
 // read that line back. They return the pieces Rule.make takes rather than a rule, so
@@ -1279,14 +1432,15 @@ end function
 
 parseRule = function(line)
 	"Reads 'head <- condition, condition' into {head, body}, or an error."
-	pieces = line.split("<-")
-	if pieces.len != 2 then return err(badRule(line))
+	// The arrow is looked for outside quotes, so a value holding one is not the rule's.
+	arrowAt = indexOfOutside(line, "<-", false)
+	if arrowAt == null then return err(badRule(line))
 	// A head that does not parse keeps its own error: it names the piece that is wrong,
 	// where the rule's one message would only repeat the line, and a predicate name it
 	// refuses is the one message a typo can act on.
-	head = SpoTriple.parse(pieces[0])
+	head = SpoTriple.parse(line[:arrowAt])
 	if head isa error then return head
-	body = trimSpace(pieces[1])
+	body = trimSpace(line[arrowAt + 2:])
 	if body == "" then return err(badRule(line))
 	conditions = []
 	for text in splitConditions(body)
@@ -1300,24 +1454,8 @@ parseRule = function(line)
 end function
 
 splitConditions = function(text)
-	"Splits a rule body at the commas between conditions, not the ones inside them."
-	pieces = []
-	current = ""
-	depth = 0
-	for c in text
-		if c == "(" then
-			depth = depth + 1
-		else if c == ")" then
-			depth = depth - 1
-		else if c == "," and depth == 0 then
-			pieces.push(current)
-			current = ""
-			continue
-		end if
-		current = current + c
-	end for
-	pieces.push(current)
-	return pieces
+	"Splits a rule body at the commas between conditions, not the ones inside a call or a quoted value."
+	return splitOutside(text, ",", true)
 end function
 
 parseCondition = function(text, line)
@@ -1331,15 +1469,16 @@ end function
 
 constraintOf = function(text)
 	"Reads a constraint call into an Equal, a NotEqual or a Comparison: null for another predicate, an error when the call is wrong."
-	openAt = text.indexOf("(")
+	openAt = indexOfOutside(text, "(", false)
 	if openAt == null then return null
 	name = trimSpace(text[:openAt])
 	if not isConstraint(name) then return null
 	expected = "expected '" + name + "(field, field)': " + text
+	if not balancedQuotes(text) then return err(expected)
 	inner = trimSpace(text[openAt + 1:])
 	if inner.len == 0 then return err(expected)
 	if inner[-1] != ")" then return err(expected)
-	fields = inner[:-1].split(",")
+	fields = splitOutside(inner[:-1], ",", true)
 	if fields.len != 2 then return err(expected)
 	left = trimSpace(fields[0])
 	right = trimSpace(fields[1])
@@ -1389,7 +1528,7 @@ end function
 
 groupingOf = function(text)
 	"The {name, inner} of an and(...), or(...) or not(...) standing alone, or null when the text is not one."
-	openAt = text.indexOf("(")
+	openAt = indexOfOutside(text, "(", false)
 	if openAt == null then return null
 	name = trimSpace(text[:openAt])
 	if ["and", "or", "not"].indexOf(name) == null then return null

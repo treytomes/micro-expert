@@ -25,7 +25,9 @@
 // numbers rather than proving anything, so it holds only when both sides are numbers and
 // text never passes for a zero. equal is the one that can bind: a side still unbound takes
 // the other's value. Constraints are written as calls like every other condition. A value
-// is a name, a number, or a ?x variable. Blank lines and lines starting with // are
+// is a name, a number, a ?x variable, or a text in double quotes when it holds what the form
+// would otherwise read - a comma, a bracket, the '//' that opens a comment - the quotes
+// being syntax rather than part of the value. Blank lines and lines starting with // are
 // skipped, and an entry that will not parse names its line.
 //
 // or(...) holds a body's alternatives: any one of them may hold instead, and each
@@ -397,11 +399,12 @@ end function
 
 parseRule = function(triples, text)
 	"Reads one rule, 'head => body', into {head, body}, or an error."
-	pieces = text.split("=>")
-	if pieces.len != 2 then return err("expected 'head => body': " + text)
-	head = parseFact(triples, pieces[0])
+	// The arrow is looked for outside quotes, so a value holding one is not the rule's.
+	arrowAt = indexOfOutside(text, "=>", false)
+	if arrowAt == null then return err("expected 'head => body': " + text)
+	head = parseFact(triples, text[:arrowAt])
 	if head isa error then return head
-	body = parseBody(triples, pieces[1])
+	body = parseBody(triples, text[arrowAt + 2:])
 	if body isa error then return body
 	return {"head": head, "body": body}
 end function
@@ -483,6 +486,9 @@ end function
 
 parseFact = function(triples, text)
 	"Reads 'predicate(subject, object)' into a triple, or an error."
+	if not balancedQuotes(text) then
+		return err("a quoted value has no closing quote: " + trimSpace(text))
+	end if
 	called = parseCall(text)
 	if called isa error then return called
 	if called.args.len != 2 then
@@ -501,22 +507,94 @@ parseFact = function(triples, text)
 	return triples.SpoTriple.make(subject, predicate, object)
 end function
 
+// ── Quotes ──────────────────────────────────────────────────────────────────
+// A field may be written in double quotes, so a value can hold what the format would
+// otherwise read as its own: has-home-town(guid, "Dallas, TX"). The quotes are syntax,
+// not part of the value - triples.termOf reads what they hold as text, which is what the
+// quotes promise - and this file only has to know where a field ends. There is no escape,
+// so a value cannot hold a double quote.
+
+quoteChar = char(34)
+
+balancedQuotes = function(text)
+	"Says whether every quote is closed, so an open one is refused rather than swallowing the rest of the line."
+	count = 0
+	for c in text
+		if c == quoteChar then count = count + 1
+	end for
+	return count * 0.5 == floor(count * 0.5)
+end function
+
+indexOfOutside = function(text, needle, brackets=true)
+	"Where needle first stands outside quotes and brackets, or null when it does not."
+	if text.len < needle.len then return null
+	depth = 0
+	quoted = false
+	for at in range(0, text.len - needle.len)
+		c = text[at]
+		if c == quoteChar then
+			quoted = not quoted
+		else if quoted then
+			continue
+		else if brackets and c == "(" then
+			depth = depth + 1
+		else if brackets and c == ")" then
+			depth = depth - 1
+		else if depth == 0 and text[at:at + needle.len] == needle then
+			return at
+		end if
+	end for
+	return null
+end function
+
+splitOutside = function(text, separator, brackets=true)
+	"One piece per separator that stands outside quotes and brackets."
+	pieces = []
+	current = ""
+	depth = 0
+	quoted = false
+	for c in text
+		if c == quoteChar then
+			quoted = not quoted
+		else if not quoted then
+			if brackets and c == "(" then
+				depth = depth + 1
+			else if brackets and c == ")" then
+				depth = depth - 1
+			else if c == separator and depth == 0 then
+				pieces.push(current)
+				current = ""
+				continue
+			end if
+		end if
+		current = current + c
+	end for
+	pieces.push(current)
+	return pieces
+end function
+
 // ── Reading a call ───────────────────────────────────────────────────────────
 
 parseCall = function(text)
 	"Reads 'name(arg, arg, ...)' into {name, args}, or an error when the text is not one call."
 	text = trimSpace(text)
-	openAt = text.indexOf("(")
+	openAt = indexOfOutside(text, "(", false)
 	if openAt == null then return err("expected a call, 'predicate(subject, object)': " + text)
 	name = trimSpace(text[:openAt])
 	if name == "" then return err("expected a name before '(': " + text)
 	depth = 0
+	quoted = false
 	closeAt = null
 	// The first '(' is the call's, so its matching ')' has to end the text: a stray
-	// ')(' would otherwise be read as two calls and invent a triple.
+	// ')(' would otherwise be read as two calls and invent a triple. A bracket inside
+	// a quoted value is part of that value, not the call's.
 	for at in range(openAt, text.len - 1)
 		c = text[at]
-		if c == "(" then
+		if c == quoteChar then
+			quoted = not quoted
+		else if quoted then
+			continue
+		else if c == "(" then
 			depth = depth + 1
 		else if c == ")" then
 			depth = depth - 1
@@ -534,23 +612,11 @@ parseCall = function(text)
 end function
 
 splitTopLevel = function(text)
-	"One trimmed piece per comma that is not inside a call, so a nested call stays whole."
+	"One trimmed piece per comma that is not inside a call or a quoted value, so a nested call stays whole."
 	pieces = []
-	current = ""
-	depth = 0
-	for c in text
-		if c == "(" then
-			depth = depth + 1
-		else if c == ")" then
-			depth = depth - 1
-		else if c == "," and depth == 0 then
-			pieces.push(trimSpace(current))
-			current = ""
-			continue
-		end if
-		current = current + c
+	for piece in splitOutside(text, ",", true)
+		pieces.push(trimSpace(piece))
 	end for
-	pieces.push(trimSpace(current))
 	return pieces
 end function
 
@@ -621,23 +687,36 @@ needsMore = function(text)
 end function
 
 parenDepth = function(text)
-	"How many '(' are still open at the end of the text."
+	"How many '(' are still open at the end of the text; a bracket inside a quoted value is that value's, not the call's."
 	depth = 0
+	quoted = false
 	for c in text
-		if c == "(" then
-			depth = depth + 1
-		else if c == ")" then
-			depth = depth - 1
+		if c == quoteChar then
+			quoted = not quoted
+		else if not quoted then
+			if c == "(" then
+				depth = depth + 1
+			else if c == ")" then
+				depth = depth - 1
+			end if
 		end if
 	end for
 	return depth
 end function
 
 stripComment = function(line)
-	"One line without its // comment."
-	at = line.indexOf("//")
-	if at == null then return line
-	return line[:at]
+	"One line without its // comment, and without a '//' that stands inside a quoted value."
+	if line.len < 2 then return line
+	quoted = false
+	for at in range(0, line.len - 2)
+		c = line[at]
+		if c == quoteChar then
+			quoted = not quoted
+		else if not quoted and c == "/" and line[at + 1] == "/" then
+			return line[:at]
+		end if
+	end for
+	return line
 end function
 
 trimSpace = function(text)

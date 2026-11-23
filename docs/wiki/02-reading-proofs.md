@@ -38,9 +38,10 @@ Here is how to read it.
 The same fact form is used in the tree, in `/facts`, and in the default answer. The `<-` arrow is the
 one `Rule.text` prints and the one you type at the prompt; the `.kb` files write `=>` instead.
 
-Remember from chapter 1 that a ground line adds a fact rather than asking a question. Running
-`--verbose` does not change that: `is-uncle-of(bill, anna)` is still a ground line, so it is added
-and there is no search to show. Leave a variable to get a proof.
+Remember from chapter 1 that a ground line adds a fact rather than asking a question — a line whose
+predicate is an ordinary name, that is; a lone value and a ground constraint are only reported.
+Running `--verbose` does not change that: `is-uncle-of(bill, anna)` is still a ground line, so it is
+added and there is no search to show. Leave a variable to get a proof.
 
 ## One answer can have more than one derivation
 
