@@ -440,6 +440,23 @@ handleLine = function(session, line)
 		addRule(session, line)
 		return
 	end if
+	// A line in square brackets is a span and not a value: the two dates it lies between, read
+	// into a TimeSpan, and said back with the type it came back as. A span keeps no text of its
+	// own, so the answer names the kind and shows the ends it kept, which is how a value the
+	// prompt read is told apart from the text that arrived on the line.
+	span = spanOfLine(session, line)
+	if span != null then
+		repl.say(session, "answer", "  TimeSpan " + span.str + " [" + span.start.str + ", " + span.finish.str + "]")
+		return
+	end if
+	// A line that reads as a date, a time or a datetime is read before it is taken as text, so
+	// the short shapes the reader takes come back in the one full shape, and the type is shown
+	// the way a span's is. Only a line the reader refuses is said back as the text it was.
+	when = momentOfLine(session, line)
+	if when != null then
+		repl.say(session, "answer", "  DateTime " + when.str)
+		return
+	end if
 	// A line with no call and no pipe in it is one term, and it is said back the way a fact
 	// would write it. The prompt is also where a value is checked before it goes into a fact,
 	// so a quoted "Dallas, TX" comes back with the quotes it needs and 1e3 comes back as 1000.
@@ -470,6 +487,29 @@ handleLine = function(session, line)
 	else
 		addFact(session, triple)
 	end if
+end function
+
+spanOfLine = function(session, line)
+	"The TimeSpan a bracketed line reads as, or null when the line is not one the span reader takes."
+	// A session given no schema is given no date classes either, and a bracketed line is then
+	// just text to it, the way it was before there was a span to read.
+	if not session.hasIndex("schema") then return null
+	text = session.triples.trimSpace(line)
+	if text.len < 2 or text[0] != "[" then return null
+	span = session.schema.TimeSpan.receive(text)
+	if span isa error then return null
+	return span
+end function
+
+momentOfLine = function(session, line)
+	"The DateTime a line reads as, or null when the line is not one the date reader takes."
+	// A session given no schema is given no date class either, and a date-shaped line is then
+	// just text to it, the way it was before a DateTime could be read at the prompt.
+	if not session.hasIndex("schema") then return null
+	text = session.triples.trimSpace(line)
+	when = session.schema.DateTime.receive(text)
+	if when isa error then return null
+	return when
 end function
 
 loneTerm = function(session, line)

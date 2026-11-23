@@ -81,6 +81,10 @@ end function
 
 DateTime = temporal.DateTime
 
+// The span between two of them, handed on for the same reason: a caller that has the values
+// and wants to hold one against them asks the class where it is, not where it came from.
+TimeSpan = temporal.TimeSpan
+
 receive = function(text, kind=null)
 	"Reads a date, time or datetime text into a DateTime, or says what is wrong with it."
 	return temporal.DateTime.receive(text, kind)

@@ -17,10 +17,12 @@
 // A part may also be written short: a date without its day is the first of that month, and
 // a clock without its seconds is the start of that minute. A date reads from yyyy-MM-dd or
 // yyyy-MM, a time from HH:mm:ss or HH:mm, and a datetime is the two together with either
-// side as short as it likes:
+// side as short as it likes. A month, a day and an hour may be one digit as well as two, so
+// the year keeps its four and the minute and the second keep theirs:
 //
 //   2019-04        is 2019-04-01
-//   09:30          is 09:30:00
+//   2019-4-1       is 2019-04-01
+//   9:30           is 09:30:00
 //   2019-04 09:30  is 2019-04-01 09:30:00
 //
 // A short text says where a period begins, and the value it makes is that instant, so it
@@ -162,11 +164,13 @@ DateTime.dateParts = function(text)
 		return err("a date is written yyyy-MM-dd or yyyy-MM: " + text)
 	end if
 	// A date written to the month is the day that month begins: the day is one unless the
-	// text names another, and either shape is read on as the full date it stands for.
+	// text names another, and either shape is read on as the full date it stands for. The
+	// year is four digits and the rest may be written with one, since a person writing a date
+	// by hand leaves their zeros off and the shape is still the calendar's.
 	year = digitsOf(pieces[0], 4)
-	month = digitsOf(pieces[1], 2)
+	month = digitsWithin(pieces[1], 2)
 	day = 1
-	if pieces.len == 3 then day = digitsOf(pieces[2], 2)
+	if pieces.len == 3 then day = digitsWithin(pieces[2], 2)
 	if year == null or month == null or day == null then
 		return err("a date is written yyyy-MM-dd or yyyy-MM: " + text)
 	end if
@@ -193,8 +197,9 @@ DateTime.timeParts = function(text)
 		return err("a time is written HH:mm:ss or HH:mm: " + text)
 	end if
 	// A clock written to the minute is the second that minute begins: 09:30 is the start of
-	// the same minute 09:30:00 names, so a second left off is zero.
-	hour = digitsOf(pieces[0], 2)
+	// the same minute 09:30:00 names, so a second left off is zero. The hour may be one digit,
+	// while a minute and a second are two, since a clock is read in the shape it is shown in.
+	hour = digitsWithin(pieces[0], 2)
 	minute = digitsOf(pieces[1], 2)
 	second = 0
 	if pieces.len == 3 then second = digitsOf(pieces[2], 2)
@@ -394,7 +399,14 @@ TimeSpan.between = function(start, finish)
 		return err("cannot measure from a " + start.kind + " to a " + finish.kind)
 	end if
 	span = new TimeSpan
-	span.seconds = finish.value - start.value
+	if start.kind == "date" then
+		// A date's value is the host's instant at that midnight, and a daylight-saving step makes
+		// two of those an hour short of a day, so the days between are counted on the calendar.
+		span.seconds = (DateTime.daysFromCivil(finish.year, finish.month, finish.day) -
+			DateTime.daysFromCivil(start.year, start.month, start.day)) * 86400
+	else
+		span.seconds = finish.value - start.value
+	end if
 	span.start = start
 	span.finish = finish
 	return span
@@ -487,6 +499,13 @@ end function
 digitsOf = function(text, width)
 	"The number a part of exactly width digits spells, or null when it is not one, since the width is part of a shape rather than a way of writing it."
 	if text.len != width then return null
+	if not allDigits(text) then return null
+	return val(text)
+end function
+
+digitsWithin = function(text, width)
+	"The number a part of one to width digits spells, or null when it is longer than its shape allows, since a part written short still has a widest it can be."
+	if text.len < 1 or text.len > width then return null
 	if not allDigits(text) then return null
 	return val(text)
 end function

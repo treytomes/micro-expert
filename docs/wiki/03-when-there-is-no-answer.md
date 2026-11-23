@@ -176,9 +176,11 @@ the schema would refuse and ending the question with it. A text field keeps a pl
 there is nothing to choose from.
 
 The date types are checked the same way. A `date` is `yyyy-MM-dd`, a `time` is `HH:mm:ss`, and a
-`datetime` is `yyyy-MM-dd HH:mm:ss`. A value in any other shape, or a day the calendar does not have
-(for example `2019-02-30`), is refused like any other misfit. The calendar is bundled, so dates
-before 1970 are checked rather than handed to the host and rejected.
+`datetime` is `yyyy-MM-dd HH:mm:ss`. A reader also takes a month, a day or an hour written with
+one digit, and a date or a clock left short, though what a fact keeps is the full shape. A value
+in any other shape, or a day the calendar does not have (for example `2019-02-30`), is refused
+like any other misfit. The calendar is bundled, so dates before 1970 are checked rather than
+handed to the host and rejected.
 
 ### `unique(...)`
 

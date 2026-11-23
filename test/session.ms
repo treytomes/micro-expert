@@ -707,6 +707,25 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		echoed.answers.lines[3] == "  1000")
 	h.check("a variable is said back as a variable", echoed.answers.lines[4] == "  ?x")
 	h.check("a value line stores nothing", echoed.session.facts.len == 0)
+	// A line in brackets is a span rather than a value: it is read into a TimeSpan and said back
+	// with the type it came back as, since a span keeps no text of its own to echo.
+	spanned = startSession([], [], ["[2026-01-01, 2026-11-01]"])
+	h.check("a bracketed line is read as a span",
+		spanned.answers.lines[1] == "  TimeSpan 304d 00:00:00 [2026-01-01, 2026-11-01]")
+	h.check("and a span line stores nothing", spanned.session.facts.len == 0)
+	// A line that reads as a date, a time or a datetime is read before it is taken as text: the
+	// reader is tried first, so the short shapes come back in the one full shape, and only a line
+	// the reader refuses is said back as the text that was typed.
+	moments = startSession([], [], ["2019-4-1 9:30", "2019-04-01", "09:30", "2026-13-01"])
+	h.check("a short datetime is said back in its full shape",
+		moments.answers.lines[1] == "  DateTime 2019-04-01 09:30:00")
+	h.check("a date line is read as a DateTime",
+		moments.answers.lines[2] == "  DateTime 2019-04-01")
+	h.check("a clock on its own is read as a time",
+		moments.answers.lines[3] == "  DateTime 09:30:00")
+	h.check("a date the calendar does not have is still text",
+		moments.answers.lines[4] == "  2026-13-01")
+	h.check("and a DateTime line stores nothing", moments.session.facts.len == 0)
 	// A line that is nearly a value is still read as a line, so a broken call keeps its message
 	// rather than being echoed as text.
 	stillBroken = startSession([], [], ["is-parent-of(bill"])

@@ -270,8 +270,8 @@ Exactly two field types, both non-empty. A type is one of these:
 | `number` | any number, whole or fractional |
 | `text` | any text |
 | `boolean` | the word `true` or the word `false` |
-| `date` | a calendar date, `yyyy-MM-dd`: `2019-04-01` |
-| `time` | a clock time, `HH:mm:ss`: `09:30:00` |
+| `date` | a calendar date, `yyyy-MM-dd`: `2019-04-01`, a month or a day one or two digits |
+| `time` | a clock time, `HH:mm:ss`: `09:30:00`, an hour one or two digits |
 | `datetime` | a date and a clock time, `yyyy-MM-dd HH:mm:ss`: `2019-04-01 09:30:00` |
 | `a\|b\|c` | one of these words, exactly |
 | `unique(t)` | a value of type `t`, and at most one of them per subject |
@@ -283,11 +283,17 @@ spelling and a `unique(time)` field cannot hold both `09:30` and `09:30:00` for 
 subject. `src/temporal.ms` reads a fitting value into a `DateTime`, which formats it, moves it
 by seconds and orders it against another of its kind. A reader, unlike a fact, also takes a
 part left short - `2019-04` is the first of that month, `09:30` the start of that minute - and
-reads it as that instant, so a script may hand it what a person wrote and take the full shape
-back. Two values in square brackets, `[2019-04-01, 2019-04-03]`, read as the `TimeSpan`
-between them. The host's own dates begin in 1970, so an older date is checked and counted by
-that reader rather than by the host, and prints in its kind's one shape; a date the host can
-hold prints in whatever `str(...)` format asks for.
+reads a month, a day or an hour written with one digit too, since that is how a person writes a
+date by hand, and it reads the text as that instant, so a script may hand it what a person
+wrote and take the full shape back. Two values in square brackets, `[2019-04-01, 2019-04-03]`,
+read as the `TimeSpan` between them, and one typed on a line of its own at the prompt is read
+the same way and said back as a `TimeSpan` with the two ends it kept, so a line can be read
+without asking a script. A line on its own that reads as a date, a time or a datetime is said
+back as a `DateTime` with its type in front, so `2019-04-01` answers `DateTime 2019-04-01`; a
+line the reader refuses is still said back as the text it was. The host's own dates begin in
+1970, so an older date is checked and counted by that reader rather than by the host, and
+prints in its kind's one shape; a date the host can hold prints in whatever `str(...)` format
+asks for.
 
 ```prolog
 is-parent-of(text, text)
@@ -332,7 +338,7 @@ repo writes one.
 | `src/triples.ms` | `termOf` and `isNumber`, the reading of one term |
 | `test/knowledge.ms` | 98 checks on the format and its writer |
 | `test/schema.ms` | 43 checks on the schema format, the field check and the one-value rule |
-| `test/temporal.ms` | 71 checks on the three date types, the shapes a text reads from, the value it is read into, the span between two, and whether a value stands inside one |
+| `test/temporal.ms` | 79 checks on the three date types, the shapes a text reads from (a month, a day and an hour may be one digit), the value it is read into, the span between two, and whether a value stands inside one |
 | `vscode-knowledge/` | the same shape as a TextMate grammar, for highlighting only |
 
 A refusal names the entry it came from, `line N: ...`, where `N` is the first physical line

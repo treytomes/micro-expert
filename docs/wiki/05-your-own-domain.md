@@ -77,15 +77,17 @@ belongs-to-age-group(text, child|adult)
 | `number` | any number, whole or fractional: `24`, `24.5`, `-3`, `1e3` |
 | `text` | any text, which is what a person or a word is here |
 | `boolean` | the word `true` or the word `false` |
-| `date` | a calendar date, `yyyy-MM-dd`: `2019-04-01` |
-| `time` | a clock time, `HH:mm:ss`: `09:30:00` |
+| `date` | a calendar date, `yyyy-MM-dd`: `2019-04-01`, a month or a day one or two digits |
+| `time` | a clock time, `HH:mm:ss`: `09:30:00`, an hour one or two digits |
 | `datetime` | a date and a clock time, `yyyy-MM-dd HH:mm:ss`: `2019-04-01 09:30:00` |
 | `a\|b\|c` | one of these words, exactly |
 | `unique(t)` | a value of type `t`, and at most one per subject |
 
 The three date types keep their value as text in the fact, in the one shape the type fixes. A value
-written another way, or a day the calendar does not have, is refused. `src/temporal.ms` can read a
-fitting value into a `DateTime` for scripts that need to format, move, order or measure between it.
+written another way, or a day the calendar does not have, is refused. A month, a day and an hour
+may be written with one digit where a reader takes them - `2019-4-1` is `2019-04-01` - though a
+fact still keeps the full shape. `src/temporal.ms` can read a fitting value into a `DateTime` for
+scripts that need to format, move, order or measure between it.
 
 `unique(...)` wraps exactly one field type, so `unique()` and `unique(number, number)` are refused,
 as is `unique(unique(number))`. It is about the pair rather than the value: a second value for the

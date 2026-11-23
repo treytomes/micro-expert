@@ -131,6 +131,24 @@ run = function(t, parser, dates, h)
 		parser.schemaMisfit(dated, spo("acme", "founded-on", " 2019-04-01")) ==
 			"the object should be a date")
 
+	// A month, a day and an hour may be written with one digit, which is how a person writes a
+	// date by hand; the year keeps its four, and a minute and a second keep their two.
+	thinner = dates.DateTime.receive("2026-1-1")
+	h.check("a month and a day may be one digit",
+		thinner isa dates.DateTime and thinner.str == "2026-01-01" and
+			thinner.compare(dates.DateTime.receive("2026-01-01")) == 0)
+	h.check("a month on its own may be one digit",
+		dates.DateTime.receive("2026-1").str == "2026-01-01")
+	h.check("so may an hour", dates.DateTime.receive("9:30").str == "09:30:00")
+	h.check("and an hour of one digit reads in a datetime",
+		dates.DateTime.receive("2026-01-01 9:30:00").str == "2026-01-01 09:30:00")
+	h.check("a part wider than its shape is still refused",
+		dates.DateTime.receive("2026-111-1") isa error and dates.DateTime.receive("123:30") isa error)
+	h.check("a minute is still two digits", dates.DateTime.receive("9:3") isa error)
+	h.check("a short spelling is still not one a fact stores",
+		parser.schemaMisfit(dated, spo("acme", "founded-on", "2026-1-1")) ==
+			"the object should be a date")
+
 	// A TimeSpan is how much time passed between two values of one kind: the difference of
 	// their counts, which are wall-clock seconds from the same base, so two dates differ by
 	// whole days and two datetimes by the seconds between them.
@@ -143,6 +161,11 @@ run = function(t, parser, dates, h)
 	twoDays = dates.DateTime.receive("2019-04-03").since(dates.DateTime.receive("2019-04-01"))
 	h.check("a date's span counts whole days",
 		twoDays.days == 2 and twoDays.seconds == 172800 and twoDays.str == "2d 00:00:00")
+	// A date is the host's instant at midnight, and a daylight-saving step inside the span makes
+	// two of those an hour short of a day, so the count is the calendar's: a month stays a month.
+	march = dates.TimeSpan.receive("[2026-03-01, 2026-04-01]")
+	h.check("a month of dates is whole days across a daylight-saving step",
+		march.seconds == 31 * 86400 and march.str == "31d 00:00:00")
 	h.check("the same span the other way is negative",
 		dates.TimeSpan.between(dates.DateTime.receive("2019-04-03"),
 			dates.DateTime.receive("2019-04-01")).str == "-2d 00:00:00")

@@ -55,6 +55,9 @@ into a fact:
   1000
 ```
 
+A line the date reader takes is said back as a `DateTime` instead, with its type in front, so
+`2019-04-01` answers `DateTime 2019-04-01`.
+
 The quotes are there because of the comma; a value that needs no quotes comes back without them, so
 `oliver` answers `oliver`. They also promise the value is text, which is how an all-digit value
 stays text: `"5"` is the text `5`, where `5` is the number.
