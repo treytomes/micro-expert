@@ -1,8 +1,8 @@
 // geocode.ms — asks geocode.maps.co about a place, and prints what comes back.
 //
 // A standalone program, not part of the session: it reads GEOCODE_MAPS_API_KEY from the
-// environment or from the .env beside the runner, asks one of the service's three endpoints,
-// and prints the answer.
+// environment - the .env beside the runner is loaded into it - asks one of the service's three
+// endpoints, and prints the answer.
 //
 //   ./3rd-party/miniscript-linux/miniscript src/geocode.ms "Eiffel Tower"
 //   ./3rd-party/miniscript-linux/miniscript src/geocode.ms Paris, Texas
@@ -31,13 +31,13 @@
 import "cli/cli"
 import "api/client"
 import "api/geocode"
+// Importing the loader puts the .env beside the runner into env.
 import "dotenv"
 import "json"
 
 cli = globals["cli/cli"]
 client = globals["api/client"]
 geo = globals["api/geocode"]
-dotenv = globals["dotenv"]
 
 scriptName = "geocode.ms"
 if shellArgs.len > 0 then scriptName = file.name(shellArgs[0])
@@ -171,7 +171,9 @@ else if mode == "lookup" then
 	if not options.hasIndex("osm_ids") then refuse("lookup needs at least one OSM ID, such as R253832.")
 end if
 
-apiKey = dotenv.find(geo.keyName, shellArgs[0])
+// The loader has already put the .env beside the runner into env.
+apiKey = null
+if env.hasIndex(geo.keyName) then apiKey = env[geo.keyName]
 if apiKey == null then
 	print "error: no " + geo.keyName + " found."
 	print "Put it in the .env beside the runner, or export it, then try again."

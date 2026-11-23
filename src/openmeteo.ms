@@ -34,13 +34,13 @@
 import "cli/cli"
 import "api/client"
 import "api/openmeteo"
+// Importing the loader puts the .env beside the runner into env.
 import "dotenv"
 import "json"
 
 cli = globals["cli/cli"]
 client = globals["api/client"]
 om = globals["api/openmeteo"]
-dotenv = globals["dotenv"]
 
 scriptName = "openmeteo.ms"
 if shellArgs.len > 0 then scriptName = file.name(shellArgs[0])
@@ -231,10 +231,12 @@ compact = parsed.values.compact
 // One line is still the JSON, so asking for one line asks for the JSON too.
 showJson = parsed.values.json or compact
 
-// The key comes from --apikey when it was given, otherwise the environment or the nearest
-// .env; either way the request reads it off the options.
+// The key comes from --apikey when it was given, otherwise the environment, where the loader
+// has put the .env; either way the request reads it off the options.
 apiKey = client.keyIn(options)
-if apiKey == null then apiKey = dotenv.find(om.keyName, shellArgs[0])
+if apiKey == null then
+	if env.hasIndex(om.keyName) then apiKey = env[om.keyName]
+end if
 if apiKey != null then options.apikey = apiKey
 
 

@@ -142,7 +142,7 @@ geocode = globals["../src/api/geocode"]
 replyCases = globals["replies"]
 meteo = globals["../src/api/openmeteo"]
 weatherCases = globals["weather"]
-// src/dotenv.ms reads .env files and finds settings; `dotenv` is this suite's case module.
+// src/dotenv.ms puts the .env's settings into env; `dotenv` is this suite's case module.
 dotenvModule = globals["../src/dotenv"]
 dotenvCases = globals["dotenv"]
 
@@ -185,7 +185,7 @@ if meteo == null or meteo.hasIndex("reply") == 0 then
 	print "error: could not import ../src/api/openmeteo"
 	exit 1
 end if
-if dotenvModule == null or dotenvModule.hasIndex("find") == 0 then
+if dotenvModule == null or dotenvModule.hasIndex("load") == 0 then
 	print "error: could not import ../src/dotenv"
 	exit 1
 end if
