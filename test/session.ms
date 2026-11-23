@@ -502,6 +502,26 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("a fact that fits the schema is added",
 		startSession([], [], ["has-age(tim, 24)"], null, 0, ageTypes).session.facts.len == 1)
 
+	// Quotes promise text, so the digits an age needs have to be bare: the quoted line is
+	// refused where a number belongs, in the words the fact would have been written in.
+	quote = char(34)
+	quotedAge = startSession([spo("bill", "has-age", 54)], [],
+		["has-age(?a, " + quote + "27" + quote + ")"], null, 0, ageTypes)
+	h.check("a quoted number is refused where a number belongs",
+		printed(quotedAge.answers.lines,
+			"  refused: has-age(?a, " + quote + "27" + quote + "): the object should be a number") and
+			quotedAge.session.facts.len == 1)
+	// The same quotes in a `text` field are what quotes are for: an all-digit house number is
+	// the text it was written as, and the line it is added as says so.
+	houseTypes = {"has-house-number": ["text", "text"]}
+	house = startSession([], [], ["has-house-number(way/1, " + quote + "5" + quote + ")"],
+		null, 0, houseTypes)
+	h.check("a quoted number is added where text belongs, and kept as text",
+		printed(house.answers.lines,
+			"  added has-house-number(way/1, " + quote + "5" + quote + ")") and
+			house.session.facts.len == 1 and house.session.facts[0].object == "5" and
+			not (house.session.facts[0].object isa number))
+
 	// The three date types are held at the prompt like any other, so a fact they take is
 	// stored and one written to another shape is refused where it is typed.
 	datedTypes = {"founded-on": ["text", "date"], "opens-at": ["text", "time"],
