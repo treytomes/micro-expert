@@ -131,7 +131,7 @@ The natural language wording is a little clumsy, but it communicates.  Later pha
 - **Linux companions**: `bootstrap.sh` next to `bootstrap.bat`, and `micro-expert.sh`, `build-ext.sh` and `build-kb-ext.sh`.  The Linux interpreter unpacks at `3rd-party/miniscript-linux/miniscript` and has no extension, so the `.env` example differs by platform.
 - **`--filter` and `--file` in the suite** (`test/run.ms`), with `--json` records per check and a `##END` line, so a test runner can ask for part of the suite and know it reached the end.  The VS Code Testing panel uses exactly those arguments.
 - **`vscode-knowledge`**, the `.kb` highlighting extension: 0.1.0 at the format's first commit, 0.1.1 for the field-type grammar, 0.1.2 once `unique(...)` read as type syntax rather than a predicate name.  It now highlights `unique(...)`, the `|` value lists, and `date`, `time` and `datetime` as types.
-- **The suite is 839 checks**, with case modules added since `v0.2.0` for the knowledge format (98), the schema (43), the date and time types (62), the loaders (19), the session (178), the domain (10), the command line (6), the Mermaid diagram (49) and the API layer (149).  The date cases live in `test/temporal.ms` so the module that owns the types owns their cases.
+- **The suite is 848 checks**, with case modules added since `v0.2.0` for the knowledge format (98), the schema (43), the date and time types (71), the loaders (19), the session (178), the domain (10), the command line (6), the Mermaid diagram (49) and the API layer (149).  The date cases live in `test/temporal.ms` so the module that owns the types owns their cases.
 
 ## Where to next?
 

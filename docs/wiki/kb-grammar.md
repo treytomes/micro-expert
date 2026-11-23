@@ -332,7 +332,7 @@ repo writes one.
 | `src/triples.ms` | `termOf` and `isNumber`, the reading of one term |
 | `test/knowledge.ms` | 98 checks on the format and its writer |
 | `test/schema.ms` | 43 checks on the schema format, the field check and the one-value rule |
-| `test/temporal.ms` | 62 checks on the three date types, the shapes a text reads from, the value it is read into, and the span between two |
+| `test/temporal.ms` | 71 checks on the three date types, the shapes a text reads from, the value it is read into, the span between two, and whether a value stands inside one |
 | `vscode-knowledge/` | the same shape as a TextMate grammar, for highlighting only |
 
 A refusal names the entry it came from, `line N: ...`, where `N` is the first physical line

@@ -52,6 +52,13 @@
 //
 //   temporal.TimeSpan.receive("[2019-04-01 09:00:00, 2019-04-01 09:30:00]").minutes  // 30
 //
+// A span keeps the two values it lies between, so a value can be asked whether it stands
+// among the instants between them. Both ends count, and a span written the other way round
+// covers the same instants, since what it holds is the ground between the two:
+//
+//   span = temporal.TimeSpan.receive("[2019-04-01 09:00:00, 2019-04-01 09:30:00]")
+//   span.contains(temporal.DateTime.receive("2019-04-01 09:15:00"))   // true
+//
 // Both classes are this module's, so a module that imports it gets a copy, and a DateTime
 // is `isa` another only when the same copy built both. schema.ms hands its own copy's
 // reader on, which is why a caller reaches a date through schema.receive rather than
@@ -352,8 +359,11 @@ end function
 // distance within a day, and two datetimes by the seconds between them. A bare time has no
 // day, so a span over midnight is the difference of the two readings rather than a step
 // through the night. A span is signed: the earlier to the later is positive.
+//
+// The two values it was measured between are kept along with the count, which is what lets
+// contains ask whether a value stands inside the span rather than only how long it is.
 
-TimeSpan = {"seconds": 0}
+TimeSpan = {"seconds": 0, "start": null, "finish": null}
 
 TimeSpan.receive = function(text)
 	"Reads [start, finish] - two values in brackets, a comma between - into their span, or says what is wrong."
@@ -385,7 +395,29 @@ TimeSpan.between = function(start, finish)
 	end if
 	span = new TimeSpan
 	span.seconds = finish.value - start.value
+	span.start = start
+	span.finish = finish
 	return span
+end function
+
+TimeSpan.contains = function(when)
+	"Says whether a value of the span's kind is inside it, both ends counting as inside."
+	if not (when isa DateTime) then
+		return err("contains asks about a date, time or datetime: " + str(when))
+	end if
+	if self.start == null then return err("this span was not measured between two values")
+	if when.kind != self.start.kind then
+		return err("a span of one kind does not hold a " + when.kind)
+	end if
+	// The span may have been written the other way round, and it covers the same instants:
+	// what it holds is the ground between its two ends, whichever came first.
+	earlier = self.start.value
+	later = self.finish.value
+	if earlier > later then
+		earlier = self.finish.value
+		later = self.start.value
+	end if
+	return when.value >= earlier and when.value <= later
 end function
 
 TimeSpan.str = function

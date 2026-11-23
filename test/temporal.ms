@@ -173,6 +173,30 @@ run = function(t, parser, dates, h)
 		dates.TimeSpan.receive("[2019-04-01 09:00:00 2019-04-01 09:30:00]") isa error)
 	h.check("a span of two kinds is refused",
 		dates.TimeSpan.receive("[2019-04-01, 09:30:00]") isa error)
+
+	// A span keeps the two values it was measured between, so a value can be asked whether it
+	// is inside it: both ends count, and a span written the other way round holds the same
+	// ground, since the two ends are what it has rather than a direction.
+	h.check("a span keeps its two ends",
+		span.start.str == "2019-04-01 09:00:00" and span.finish.str == "2019-04-01 09:30:00")
+	h.check("a value gathered from text keeps them too",
+		read.start.str == "2019-04-01 09:00:00" and read.finish.str == "2019-04-01 09:30:00")
+	h.check("a value between the ends is inside",
+		span.contains(dates.DateTime.receive("2019-04-01 09:15:00")))
+	h.check("both ends are inside", span.contains(evening) and span.contains(when))
+	h.check("a value outside either end is not",
+		not span.contains(dates.DateTime.receive("2019-04-01 08:59:59")) and
+			not span.contains(dates.DateTime.receive("2019-04-01 09:30:01")))
+	h.check("the same span written the other way round holds the same instants",
+		dates.TimeSpan.receive("[2019-04-01 09:30:00, 2019-04-01 09:00:00]").contains(
+			dates.DateTime.receive("2019-04-01 09:15:00")))
+	h.check("a span of dates holds a day between them and their last day",
+		twoDays.contains(dates.DateTime.receive("2019-04-02")) and
+			twoDays.contains(dates.DateTime.receive("2019-04-03")) and
+			not twoDays.contains(dates.DateTime.receive("2019-04-04")))
+	h.check("a value of another kind is not asked about",
+		span.contains(dates.DateTime.receive("2019-04-01")) isa error)
+	h.check("nor is a text", span.contains("2019-04-01 09:15:00") isa error)
 	h.check("a value that does not read is what the span says is wrong",
 		dates.TimeSpan.receive("[2019-02-30, 2019-04-01]") isa error and
 			dates.TimeSpan.receive("[the morning, 2019-04-01]") isa error)

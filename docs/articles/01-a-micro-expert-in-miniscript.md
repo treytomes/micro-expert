@@ -55,7 +55,7 @@ The last row is the honest one. This program cannot read *"who are Bill's nephew
 What a rules engine buys you, concretely, in an era of cheap text generation:
 
 - **Auditability.** Every claim has a proof you can print. There is no "the model said so" step to defend to a reviewer, an auditor, or yourself in six months.
-- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 839 assertions and they either pass or they don't.
+- **Determinism.** The same facts and the same question give the same answer, byte for byte. That is what makes it testable: this repo ships 848 assertions and they either pass or they don't.
 - **Cheap correctness on narrow, high-stakes domains.** Entitlements, eligibility, scheduling constraints, device diagnostics, family relationships — questions where the rule is the requirement and being consistently right matters more than being fluent.
 - **Knowledge as a reviewed artifact.** Adding a rule is a five-line pull request with a test. There is no training run, and nothing else silently changes.
 - **No data leaving the machine.** The facts are the data, and they are text files.
@@ -278,12 +278,12 @@ The session paints from the same style table as the report, so `NO_COLOR` turns 
 
 ```plaintext
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-839 passed, 0 failed
+848 passed, 0 failed
 ```
 
 `micro-expert.bat` reads that variable out of `.env`; a plain shell does not, so `set` it for the session or paste the path in its place.
 
-The 839 checks are split by area: display and parsing (50), the knowledge data format (98), the predicate schema (43), the date and time types (62), the loaders (19), proofs and explanations (23), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (104), the session at the prompt (178), the notes example on the repl library (1), the command line (6), the domain (10), the Mermaid diagram (49), and the API layer's argument split, parameter engine, both services' reply classes and .env reader (149). The parser, the logger and the repl library are submodules with suites of their own (32, 56 and 52 checks), run from their own folders. One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
+The 848 checks are split by area: display and parsing (50), the knowledge data format (98), the predicate schema (43), the date and time types (71), the loaders (19), proofs and explanations (23), the missing-fact report (34), recursion and cycle handling (13), relations including the family rules (104), the session at the prompt (178), the notes example on the repl library (1), the command line (6), the domain (10), the Mermaid diagram (49), and the API layer's argument split, parameter engine, both services' reply classes and .env reader (149). The parser, the logger and the repl library are submodules with suites of their own (32, 56 and 52 checks), run from their own folders. One caveat worth knowing, because it affects how you read a failed run: in this interpreter an uncaught runtime error still exits `0`, so the `N passed, M failed` line is the real signal, not the exit code.
 
 ## Where an LLM fits
 
