@@ -14,10 +14,10 @@
 //   print triples.unify(triples.SpoTriple.parse("child(?x, ?y)"),
 //       triples.SpoTriple.parse("child(susan, bill)"))   // {"x": "susan", "y": "bill"}
 //
-// The calendar a date is counted on is datetimes.ms's, imported here for the two readings a
+// The calendar a date is counted on is temporal.ms's, imported here for the two readings a
 // constraint makes of one: the digits a date is written with, and the length of its month.
 
-import "datetimes"
+import "temporal"
 
 // ── List combinators ─────────────────────────────────────────────────────────
 // Small list operations, so the functions below can say what they do with a list
@@ -333,15 +333,15 @@ yearsSince = function(text, on)
 	parts = text.split("-")
 	if parts.len != 3 then return null
 	if parts[0].len != 4 or parts[1].len != 2 or parts[2].len != 2 then return null
-	if not datetimes.allDigits(parts[0]) or not datetimes.allDigits(parts[1]) or
-		not datetimes.allDigits(parts[2]) then return null
+	if not temporal.allDigits(parts[0]) or not temporal.allDigits(parts[1]) or
+		not temporal.allDigits(parts[2]) then return null
 	year = val(parts[0])
 	month = val(parts[1])
 	day = val(parts[2])
-	// The calendar is datetimes.ms's rather than the host's, whose dates begin in 1970 and
+	// The calendar is temporal.ms's rather than the host's, whose dates begin in 1970 and
 	// would roll 2019-02-30 forward like any other impossible day.
 	if year < 1 or month < 1 or month > 12 then return null
-	if day < 1 or day > datetimes.daysInMonth(year, month) then return null
+	if day < 1 or day > temporal.daysInMonth(year, month) then return null
 	years = on.year - year
 	if on.month < month or (on.month == month and on.day < day) then years = years - 1
 	if years < 0 then return null

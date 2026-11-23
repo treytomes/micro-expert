@@ -60,11 +60,11 @@
 // terms they build are the ones the caller's solver recognizes, and they return the
 // pieces Rule.make takes, so they never need the Rule class either.
 //
-// The date, time and datetime types themselves are datetimes.ms's. This file imports it for
+// The date, time and datetime types themselves are temporal.ms's. This file imports it for
 // the one check that has to read a text as a date; a caller that wants the value object
 // reaches it through schema.receive, which hands the reader on.
 
-import "datetimes"
+import "temporal"
 
 parseRules = function(triples, lines)
 	"Reads the lines of a rules document into {head, body} pieces, or an error naming the line."
@@ -214,7 +214,7 @@ fieldFits = function(term, type)
 	if type == "boolean" then return term == "true" or term == "false"
 	// A date, time or datetime is text in one shape, and the reader that builds the object
 	// is what says whether it is one, so the check and the object agree.
-	if datetimes.dateTypes.indexOf(type) != null then return not (datetimes.receive(term, type) isa error)
+	if temporal.dateTypes.indexOf(type) != null then return not (temporal.receive(term, type) isa error)
 	return type.split("|").indexOf(term) != null
 end function
 
