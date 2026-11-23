@@ -59,6 +59,8 @@ read = function(path)
 		line = trimSpace(line)
 		if line.len == 0 then continue
 		if line[0] == "#" then continue
+		// A hand-written env file may spell a line the way a shell does: `export KEY=value`.
+		if line[:6] == "export" and blank.indexOf(line[6:7]) != null then line = trimSpace(line[6:])
 		parts = line.split("=", 2)
 		if parts.len < 2 then continue
 		settingName = trimSpace(parts[0])
