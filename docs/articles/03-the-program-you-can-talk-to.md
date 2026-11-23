@@ -41,7 +41,7 @@ A data file is held to the same promise the prompt is: the facts loader applies 
 | `a\|b\|c` | one of these words, exactly |
 | `unique(t)` | at most one value of type `t` for a subject/predicate pair, e.g.: `unique(number)` |
 
-- **A fact and a question are held alike**: `has-age(?a, "27")` is refused where it is typed, rather than searched for and ending in a fact the same check refuses.
+- **A fact and a question are held alike**: `has-age(?a, twenty)` is refused where it is typed, rather than searched for and ending in a fact the same check refuses.
 - **`unique(...)` is about the pair, not the value**: a second birthdate for one person is a correction rather than a second fact, and `unique(text)` in the subject position is the other direction.  A predicate a rule concludes cannot carry it, and a schema line that marks one is refused at startup, by `/load-schema`, by `/load-rules` and by a typed rule line.
 - **Every predicate the rules name is typed**, derived ones included, with the schema's line derived from the conditions that use it.  Rule constants are checked against the schema too, and each mismatch is printed on its own line.
 - **Predicates have a name shape**: lower case, sections joined by dashes, each section letters and numbers, the first starting with a letter.  Every reader refuses a line that breaks it, so the knowledge base holds only names an answer can say.
@@ -69,13 +69,14 @@ shares-age-group-with(?x, ?y) => and(belongs-to-age-group(?x, ?g), equal(?g, ?h)
 
 ## Dates are a type, not a string
 
-`src/datetimes.ms` (294 lines) owns the calendar, and `years-since` counts on it.
+`src/temporal.ms` owns the calendar, and `years-since` counts on it.
 
 - **The strict shape is the type's**: `2021-02-30` and `3/15/2024` are refused where the host's parser would read one of them, because the calendar is counted here rather than guessed.
 - **A time is written to the second**, so one clock time has one spelling and a `unique(time)` field cannot hold both `09:30` and `09:30:00`.
-- **A fitting value reads into a `Temporal`**, which formats it (`str("HH:mm")`), moves it by seconds (`addSeconds(90)`), and orders it against another of its kind (`compare`), so a fact's date is something a script can work with.
+- **A fitting value reads into a `DateTime`**, which formats it (`str("HH:mm")`), moves it by seconds (`addSeconds(90)`), and orders it against another of its kind (`compare`), so a fact's date is something a script can work with.
+- **A `TimeSpan` measures the distance between two of them**, so `later.since(when).days` is how many days apart two dates are, and `.str` reads the span as `2d 00:00:00`.
 - **Dates before 1970 work**, in both directions: the host's dates begin at the epoch, so an older date is counted and printed from its own parts, and a step that crosses back before 1970 is a count rather than a refusal.
-- **`schema.receive(text)`** hands the reader on, since a module that imports `datetimes.ms` gets its own copy and `isa` only agrees inside one copy.
+- **`schema.receive(text)`** hands the reader on, since a module that imports `temporal.ms` gets its own copy and `isa` only agrees inside one copy.
 - **`has-age` became a rule over `has-birthdate`**: the birthdate is stored and the age is derived on the day the query runs, so an age cannot go stale in a file.  The report was taught to carry the constraint past the fact it waits on, so asking for `has-age(zed, ?n)` names `has-birthdate(zed, ?b)` to add instead of saying nothing.
 
 ## The session corrects, not just grows
@@ -105,12 +106,32 @@ shares-age-group-with(?x, ?y) => and(belongs-to-age-group(?x, ?g), equal(?g, ?h)
 - **`triples.speak`** is the one function that decides say-it-or-show-it, replacing three copies of that decision.
 - **`/facts` and `/rules` keep the fact form either way**, since each is something to read as data or write back.
 
+```
+? is-uncle(oliver, ?p)
+  no solution found at depth 8
+  A solution would need one of these:
+    a fact like is-uncle(oliver, ?p)
+  ?p = clara
+  added is-uncle(oliver, clara)
+  oliver is uncle clara  <- fact
+  oliver is uncle clara
+? is-parent-of(walter, ?p)
+  walter is parent of bill  <- fact
+  walter is parent of bill
+  walter is parent of george  <- fact
+  walter is parent of george
+  walter is parent of henry  <- fact
+  walter is parent of henry
+```
+
+The natural language wording is a little clumsy, but it communicates.  Later phases will hopefully smooth this out.
+
 ## Running it anywhere
 
 - **Linux companions**: `bootstrap.sh` next to `bootstrap.bat`, and `micro-expert.sh`, `build-ext.sh` and `build-kb-ext.sh`.  The Linux interpreter unpacks at `3rd-party/miniscript-linux/miniscript` and has no extension, so the `.env` example differs by platform.
 - **`--filter` and `--file` in the suite** (`test/run.ms`), with `--json` records per check and a `##END` line, so a test runner can ask for part of the suite and know it reached the end.  The VS Code Testing panel uses exactly those arguments.
 - **`vscode-knowledge`**, the `.kb` highlighting extension: 0.1.0 at the format's first commit, 0.1.1 for the field-type grammar, 0.1.2 once `unique(...)` read as type syntax rather than a predicate name.  It now highlights `unique(...)`, the `|` value lists, and `date`, `time` and `datetime` as types.
-- **The suite is 554 checks**, with case modules added since `v0.2.0` for the knowledge format (81), the schema (42), the date and time types (31), the loaders (19), the session (158), the domain (10) and the command line (6).  The date cases live in `test/datetimes.ms` so the module that owns the types owns their cases.
+- **The suite is 839 checks**, with case modules added since `v0.2.0` for the knowledge format (98), the schema (43), the date and time types (62), the loaders (19), the session (178), the domain (10), the command line (6), the Mermaid diagram (49) and the API layer (149).  The date cases live in `test/temporal.ms` so the module that owns the types owns their cases.
 
 ## Where to next?
 
