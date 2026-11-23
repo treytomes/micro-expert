@@ -20,7 +20,7 @@ This is ISO/IEC 14977 BNF, with the two extensions everyone writes anyway:
 | `; ...` | a comment on the grammar, to the end of the line |
 
 Spaces and tabs are insignificant between tokens — around a name, a field, a condition, an
-entry — and significant only inside a `<text>` field, where they are part of the value. A
+annotation, an entry — and significant only inside a `<text>` field, where they are part of the value. A
 leading or trailing space is trimmed from every field, so a value always begins and ends on
 a character that is not a space or a tab.
 
@@ -35,13 +35,15 @@ a character that is not a space or a tab.
                      | <rule>                       ; rules.kb
                      | <schema-line>                ; schema.kb
 
-<fact>             ::= <name> <field-list>          ; predicate(subject, object)
-<rule>             ::= <fact> "=>" <body>
+<fact>             ::= <call> [ <annotation> [ <annotation> ] ]
+                     ; predicate(subject, object), then when it holds and how confident
+<call>             ::= <name> <field-list>          ; the bare triple: a head, or a condition
+<rule>             ::= <call> "=>" <body>
 <schema-line>      ::= <name> <type-list>           ; predicate(field type, field type)
 
 <body>             ::= <condition> { "," <condition> }
 
-<condition>        ::= <grouping> | <constraint> | <fact>
+<condition>        ::= <grouping> | <constraint> | <call>
 
 <grouping>         ::= <and> | <or> | <not>
 <and>              ::= "and" <condition-list>
@@ -61,6 +63,24 @@ a character that is not a space or a tab.
 <condition-list>   ::= "(" <condition> { "," <condition> } ")"
 <field-list>       ::= "(" <field> "," <field> ")"
 <type-list>        ::= "(" <schema-type> "," <schema-type> ")"
+
+<annotation>       ::= <temporal-annotation> | <confidence-annotation>
+                     ; each at most once, in either order
+
+<temporal-annotation> ::= "@" ( <moment> | <timespan> )
+<moment>           ::= <date> | <time> | <datetime>
+                     ; any text the date reader parses as a DateTime
+<timespan>         ::= "[" <moment> "," <moment> "]"
+                     ; any text the date reader parses as a TimeSpan
+<date>             ::= <digits> "-" <digits> [ "-" <digits> ]
+                     ; yyyy-MM-dd or yyyy-MM, a month or a day of one digit too
+<time>             ::= <digits> ":" <digits> [ ":" <digits> ]
+                     ; HH:mm:ss or HH:mm, an hour of one digit too
+<datetime>         ::= <date> " " <time>
+                     ; either side as short as it likes
+
+<confidence-annotation> ::= "~" <number> "%"
+                     ; any floating point number from 0 to 100
 
 <field>            ::= <variable> | <number> | <text>
 <variable>         ::= "?" <text>
@@ -178,31 +198,102 @@ that is not a name - a variable stands there - and an answer holding one keeps t
 ## Facts
 
 ```bnf
-<fact>             ::= <name> <field-list>
+<fact>             ::= <call> [ <annotation> [ <annotation> ] ]
+<call>             ::= <name> <field-list>
 <field-list>       ::= "(" <field> "," <field> ")"
+<annotation>       ::= <temporal-annotation> | <confidence-annotation>
 ```
 
 One fact is one triple, `predicate(subject, object)`, and a facts file is one fact per
 entry. Exactly two fields: `is-parent-of(walter)` is refused, and so is a call with nothing in
-its parentheses or a field with no text in it. Text after the closing `)` is refused rather
-than read as a second call.
+its parentheses or a field with no text in it.
+
+After the closing `)` a fact may carry two annotations: when it holds, and how confident we
+are that it does. Both are optional, so a fact may carry neither, either, or both; when it
+carries both they may stand in either order, and each appears at most once. Anything else
+after the `)` is refused rather than read — a second call, a lone `@` or `~`, the same
+annotation twice.
 
 ```prolog
 has-birthdate(walter, 1948-03-14)
 married-to(walter, doris)
+won-prize(bill, sprint) @ 2002-04-05
+works-at(tim, school) ~ 80%
+wakes-up(anna, early) ~ 60% @ 07:30:00
 ```
+
+The first two carry neither annotation, so each is `~ 100%` and not time-bound, which is what
+every fact written before the annotations existed says.
+
+### When a fact holds
+
+`@` followed by a date, a time, a datetime, or a span between two of them, says when the
+fact holds: the one instant it happened, or the range of instants it covers.
+
+```bnf
+<temporal-annotation> ::= "@" ( <moment> | <timespan> )
+<moment>           ::= <date> | <time> | <datetime>
+<timespan>         ::= "[" <moment> "," <moment> "]"
+```
+
+A moment is any text the date reader parses as a `DateTime` — `2002-04-05`, `07:30:00`,
+`2002-04-05 07:30:00` — and a part may be left short the way a person writes one, since the
+annotation is read through the same reader that fills a short part in: `2019-04` is the first
+of that month, `09:30` the start of that minute, and `2019-4-1` the first of April. The fact
+keeps the text as it was written, so nothing here rewrites `2019-04` as `2019-04-01`; a text
+the reader refuses, `2019-02-30` or `25:00:00`, is refused with it.
+
+A fact with no `@` is not time-bound. It holds at no particular instant, and no question about
+when it holds can separate it from a fact that carries one.
+
+A span is any text the date reader parses as a `TimeSpan`: two moments in square brackets
+with a comma between them, each as short as it likes. Both of its ends count, so a fact
+holding `@ [2019-04-01 09:00:00, 2019-04-01 17:00:00]` holds at 09:00:00 and at 17:00:00 as
+well as between. A span written the other way round covers the same instants,
+since what it names is the ground between the two. The span stays on the line of the fact it
+annotates: only `(` and `)` decide whether an entry runs on to the next line, so a line
+ending in `[` does not.
+
+```prolog
+won-prize(bill, sprint) @ 2002-04-05
+works-at(tim, school) @ [2019-04-01 09:00:00, 2019-04-01 17:00:00]
+wakes-up(anna, early) @ 07:30:00
+```
+
+### How confident a fact is
+
+```bnf
+<confidence-annotation> ::= "~" <number> "%"
+```
+
+`~` followed by a number and a `%` says how confident we are that the fact holds. It is any
+floating point number from 0 to 100 — `~ 87.5%` is a confidence — and a number outside that
+range is refused.
+
+A fact with no `~` is `~ 100%`: we are fully confident of it, which is what saying nothing
+has always meant. The two annotations do not depend on each other, so a fact may be sure of
+when it holds, unsure, sure of an instant, or neither.
+
+```prolog
+works-at(tim, school) @ [2019-04-01 09:00:00, 2019-04-01 17:00:00] ~ 80%
+works-at(tim, school) ~ 80% @ [2019-04-01 09:00:00, 2019-04-01 17:00:00]
+```
+
+The last two lines are one fact written twice: the annotations may stand in either order.
 
 ## Rules
 
 ```bnf
-<rule>             ::= <fact> "=>" <body>
+<rule>             ::= <call> "=>" <body>
 <body>             ::= <condition> { "," <condition> }
-<condition>        ::= <grouping> | <constraint> | <fact>
+<condition>        ::= <grouping> | <constraint> | <call>
 ```
 
 A rule is one head and one body, joined by `=>`, which appears exactly once. The head is a
-fact: exactly two fields. The body is one condition, or a comma-delimited list of them —
-the implied *and*. A condition is a fact, a constraint, or a grouping.
+call: exactly two fields, and no annotation, since `@` and `~` say when a stored fact holds
+rather than what follows from others. The body is one condition, or a comma-delimited list of
+them — the implied *and*. A condition is a call, a constraint, or a grouping, and a call
+there carries no annotation either.
 
 The three groupings say their own name:
 
@@ -336,7 +427,7 @@ repo writes one.
 | `src/knowledge.ms` | `entries`, `parseFacts`, `parseRules`, `parseSchema`, and the writer that puts each back |
 | `src/temporal.ms` | `DateTime` and `TimeSpan`, the values behind those types |
 | `src/triples.ms` | `termOf` and `isNumber`, the reading of one term |
-| `test/knowledge.ms` | 98 checks on the format and its writer |
+| `test/knowledge.ms` | 141 checks on the format, a fact's annotations, and its writer |
 | `test/schema.ms` | 43 checks on the schema format, the field check and the one-value rule |
 | `test/temporal.ms` | 79 checks on the three date types, the shapes a text reads from (a month, a day and an hour may be one digit), the value it is read into, the span between two, and whether a value stands inside one |
 | `vscode-knowledge/` | the same shape as a TextMate grammar, for highlighting only |

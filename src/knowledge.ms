@@ -12,6 +12,18 @@
 // own door, since a typed line is read by the solver. Nothing in the search needs it - it
 // is what lets an answer be said, since a sentence is the name with its dashes opened.
 //
+// A fact may carry two annotations after its call, in either order and each at most once:
+// '@' with a date, a time or a span, saying when it holds, and '~' with a percentage from 0
+// to 100, saying how confident we are of it.
+//
+//   won-prize(bill, sprint) @ 2002-04-05 ~ 80%
+//
+// The temporal one is any text the reader in temporal.ms takes, so a short shape is read as
+// it is there, and the text is kept on the triple as it was written. A fact with no '@' is
+// not time-bound, and one with no '~' is fully confident. A rule's head and conditions are
+// written bare, because a rule says what follows rather than when a fact holds, so an
+// annotation there is refused.
+//
 // A rule is a head and a body joined by '=>':
 //
 //   is-uncle-of(?x, ?y) => and(is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male))
@@ -345,10 +357,15 @@ end function
 // Rule.text prints, which is the implied and(...) the file may have spelled out.
 
 factsLines = function(facts)
-	"One line per fact, in the facts-file form."
+	"One line per fact, in the facts-file form, with the annotations it carries."
 	lines = []
 	for fact in facts
-		lines.push(fact.text)
+		line = fact.text
+		// The moment first and the confidence second, so a file reads one way whatever order
+		// the two were written in; a fact that says nothing about either stays bare.
+		if fact.at != null then line = line + " @ " + fact.at
+		if fact.confidence != 100 then line = line + " ~ " + str(fact.confidence) + "%"
+		lines.push(line)
 	end for
 	return lines
 end function
@@ -402,7 +419,7 @@ parseRule = function(triples, text)
 	// The arrow is looked for outside quotes, so a value holding one is not the rule's.
 	arrowAt = indexOfOutside(text, "=>", false)
 	if arrowAt == null then return err("expected 'head => body': " + text)
-	head = parseFact(triples, text[:arrowAt])
+	head = parseBareFact(triples, text[:arrowAt])
 	if head isa error then return head
 	body = parseBody(triples, text[arrowAt + 2:])
 	if body isa error then return body
@@ -481,30 +498,178 @@ parseCondition = function(triples, text)
 	"Reads one condition: a fact, or a constraint call such as not-equal(?x, ?y), built by the caller's triples module."
 	constraint = triples.constraintOf(trimSpace(text))
 	if constraint != null then return constraint
-	return parseFact(triples, text)
+	// A condition is written bare: the annotation belongs to a stored fact, not to a rule.
+	return parseBareFact(triples, text)
 end function
 
 parseFact = function(triples, text)
-	"Reads 'predicate(subject, object)' into a triple, or an error."
+	"Reads 'predicate(subject, object)' and the annotations after it into a triple, or an error."
+	// An annotation opens with '@' or '~' outside the call and outside any quoted value, so
+	// what comes before the first sign is the call and what comes from it on is read apart.
+	signAt = indexOfAnnotation(text)
+	if signAt == null then return parseBareFact(triples, text)
+	fact = parseBareFact(triples, text[:signAt])
+	if fact isa error then return fact
+	read = readAnnotations(text[signAt:])
+	if read isa error then return read
+	fact.at = read.at
+	fact.confidence = read.confidence
+	return fact
+end function
+
+parseBareFact = function(triples, text)
+	"Reads 'predicate(subject, object)' alone into a triple, or an error; an annotation is refused, since only a stored fact carries one."
+	text = trimSpace(text)
 	if not balancedQuotes(text) then
-		return err("a quoted value has no closing quote: " + trimSpace(text))
+		return err("a quoted value has no closing quote: " + text)
+	end if
+	if indexOfAnnotation(text) != null then
+		return err("an annotation belongs to a fact, not to a rule's head or condition: " + text)
 	end if
 	called = parseCall(text)
 	if called isa error then return called
 	if called.args.len != 2 then
-		return err("expected 'predicate(subject, object)': " + trimSpace(text))
+		return err("expected 'predicate(subject, object)': " + text)
 	end if
 	// The name rule is the solver's, because the sentence a result reads as is built from
 	// it; a file is held to it here, so a name no result could say never gets stored.
 	problem = triples.predicateProblem(called.name)
-	if problem != null then return err(problem + ": " + trimSpace(text))
+	if problem != null then return err(problem + ": " + text)
 	predicate = termOf(triples, called.name)
 	subject = termOf(triples, called.args[0])
 	object = termOf(triples, called.args[1])
 	if predicate == null or subject == null or object == null then
-		return err("a fact cannot have an empty field: " + trimSpace(text))
+		return err("a fact cannot have an empty field: " + text)
 	end if
 	return triples.SpoTriple.make(subject, predicate, object)
+end function
+
+// ── A fact's annotations ─────────────────────────────────────────────────────
+// The two signs are read from the text after the call, left to right, and each sign opens
+// one annotation: '@' reads a moment, '~' reads a percentage. Either may come first, each
+// at most once, and nothing else may follow them, since a fact that said more than the
+// form holds would be read as something it does not say.
+//
+// A moment is what temporal.ms reads - a date, a time, a datetime, or a span in brackets -
+// and its text is kept as it was written rather than as the value it stands for: '@ 2019-04'
+// stays 2019-04, the way a reader typed it.
+
+indexOfAnnotation = function(text)
+	"Where the first '@' or '~' stands outside quotes and the call's brackets, or null when there is none."
+	atSign = indexOfOutside(text, "@", true)
+	tilde = indexOfOutside(text, "~", true)
+	if atSign == null then return tilde
+	if tilde == null then return atSign
+	if atSign < tilde then return atSign
+	return tilde
+end function
+
+readAnnotations = function(text)
+	"Reads the annotations after a fact, '@ ' and '~ ', into {at, confidence}, or says what is wrong with them."
+	at = null
+	confidence = 100
+	seenAt = false
+	seenConfidence = false
+	rest = trimSpace(text)
+	while rest != ""
+		sign = rest[:1]
+		if sign != "@" and sign != "~" then
+			return err("a fact's annotations are '@' and '~': " + trimSpace(text))
+		end if
+		if sign == "@" then
+			if seenAt then return err("a fact takes one '@': " + trimSpace(text))
+			seenAt = true
+			moment = readMoment(rest[1:])
+			if moment isa error then return moment
+			at = moment.text
+			rest = moment.rest
+		else
+			if seenConfidence then return err("a fact takes one '~': " + trimSpace(text))
+			seenConfidence = true
+			percent = readConfidence(rest[1:])
+			if percent isa error then return percent
+			confidence = percent.value
+			rest = percent.rest
+		end if
+		rest = trimSpace(rest)
+	end while
+	return {"at": at, "confidence": confidence}
+end function
+
+readMoment = function(text)
+	"Reads one date, time, datetime or span from the front of text, as {text, rest}, or says what is wrong with it."
+	text = trimSpace(text)
+	if text == "" then return err("'@' needs a date, a time or a span")
+	// A span is one piece of text between brackets, so where it ends is its own ']': the two
+	// moments inside it are separated by a comma, and either may hold a space of its own.
+	if text[:1] == "[" then
+		closeAt = text.indexOf("]")
+		if closeAt == null then
+			return err("'@' needs a date, a time or a span in brackets: " + text)
+		end if
+		written = trimSpace(text[:closeAt + 1])
+		span = temporal.TimeSpan.receive(written)
+		if span isa error then return err(span.message)
+		return {"text": written, "rest": text[closeAt + 1:]}
+	end if
+	// A moment holds neither sign, so it ends where the next annotation opens, and the space
+	// a datetime has is its own: what is left is one piece of text and the reader says
+	// whether it is a moment, rather than the piece being guessed at its spaces.
+	last = text.len
+	for at in range(0, text.len - 1)
+		if text[at] == "@" or text[at] == "~" then
+			last = at
+			break
+		end if
+	end for
+	written = trimSpace(text[:last])
+	momentValue = temporal.DateTime.receive(written)
+	if momentValue isa error then return err("'@' needs a date, a time or a span: " + written)
+	return {"text": written, "rest": text[last:]}
+end function
+
+readConfidence = function(text)
+	"Reads '<number>%' from the front of text, as {value, rest}, or says what is wrong with it."
+	text = trimSpace(text)
+	stop = 0
+	while stop < text.len and not isSpace(text[stop]) and text[stop] != "@" and text[stop] != "~"
+		stop = stop + 1
+	end while
+	written = text[:stop]
+	if written.len < 2 or written[-1] != "%" then
+		return err("a confidence is a number and the sign '%', as in '~ 80%': " + text)
+	end if
+	spelled = written[:-1]
+	if not spelledNumber(spelled) then
+		return err("a confidence is a number and the sign '%', as in '~ 80%': " + text)
+	end if
+	value = val(spelled)
+	if value < 0 or value > 100 then
+		return err("a confidence runs from 0% to 100%: " + text)
+	end if
+	return {"value": value, "rest": text[stop:]}
+end function
+
+spelledNumber = function(text)
+	"Says whether text spells a decimal number in the plain shape a confidence is written in."
+	if text.len == 0 then return false
+	start = 0
+	if text[:1] == "-" then start = 1
+	if text.len <= start then return false
+	digits = 0
+	dots = 0
+	for at in range(start, text.len - 1)
+		c = text[at]
+		if c >= "0" and c <= "9" then
+			digits = digits + 1
+		else if c == "." then
+			dots = dots + 1
+			if dots > 1 then return false
+		else
+			return false
+		end if
+	end for
+	return digits > 0
 end function
 
 // ── Quotes ──────────────────────────────────────────────────────────────────

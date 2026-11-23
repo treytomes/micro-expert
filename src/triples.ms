@@ -167,12 +167,17 @@ end function
 
 SpoTriple = {}
 
-SpoTriple.make = function(subject, predicate, object)
-	"Builds a triple from its subject, predicate, and object."
+SpoTriple.make = function(subject, predicate, object, at=null, confidence=100)
+	"Builds a triple from its subject, predicate, and object, with the annotations a fact may carry: when it holds, and how confident we are."
 	t = new SpoTriple
 	t.subject = subject
 	t.predicate = predicate
 	t.object = object
+	// A fact that says nothing about time is not time-bound, and one that says nothing about
+	// its confidence is fully confident. The fields are always there, so a reader never has
+	// to know which of the two an old line carried.
+	t.at = at
+	t.confidence = confidence
 	return t
 end function
 
@@ -190,7 +195,7 @@ SpoTriple.parse = function(line)
 end function
 
 SpoTriple.text = function
-	"Formats the triple for display as 'predicate(subject, object)'."
+	"Formats the triple for display as 'predicate(subject, object)'; the annotations a fact carries are written beside it, not in it."
 	return termText(self.predicate) + "(" + termText(self.subject) + ", " +
 		termText(self.object) + ")"
 end function

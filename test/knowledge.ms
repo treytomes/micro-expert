@@ -170,6 +170,162 @@ run = function(t, knowledge, h)
 		h.check("the fact's refusal names its line", brokenFact.message.indexOf("line 2") != null)
 	end if
 
+	// ── A fact's annotations ─────────────────────────────────────────────────
+	// A fact may be followed by `@`, saying when it holds, and by `~`, saying how confident
+	// we are of it. Both are optional, either may stand first, and what each adds is kept on
+	// the triple: `at` is the text as it was written, or null when the fact is not
+	// time-bound, and `confidence` is a number, 100 when the fact says nothing. The temporal
+	// one is any text the date reader parses as a DateTime or a TimeSpan, so the short shapes
+	// a person writes are read here as they are there.
+
+	annotated = function(text)
+		"One fact read from a one-line document, or null when the line would not parse."
+		parsed = knowledge.parseFacts(t, [text])
+		if parsed isa error then return null
+		if parsed.len != 1 then return null
+		return parsed[0]
+	end function
+	annotationsOf = function(text)
+		"One fact's annotations as 'at=...; confidence=...', or null when the line would not parse."
+		fact = annotated(text)
+		if fact == null then return null
+		if not fact.hasIndex("at") or not fact.hasIndex("confidence") then return null
+		at = "none"
+		if fact.at != null then at = fact.at
+		return "at=" + at + "; confidence=" + str(fact.confidence)
+	end function
+	refusedFact = function(text)
+		"Says whether a one-line facts document is refused."
+		return knowledge.parseFacts(t, [text]) isa error
+	end function
+	writtenAnnotations = function(text)
+		"What factsLines writes for a fact written this way, or null when it would not parse."
+		fact = annotated(text)
+		if fact == null then return null
+		lines = knowledge.factsLines([fact])
+		if lines.len != 1 then return null
+		return lines[0]
+	end function
+
+	// What no annotation says: not time-bound, and fully confident.
+	h.check("a fact with no annotation is not time-bound and fully confident",
+		annotationsOf("has-age(walter, 78)") == "at=none; confidence=100")
+	h.check("a fact with a time is fully confident unless it says otherwise",
+		annotationsOf("won-prize(bill, sprint) @ 2002-04-05") ==
+			"at=2002-04-05; confidence=100")
+	h.check("a fact with a confidence is not time-bound unless it says otherwise",
+		annotationsOf("works-at(tim, school) ~ 80%") == "at=none; confidence=80")
+
+	// Any text the date reader takes, so each of the three kinds and a span.
+	h.check("a date annotates a fact",
+		annotationsOf("won-prize(bill, sprint) @ 2002-04-05") ==
+			"at=2002-04-05; confidence=100")
+	h.check("a time annotates a fact",
+		annotationsOf("wakes-up(anna, early) @ 07:30:00") == "at=07:30:00; confidence=100")
+	h.check("a datetime annotates a fact",
+		annotationsOf("works-at(tim, school) @ 2019-04-01 09:00:00") ==
+			"at=2019-04-01 09:00:00; confidence=100")
+	h.check("a span annotates a fact",
+		annotationsOf("works-at(tim, school) @ [2019-04-01 09:00:00, 2019-04-01 17:00:00]") ==
+			"at=[2019-04-01 09:00:00, 2019-04-01 17:00:00]; confidence=100")
+
+	// A part may be left short, the way the reader takes one, and the fact keeps the text it
+	// was written as rather than the full shape the reader fills in.
+	h.check("a short date annotates a fact",
+		annotationsOf("won-prize(bill, sprint) @ 2019-04") == "at=2019-04; confidence=100")
+	h.check("a date with one-digit parts annotates a fact",
+		annotationsOf("won-prize(bill, sprint) @ 2019-4-1") == "at=2019-4-1; confidence=100")
+	h.check("a short time annotates a fact",
+		annotationsOf("wakes-up(anna, early) @ 9:30") == "at=9:30; confidence=100")
+	h.check("a span of two short dates annotates a fact",
+		annotationsOf("works-at(tim, school) @ [2019-04-01, 2019-04-03]") ==
+			"at=[2019-04-01, 2019-04-03]; confidence=100")
+
+	// Confidence is any floating point number from 0 to 100.
+	h.check("a whole confidence reads as a number",
+		annotationsOf("works-at(tim, school) ~ 50%") == "at=none; confidence=50")
+	h.check("a fractional confidence reads as it was written",
+		annotationsOf("works-at(tim, school) ~ 87.5%") == "at=none; confidence=87.5")
+	h.check("a confidence may be 0%", annotationsOf("works-at(tim, school) ~ 0%") ==
+		"at=none; confidence=0")
+	h.check("a confidence may be 100%", annotationsOf("works-at(tim, school) ~ 100%") ==
+		"at=none; confidence=100")
+	h.check("a confidence written with a trailing zero is the same 100%",
+		annotationsOf("works-at(tim, school) ~ 100.0%") == "at=none; confidence=100")
+
+	// The two are independent, so either may stand first.
+	h.check("the annotations may stand either way round",
+		annotationsOf("works-at(tim, school) @ [2019-04-01, 2019-04-03] ~ 80%") ==
+			"at=[2019-04-01, 2019-04-03]; confidence=80" and
+			annotationsOf("works-at(tim, school) ~ 80% @ [2019-04-01, 2019-04-03]") ==
+				"at=[2019-04-01, 2019-04-03]; confidence=80")
+	h.check("no space is needed after the sign",
+		annotationsOf("won-prize(bill, sprint)@2002-04-05~80%") ==
+			"at=2002-04-05; confidence=80")
+
+	// The annotations come after the call, so a quoted field and a comment beside them are
+	// unaffected.
+	mark = char(34)
+	h.check("an annotation follows a quoted field",
+		annotationsOf("has-home-town(guid, " + mark + "Dallas, TX" + mark + ") @ 2002-04-05") ==
+			"at=2002-04-05; confidence=100")
+	h.check("a comment after an annotation is still a comment",
+		annotationsOf("won-prize(bill, sprint) @ 2002-04-05 // the sprint") ==
+			"at=2002-04-05; confidence=100")
+
+	// Anything the reader would not take is refused, rather than making a fact look as if it
+	// holds at a time it does not.
+	h.check("an annotation that is not a moment is refused",
+		refusedFact("won-prize(bill, sprint) @ the sprint"))
+	h.check("a date the calendar does not have is refused",
+		refusedFact("won-prize(bill, sprint) @ 2019-02-30"))
+	h.check("a time the clock does not have is refused",
+		refusedFact("wakes-up(anna, early) @ 25:00:00"))
+	h.check("a span needs two moments",
+		refusedFact("works-at(tim, school) @ [2019-04-01 09:00:00]"))
+	h.check("a span of three moments is refused",
+		refusedFact("works-at(tim, school) @ [2019-04-01, 2019-04-02, 2019-04-03]"))
+	h.check("a span needs its comma",
+		refusedFact("works-at(tim, school) @ [2019-04-01 2019-04-03]"))
+	h.check("a span does not run on to the next line",
+		knowledge.parseFacts(t, ["works-at(tim, school) @ [2019-04-01,", "2019-04-03]"]) isa error)
+	h.check("a confidence over 100 is refused",
+		refusedFact("works-at(tim, school) ~ 100.1%"))
+	h.check("a negative confidence is refused",
+		refusedFact("works-at(tim, school) ~ -0.5%"))
+	h.check("a confidence needs its number", refusedFact("works-at(tim, school) ~ %"))
+	h.check("a confidence needs its '%'", refusedFact("works-at(tim, school) ~ 80"))
+	h.check("a confidence that is not a number is refused",
+		refusedFact("works-at(tim, school) ~ high%"))
+	h.check("a fact may carry one '@'",
+		refusedFact("won-prize(bill, sprint) @ 2002-04-05 @ 2003-04-05"))
+	h.check("a fact may carry one '~'", refusedFact("works-at(tim, school) ~ 50% ~ 60%"))
+	h.check("a bare '@' is refused", refusedFact("won-prize(bill, sprint) @"))
+	h.check("a bare '~' is refused", refusedFact("works-at(tim, school) ~"))
+	h.check("an annotation the grammar does not have is refused",
+		refusedFact("won-prize(bill, sprint) # 2002-04-05"))
+	h.check("nothing follows the annotations",
+		refusedFact("won-prize(bill, sprint) @ 2002-04-05 extra"))
+
+	// A rule says what follows rather than when a fact holds, so its head and body carry no
+	// annotation.
+	h.check("a rule's head takes no annotation",
+		knowledge.parseRules(t, ["is-anything(?x, ?y) @ 2002-04-05 => is-parent-of(?y, ?x)"]) isa error)
+	h.check("a rule's body takes no annotation",
+		knowledge.parseRules(t, ["is-anything(?x, ?y) => is-parent-of(?y, ?x) @ 2002-04-05"]) isa error)
+
+	// /save-facts writes the annotations back, and what it writes reads again.
+	h.check("an annotated fact is written with its annotations",
+		writtenAnnotations("won-prize(bill, sprint) @ 2002-04-05 ~ 80%") ==
+			"won-prize(bill, sprint) @ 2002-04-05 ~ 80%")
+	savedAnnotated = writtenAnnotations("won-prize(bill, sprint) ~ 80% @ 2002-04-05")
+	savedReadBack = null
+	if savedAnnotated != null then savedReadBack = annotationsOf(savedAnnotated)
+	h.check("an annotated fact reads back after a save",
+		savedAnnotated != null and savedReadBack == "at=2002-04-05; confidence=80")
+	h.check("a fact with no annotation is written as it was",
+		writtenAnnotations("has-age(walter, 78)") == "has-age(walter, 78)")
+
 	// ── Quoted values ────────────────────────────────────────────────────────
 	// A field may be written in double quotes, so a value holds what the format would
 	// otherwise read itself: a comma, a bracket, the '//' that opens a comment. The quotes

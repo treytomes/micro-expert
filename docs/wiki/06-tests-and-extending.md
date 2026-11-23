@@ -12,7 +12,7 @@ shell:
 ```text
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
 ...
-863 passed, 0 failed
+912 passed, 0 failed
 ```
 
 On Linux, `"$MINISCRIPT_EXE_PATH"` — a plain shell does not read `.env`, so export it or paste the
