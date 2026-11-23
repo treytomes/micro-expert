@@ -218,7 +218,7 @@ puts the line number in front, the same way it reports any other broken entry. I
 | --- | --- |
 | `src/triples.ms` | the constraints section: the seven names, `NotEqual`, `Equal`, `YearsSince`, `Comparison`, `comparisonHolds`, `holdsConstraint`, `applyConstraint`, `renameConstraint` |
 | `src/knowledge.ms` | `parseCondition` and `constraintOf`, which read a constraint call out of a rule body |
-| `src/datetimes.ms` | the date, time and datetime types, and the calendar `years-since` counts on |
+| `src/temporal.ms` | the date, time and datetime types, and the calendar `years-since` counts on |
 | `src/session.ms` | `refuseConstraint`, which keeps a constraint's name from being stored or asked at the prompt |
 | `src/rule.ms` | the body solver's use of `applyConstraint`; a constraint adds no proof step |
 | `test/relations.ms` | the checks behind the binding, arithmetic and proof-tree behaviour |

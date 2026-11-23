@@ -114,11 +114,11 @@ run = function(t, parser, schemaLoader, h)
 	h.check("a field that is not unique takes a second value",
 		parser.uniqueClash(likes, [spo("zed", "likes", "tea")], spo("zed", "likes", "coffee")) == null)
 
-	// The reader a date field's text goes through is datetimes.ms's, and this module hands it
+	// The reader a date field's text goes through is temporal.ms's, and this module hands it
 	// on, so the two names it exposes have to agree about what they build; the reader's own
-	// behaviour is test/datetimes.ms's.
+	// behaviour is test/temporal.ms's.
 	h.check("the schema module reads a value into the same kind of object",
-		schemaLoader.receive("2019-04-01") isa schemaLoader.Temporal)
+		schemaLoader.receive("2019-04-01") isa schemaLoader.DateTime)
 
 	// ── The file the program ships ───────────────────────────────────────────
 

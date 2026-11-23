@@ -84,8 +84,8 @@ belongs-to-age-group(text, child|adult)
 | `unique(t)` | a value of type `t`, and at most one per subject |
 
 The three date types keep their value as text in the fact, in the one shape the type fixes. A value
-written another way, or a day the calendar does not have, is refused. `src/datetimes.ms` can read a
-fitting value into a `Temporal` for scripts that need to format, move, or order it.
+written another way, or a day the calendar does not have, is refused. `src/temporal.ms` can read a
+fitting value into a `DateTime` for scripts that need to format, move, order or measure between it.
 
 `unique(...)` wraps exactly one field type, so `unique()` and `unique(number, number)` are refused,
 as is `unique(unique(number))`. It is about the pair rather than the value: a second value for the

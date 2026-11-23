@@ -274,8 +274,8 @@ The three date types keep their value as text in the fact, in the one shape the 
 fixes, and a value written any other way - or a day the calendar does not have - is
 refused like any other misfit. A time is written to the second, so one clock time has one
 spelling and a `unique(time)` field cannot hold both `09:30` and `09:30:00` for one
-subject. `src/datetimes.ms` reads a fitting value into a `Temporal`, which formats it, moves
-it by seconds and orders it against another of its kind. The host's own dates begin in 1970,
+subject. `src/temporal.ms` reads a fitting value into a `DateTime`, which formats it, moves it
+by seconds and orders it against another of its kind. The host's own dates begin in 1970,
 so an older date is checked and counted by that reader rather than by the host, and prints in
 its kind's one shape; a date the host can hold prints in whatever `str(...)` format asks for.
 
@@ -318,11 +318,11 @@ repo writes one.
 | Place | What it holds |
 | --- | --- |
 | `src/knowledge.ms` | `entries`, `parseFacts`, `parseRules`, `parseSchema`, and the writer that puts each back |
-| `src/datetimes.ms` | `receive` and `Temporal`, the date, time and datetime values behind those types |
+| `src/temporal.ms` | `DateTime` and `TimeSpan`, the values behind those types |
 | `src/triples.ms` | `termOf` and `isNumber`, the reading of one term |
 | `test/knowledge.ms` | 78 checks on the format and its writer |
 | `test/schema.ms` | 42 checks on the schema format, the field check and the one-value rule |
-| `test/datetimes.ms` | 31 checks on the three date types and the value a text is read into |
+| `test/temporal.ms` | 39 checks on the three date types, the value a text is read into, and the span between two |
 | `vscode-knowledge/` | the same shape as a TextMate grammar, for highlighting only |
 
 A refusal names the entry it came from, `line N: ...`, where `N` is the first physical line

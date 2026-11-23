@@ -14,8 +14,8 @@
 //   print triples.unify(triples.SpoTriple.parse("child(?x, ?y)"),
 //       triples.SpoTriple.parse("child(susan, bill)"))   // {"x": "susan", "y": "bill"}
 //
-// The calendar a date is counted on is temporal.ms's, imported here for the two readings a
-// constraint makes of one: the digits a date is written with, and the length of its month.
+// The calendar a date is counted on is temporal.ms's, imported here for the one reading a
+// constraint makes of one: whether a value is a date at all, which its reader is what says.
 
 import "temporal"
 
@@ -329,21 +329,12 @@ end function
 
 yearsSince = function(text, on)
 	"The whole years from a yyyy-MM-dd date to a day, or null when that is not a date or it has not arrived yet."
-	if not (text isa string) then return null
-	parts = text.split("-")
-	if parts.len != 3 then return null
-	if parts[0].len != 4 or parts[1].len != 2 or parts[2].len != 2 then return null
-	if not temporal.allDigits(parts[0]) or not temporal.allDigits(parts[1]) or
-		not temporal.allDigits(parts[2]) then return null
-	year = val(parts[0])
-	month = val(parts[1])
-	day = val(parts[2])
-	// The calendar is temporal.ms's rather than the host's, whose dates begin in 1970 and
-	// would roll 2019-02-30 forward like any other impossible day.
-	if year < 1 or month < 1 or month > 12 then return null
-	if day < 1 or day > temporal.daysInMonth(year, month) then return null
-	years = on.year - year
-	if on.month < month or (on.month == month and on.day < day) then years = years - 1
+	// The reader that owns the shape is what says whether the text is a date, so a value it
+	// refuses is not counted here: the host would roll 2019-02-30 forward like any other day.
+	date = temporal.DateTime.receive(text, "date")
+	if date isa error then return null
+	years = on.year - date.year
+	if on.month < date.month or (on.month == date.month and on.day < date.day) then years = years - 1
 	if years < 0 then return null
 	return years
 end function

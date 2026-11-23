@@ -70,16 +70,18 @@ derivedUniques = function(types, rules)
 	return knowledge.derivedUniques(types, rules)
 end function
 
-// The object the three date types mean. A fact keeps its value as text, and temporal.ms's
-// receive turns a fitting text into a Temporal, which formats, moves and orders it. The
-// reader is handed on here so a caller holding a fact's text never needs a second import:
+// The value the three date types mean. A fact keeps its value as text, and temporal.ms's
+// reader turns a fitting text into a DateTime, which formats, moves, orders and measures
+// itself. The reader is handed on here so a caller holding a fact's text never needs a
+// second import:
 //
 //   when = schema.receive("2019-04-01 09:30:00")
 //   print when.str("HH:mm")
+//   print when.since(schema.receive("2019-04-01 08:30:00")).hours
 
-Temporal = temporal.Temporal
+DateTime = temporal.DateTime
 
 receive = function(text, kind=null)
-	"Reads a date, time or datetime text into a Temporal, or says what is wrong with it."
-	return temporal.receive(text, kind)
+	"Reads a date, time or datetime text into a DateTime, or says what is wrong with it."
+	return temporal.DateTime.receive(text, kind)
 end function
