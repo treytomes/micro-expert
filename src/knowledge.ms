@@ -216,7 +216,7 @@ fieldFits = function(term, type)
 	if type == "boolean" then return term == "true" or term == "false"
 	// A date, time or datetime is text in one shape, and the reader that builds the object
 	// is what says whether it is one, so the check and the object agree.
-	if temporal.dateTypes.indexOf(type) != null then return not (temporal.DateTime.receive(term, type) isa error)
+	if temporal.dateTypes.indexOf(type) != null then return not (temporal.DateTime.receiveStrict(term, type) isa error)
 	return type.split("|").indexOf(term) != null
 end function
 

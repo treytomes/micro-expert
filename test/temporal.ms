@@ -1,5 +1,6 @@
 // Cases for the date, time and datetime types: the three field types, the DateTime a
-// fitting text is read into, and the TimeSpan that measures between two of them. They live
+// fitting text is read into - written in full or with a part left short - and the TimeSpan
+// that measures between two of them, which also reads the two from one bracketed text. They live
 // together because a date field's misfit is whatever temporal.DateTime.receive says it is,
 // so the reader and the fields typed by it are one subject; the schema's own format and
 // unique(...) checks stay in test/schema.ms.
@@ -43,6 +44,11 @@ run = function(t, parser, dates, h)
 			"the object should be a date and time")
 	h.check("unique(...) wraps a date as it wraps any type",
 		parser.schemaMisfit(dated, spo("acme", "born-on", "2019-04-01")) == null)
+	// A short text is a convenience for a reader, not a spelling a fact may keep: a date field
+	// stores the day it is on, so one month written without it is not a date a fact holds.
+	h.check("a date without its day is not one a fact stores",
+		parser.schemaMisfit(dated, spo("acme", "founded-on", "2019-04")) ==
+			"the object should be a date")
 
 	// The text is what a fact stores; the DateTime is what it means. temporal.ms reads all
 	// three types into one object, so a value can be formatted, moved and ordered without going
@@ -91,6 +97,40 @@ run = function(t, parser, dates, h)
 		dates.DateTime.receive("2019-04-01").kind == "date" and dates.DateTime.receive("09:30:00").kind == "time")
 	h.check("a text of no kind is refused", dates.DateTime.receive("nonsense") isa error)
 
+	// A part may be written short: a date without its day is the first of that month, and a
+	// clock without its seconds is the start of that minute. The value is that instant, so it
+	// prints in the full shape its kind has.
+	month = dates.DateTime.receive("2019-04")
+	h.check("a date written to the month is read as its first day",
+		month isa dates.DateTime and month.kind == "date" and month.year == 2019 and
+			month.month == 4 and month.day == 1)
+	h.check("and prints in the calendar's full shape", month.str == "2019-04-01")
+	h.check("it is the same value the full date is",
+		month.compare(dates.DateTime.receive("2019-04-01")) == 0)
+	h.check("a month the year does not have is refused", dates.DateTime.receive("2019-13") isa error)
+	h.check("a year of three digits is not a date", dates.DateTime.receive("201-04") isa error)
+	minute = dates.DateTime.receive("09:30")
+	h.check("a clock time without its seconds reads from the minute's start",
+		minute isa dates.DateTime and minute.kind == "time" and minute.second == 0 and
+			minute.str == "09:30:00")
+	h.check("there is still no minute 60", dates.DateTime.receive("09:60") isa error)
+	h.check("a datetime reads with a short clock",
+		dates.DateTime.receive("2019-04-01 09:30").str == "2019-04-01 09:30:00")
+	h.check("and with a short date",
+		dates.DateTime.receive("2019-04 09:30:00").str == "2019-04-01 09:30:00")
+	h.check("or with both short",
+		dates.DateTime.receive("2019-04 09:30").str == "2019-04-01 09:30:00")
+	h.check("a short text moved by seconds prints the full shape",
+		dates.DateTime.receive("09:30").addSeconds(30).str == "09:30:30" and
+			dates.DateTime.receive("2019-04").addSeconds(86400).str == "2019-04-02")
+	// The space around a value is padding a reader steps over, the way a prompt's leading
+	// space is; the value is the same either way.
+	h.check("space around a value is not part of it",
+		dates.DateTime.receive(" 2019-04-01 09:30 ").str == "2019-04-01 09:30:00")
+	h.check("but a fact does not store that padding",
+		parser.schemaMisfit(dated, spo("acme", "founded-on", " 2019-04-01")) ==
+			"the object should be a date")
+
 	// A TimeSpan is how much time passed between two values of one kind: the difference of
 	// their counts, which are wall-clock seconds from the same base, so two dates differ by
 	// whole days and two datetimes by the seconds between them.
@@ -114,4 +154,26 @@ run = function(t, parser, dates, h)
 			dates.DateTime.receive("09:30:00")) isa error)
 	h.check("a span is between values, not text",
 		dates.TimeSpan.between("2019-04-01", "2019-04-02") isa error)
+
+	// A span reads from text too: the two values it lies between, in square brackets with a
+	// comma between them, each written in any shape a DateTime reads.
+	read = dates.TimeSpan.receive("[2019-04-01 09:00:00, 2019-04-01 09:30:00]")
+	h.check("a span reads from two values in brackets",
+		read isa dates.TimeSpan and read.seconds == 1800 and read.str == "00:30:00")
+	h.check("the later value may come first, and the span is negative",
+		dates.TimeSpan.receive("[2019-04-03, 2019-04-01]").str == "-2d 00:00:00")
+	h.check("the values inside may be written short",
+		dates.TimeSpan.receive("[2019-04-01 09:00, 2019-04-01 09:30]").minutes == 30)
+	h.check("a month to a month counts the days between them",
+		dates.TimeSpan.receive("[2019-04, 2019-06]").days == 61)
+	h.check("a span with no brackets is refused",
+		dates.TimeSpan.receive("2019-04-01 09:00:00, 2019-04-01 09:30:00") isa error)
+	h.check("a span needs both values", dates.TimeSpan.receive("[2019-04-01 09:00:00]") isa error)
+	h.check("and needs a comma between them",
+		dates.TimeSpan.receive("[2019-04-01 09:00:00 2019-04-01 09:30:00]") isa error)
+	h.check("a span of two kinds is refused",
+		dates.TimeSpan.receive("[2019-04-01, 09:30:00]") isa error)
+	h.check("a value that does not read is what the span says is wrong",
+		dates.TimeSpan.receive("[2019-02-30, 2019-04-01]") isa error and
+			dates.TimeSpan.receive("[the morning, 2019-04-01]") isa error)
 end function

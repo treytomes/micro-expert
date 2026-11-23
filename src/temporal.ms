@@ -14,6 +14,20 @@
 //   09:30:00               time
 //   2019-04-01 09:30:00    datetime
 //
+// A part may also be written short: a date without its day is the first of that month, and
+// a clock without its seconds is the start of that minute. A date reads from yyyy-MM-dd or
+// yyyy-MM, a time from HH:mm:ss or HH:mm, and a datetime is the two together with either
+// side as short as it likes:
+//
+//   2019-04        is 2019-04-01
+//   09:30          is 09:30:00
+//   2019-04 09:30  is 2019-04-01 09:30:00
+//
+// A short text says where a period begins, and the value it makes is that instant, so it
+// prints in the full shape its kind has. What a fact stores is the full shape and no other
+// - receiveStrict is the reader that insists on it - since a fact's text is its value, and
+// one clock time must have one spelling for a unique(time) field to hold it only once.
+//
 // The shape is strict where the host's parser is not: _dateVal reads 3/15/2024 and
 // 2021-02-30 alike, one loose and one impossible, so the calendar is counted here. The
 // host's dates begin in 1970, so a date before that is counted here too, and one of those
@@ -32,6 +46,11 @@
 //   finish = temporal.DateTime.receive("2019-04-03")
 //   finish.since(start).days                                         // 2
 //   finish.since(start).str                                          // 2d 00:00:00
+//
+// A span also reads from text: the two values it lies between, in square brackets with a
+// comma between them, each in any shape a DateTime reads.
+//
+//   temporal.TimeSpan.receive("[2019-04-01 09:00:00, 2019-04-01 09:30:00]").minutes  // 30
 //
 // Both classes are this module's, so a module that imports it gets a copy, and a DateTime
 // is `isa` another only when the same copy built both. schema.ms hands its own copy's
@@ -71,10 +90,15 @@ DateTime.formats = {
 // Each kind has its reader, and receive is the one a caller uses: it takes the kind from
 // the caller, or off the text's own punctuation when none is named, and hands the parts
 // to make. So the shape is checked in one place and a value is built in one place.
+//
+// receiveStrict is the same reading with the short shapes turned away, and it is what a
+// fact goes through: the text read back is the text a value prints in, so what a fact
+// stores is the one shape its type fixes.
 
 DateTime.receive = function(text, kind=null)
-	"Reads a date, time or datetime text into a DateTime, or says what is wrong with it."
+	"Reads a date, time or datetime text into a DateTime, or says what is wrong with it. A part may be left short."
 	if not (text isa string) then return err("a date, time or datetime is text: " + str(text))
+	text = trimmed(text)
 	if kind == null then kind = DateTime.kindOf(text)
 	if kind == null then return err("not a date, a time or a datetime: " + text)
 	if dateTypes.indexOf(kind) == null then return err("not a date, time or datetime type: " + kind)
@@ -87,6 +111,16 @@ DateTime.receive = function(text, kind=null)
 	end if
 	if parts isa error then return parts
 	return DateTime.make(kind, parts)
+end function
+
+DateTime.receiveStrict = function(text, kind=null)
+	"Reads a text that must be written in full, the shape a value prints in and a fact stores."
+	fitted = DateTime.receive(text, kind)
+	if fitted isa error then return fitted
+	if fitted.str != text then
+		return err("a " + fitted.kind + " is written " + fitted.defaultFormat + ": " + text)
+	end if
+	return fitted
 end function
 
 DateTime.kindOf = function(text)
@@ -115,48 +149,54 @@ DateTime.make = function(kind, parts)
 end function
 
 DateTime.dateParts = function(text)
-	"Reads yyyy-MM-dd into its value and parts, or says how the text is not a date."
+	"Reads yyyy-MM-dd, or yyyy-MM as its first day, into its value and parts, or says how the text is not a date."
 	pieces = text.split("-")
-	if pieces.len != 3 then return err("a date is written yyyy-MM-dd: " + text)
-	if pieces[0].len != 4 or pieces[1].len != 2 or pieces[2].len != 2 or
-		not allDigits(pieces[0]) or not allDigits(pieces[1]) or not allDigits(pieces[2]) then
-		return err("a date is written yyyy-MM-dd: " + text)
+	if pieces.len < 2 or pieces.len > 3 then
+		return err("a date is written yyyy-MM-dd or yyyy-MM: " + text)
 	end if
-	year = val(pieces[0])
-	month = val(pieces[1])
-	day = val(pieces[2])
+	// A date written to the month is the day that month begins: the day is one unless the
+	// text names another, and either shape is read on as the full date it stands for.
+	year = digitsOf(pieces[0], 4)
+	month = digitsOf(pieces[1], 2)
+	day = 1
+	if pieces.len == 3 then day = digitsOf(pieces[2], 2)
+	if year == null or month == null or day == null then
+		return err("a date is written yyyy-MM-dd or yyyy-MM: " + text)
+	end if
 	if year < 1 then return err("there is no year " + pieces[0] + ": " + text)
 	if month < 1 or month > 12 then return err("there is no month " + pieces[1] + ": " + text)
 	if day < 1 or day > DateTime.daysInMonth(year, month) then return err("there is no such date: " + text)
 	// The host is trusted with a date it can hold, so a value and its printout agree with
 	// every other date the host knows. It begins in 1970, and an older date is counted
 	// here instead: the same seconds-since-2000 base, from the civil calendar.
-	value = _dateVal(text)
+	stamp = pad4(year) + "-" + pad2(month) + "-" + pad2(day)
+	value = _dateVal(stamp)
 	hosted = 1
 	if value isa error then hosted = 0
-	if hosted and _dateStr(value, "yyyy-MM-dd") != text then hosted = 0
+	if hosted and _dateStr(value, "yyyy-MM-dd") != stamp then hosted = 0
 	if not hosted then value = (DateTime.daysFromCivil(year, month, day) - DateTime.epochDays) * 86400
-	return {"text": text, "value": value, "hosted": hosted, "year": year, "month": month,
+	return {"text": stamp, "value": value, "hosted": hosted, "year": year, "month": month,
 		"day": day, "hour": null, "minute": null, "second": null}
 end function
 
 DateTime.timeParts = function(text)
-	"Reads HH:mm:ss into its value and parts, or says how the text is not a time."
+	"Reads HH:mm:ss, or HH:mm as its first second, into its value and parts, or says how the text is not a time."
 	pieces = text.split(":")
-	// To the second, so one clock time has one spelling: 09:30 and 09:30:00 would
-	// otherwise be two values a unique(time) field could hold for the same subject.
-	if pieces.len != 3 then return err("a time is written HH:mm:ss: " + text)
-	secondText = pieces[2]
-	if pieces[0].len != 2 or pieces[1].len != 2 or secondText.len != 2 or
-		not allDigits(pieces[0]) or not allDigits(pieces[1]) or not allDigits(secondText) then
-		return err("a time is written HH:mm:ss: " + text)
+	if pieces.len < 2 or pieces.len > 3 then
+		return err("a time is written HH:mm:ss or HH:mm: " + text)
 	end if
-	hour = val(pieces[0])
-	minute = val(pieces[1])
-	second = val(secondText)
+	// A clock written to the minute is the second that minute begins: 09:30 is the start of
+	// the same minute 09:30:00 names, so a second left off is zero.
+	hour = digitsOf(pieces[0], 2)
+	minute = digitsOf(pieces[1], 2)
+	second = 0
+	if pieces.len == 3 then second = digitsOf(pieces[2], 2)
+	if hour == null or minute == null or second == null then
+		return err("a time is written HH:mm:ss or HH:mm: " + text)
+	end if
 	if hour > 23 then return err("there is no hour " + pieces[0] + ": " + text)
 	if minute > 59 then return err("there is no minute " + pieces[1] + ": " + text)
-	if second > 59 then return err("there is no second " + secondText + ": " + text)
+	if second > 59 then return err("there is no second " + pad2(second) + ": " + text)
 	return {"text": pad2(hour) + ":" + pad2(minute) + ":" + pad2(second),
 		"value": hour * 3600 + minute * 60 + second, "hosted": 1,
 		"year": null, "month": null, "day": null,
@@ -164,12 +204,12 @@ DateTime.timeParts = function(text)
 end function
 
 DateTime.dateTimeParts = function(text)
-	"Reads yyyy-MM-dd HH:mm:ss into its value and parts, or says what is wrong."
+	"Reads a date, a space and a time into its value and parts, or says what is wrong."
 	at = text.indexOf(" ")
-	if at == null then return err("a datetime is written yyyy-MM-dd HH:mm:ss: " + text)
+	if at == null then return err("a datetime is a date and a time: " + text)
 	date = DateTime.dateParts(text[:at])
 	if date isa error then return date
-	clock = DateTime.timeParts(text[at + 1:])
+	clock = DateTime.timeParts(trimmed(text[at + 1:]))
 	if clock isa error then return clock
 	stamp = date.text + " " + clock.text
 	hosted = date.hosted
@@ -315,6 +355,26 @@ end function
 
 TimeSpan = {"seconds": 0}
 
+TimeSpan.receive = function(text)
+	"Reads [start, finish] - two values in brackets, a comma between - into their span, or says what is wrong."
+	if not (text isa string) then
+		return err("a span is two dates, times or datetimes in brackets: " + str(text))
+	end if
+	book = trimmed(text)
+	if book.len < 2 or book[0] != "[" or book[book.len - 1] != "]" then
+		return err("a span is two dates, times or datetimes in brackets: " + text)
+	end if
+	pieces = book[1:book.len - 1].split(",")
+	if pieces.len != 2 then
+		return err("a span is [start, finish], two values with a comma between: " + text)
+	end if
+	start = DateTime.receive(trimmed(pieces[0]))
+	if start isa error then return start
+	finish = DateTime.receive(trimmed(pieces[1]))
+	if finish isa error then return finish
+	return TimeSpan.between(start, finish)
+end function
+
 TimeSpan.between = function(start, finish)
 	"The span from start to finish, or an error when they are not DateTimes of one kind."
 	if not (start isa DateTime) or not (finish isa DateTime) then
@@ -366,8 +426,22 @@ TimeSpan.days = function
 end function
 
 // ── Text ─────────────────────────────────────────────────────────────────────
-// The width a part is written in, the digit check the readers make, and a clock read from
-// a count of seconds into a day, which both a datetime's printout and a span's ask for.
+// The width a part is written in, the digit check the readers make, the space a reader
+// ignores, and a clock read from a count of seconds into a day, which both a datetime's
+// printout and a span's ask for.
+
+trimmed = function(text)
+	"Text without the spaces at either end, which a reader takes as padding and not part of a value."
+	first = 0
+	last = text.len
+	while first < last and text[first] == " "
+		first = first + 1
+	end while
+	while last > first and text[last - 1] == " "
+		last = last - 1
+	end while
+	return text[first:last]
+end function
 
 allDigits = function(text)
 	"Says whether every character is a decimal digit, and there is at least one."
@@ -376,6 +450,13 @@ allDigits = function(text)
 		if "0123456789".indexOf(c) == null then return false
 	end for
 	return true
+end function
+
+digitsOf = function(text, width)
+	"The number a part of exactly width digits spells, or null when it is not one, since the width is part of a shape rather than a way of writing it."
+	if text.len != width then return null
+	if not allDigits(text) then return null
+	return val(text)
 end function
 
 pad2 = function(n)
