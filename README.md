@@ -76,7 +76,7 @@ entry point, and pass the script's exit code back.
 [INF] micro-expert: verbose:    0
 [INF] micro-expert: nlp:        0
 [INF] micro-expert: log-level:  information
-Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
+Type a fact, a question or a rule as 'head <- conditions', or a value to see how it reads. /help lists the commands; /exit leaves.
 ? is-uncle-of(bill, ?p)
   is-uncle-of(bill, anna)
   is-uncle-of(bill, mark)
@@ -199,6 +199,87 @@ the unknown is: `is-grandpa-of(?who, tim)` reads "?who is the grandpa of tim" an
 `walter`, and `is-grandma-of(?x, ?y)` lists every grandmother/grandchild pair - seven of them,
 all Doris.
 
+## A diagram of the facts
+
+`src/mermaid.ms` turns a fact list into a [Mermaid](https://mermaid.js.org) flowchart, for a
+renderer outside the program: a Markdown fence on GitHub, a docs site, the Mermaid preview in
+VS Code. The schema decides the shapes. A predicate whose object field is text names another
+entity, so a fact of it is drawn as an edge between two nodes; every other object is a value
+that belongs to its subject, so it goes on that node's label rather than standing in the graph
+as a node called `male`.
+
+At the prompt, `/mermaid` prints what the session holds, including the facts added since it
+started:
+
+```
+? /mermaid
+flowchart TD
+  walter["Walter<br/>male · 1948-03-14"]
+  doris["Doris<br/>female · 1950-06-02"]
+  bill["Bill<br/>male · 1972-01-30"]
+  ...
+  walter ---|married to| doris
+  walter -->|is parent of| bill
+  doris -->|is parent of| bill
+  ...
+```
+
+With a name, it writes the diagram to that file instead of printing it, and draws the same
+diagram beside it as an SVG: `sample` becomes `sample.mmd` and `sample.svg`, while a name that
+already has an extension is used as it is.
+
+```
+? /mermaid sample
+  wrote 40 lines to sample.mmd
+  drew sample.svg
+```
+
+The `.mmd` is the Mermaid text above. The `.svg` is the same diagram laid out here rather than
+by Mermaid - one row per generation, a box per node, a line per relation, an arrowhead only
+where a rule does not give the relation both ways - so a picture needs no renderer installed and
+no network. A relation's label is placed along its line at the first spot clear of every box and
+every label already written; the document is written in three passes - every line, then every
+box, then every label - so nothing is drawn after the labels to cross them; and each label
+carries a white halo, so the line it sits on breaks around the words instead of through them.
+A relation drawn along a row writes its label in the corridor under that row - twice inside it
+before once above it - since a label above its own row reads as belonging to whatever is above. Both writes go through the repl library's temp-file-and-swap, so a write that fails
+part way leaves the file it was replacing as it was.
+
+A script calls the module with its own facts, types and rules - it holds no classes, so the copy
+each module gets cannot reach it:
+
+```miniscript
+import "mermaid"
+import "schema"
+import "facts"
+import "rules"
+
+types = globals["schema"].build()
+facts = globals["facts"].build(triples, null, types)
+rules = globals["rules"].build(triples)
+print globals["mermaid"].build(facts, types, rules).join(char(10))
+```
+
+`build(facts, types, rules)` answers the diagram a line at a time: `facts` is what to draw,
+`types` is what the schema loaded, and `rules` is what the rules loaded. Types may be `null`,
+which draws every object as a node, and rules may be left out, which keeps every arrow.
+`svg(facts, types, rules)` answers the same diagram as one SVG document.
+
+What the rules are for is the one thing a fact cannot say about itself. A rule whose head is its
+own one condition with the fields swapped - `married-to(?y, ?x) => married-to(?x, ?y)` - is the
+knowledge base saying a relation reads the same both ways, so a fact of that predicate is drawn
+with a plain link rather than an arrow. `facts.kb` stores a marriage once, one way round, and
+the reverse is what that rule adds; without a rule saying so the edge keeps its arrow, since a
+stored fact does have a direction.
+
+The rest is what the renderer needs rather than what a reader does. A name's spaces and
+punctuation become underscores in its id, an id that would start with a digit gets `n_` in front
+of it, and two names that spell the same id are numbered apart, so `New York` and `New_York`
+stay two nodes. A quote inside a name is written `#quot;` rather than ending the label. A
+predicate the schema does not name is drawn as an edge, the reading the schema itself takes of a
+name it does not type, and a fact that still holds a variable is skipped: a diagram has no name
+to write for `?x`.
+
 ## A session at the prompt
 
 The program is the session. One line has one meaning: a ground line
@@ -207,7 +288,7 @@ starting with `/` is a command for the session itself.
 
 ```
 > micro-expert --nlp
-Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.
+Type a fact, a question or a rule as 'head <- conditions', or a value to see how it reads. /help lists the commands; /exit leaves.
 ? is-parent-of(?p, susan)
   no solution found at depth 8
   A solution would need one of these:
@@ -348,6 +429,7 @@ the answers and those trees in words.
 | `/retract <FACT>` | Take a stored fact out, wherever it stands |
 | `/facts` | List the facts the session holds |
 | `/rules` | List the rules the session holds |
+| `/mermaid [FILE]` | Draw the facts as a Mermaid flowchart, or write the diagram and its picture to a file |
 | `/depth` | Say how deep the search goes |
 | `/save-facts [FILE]` | Write the facts to their file, or to the file named |
 | `/load-facts [FILE]` | Replace the facts with a file's |
@@ -482,7 +564,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-554 passed, 0 failed
+653 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -498,7 +580,7 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 553 skipped
+1 passed, 0 failed, 652 skipped
 ##END {"passed":1,"failed":0,"skipped":553}
 ```
 
@@ -514,11 +596,11 @@ The parser, the logger and the repl library are their own repositories with thei
 by the same interpreter, and this suite imports none of them. It keeps one check about the
 repl library, and that one is about this repository rather than the library: `examples/notes.ms`
 is a whole program written on the library and nothing else, and `test/repl.ms` is what says so.
-The 554 cover the program itself: display and parsing (32), the knowledge data format (81), the
+The 653 cover the program itself: display and parsing (48), the knowledge data format (96), the
 predicate schema (42), the date and time types (31), the loaders (19), proofs and explanations
 (23), the missing-fact report (34), recursion and cycle handling (13), relations including the
-family rules (104), the session at the prompt (158), the notes example on the repl library (1),
-the command line (6), and the domain (10).
+family rules (104), the session at the prompt (178), the notes example on the repl library (1),
+the command line (6), the domain (10), and the Mermaid diagram (48).
 
 ## Repository layout
 
@@ -534,6 +616,7 @@ src/facts.ms         loads the facts
 src/rules.ms         loads the rules
 src/schema.ms        loads the field types
 src/domain.ms        places a domain's facts, rules and schema
+src/mermaid.ms       the facts as a Mermaid flowchart
 data/facts.kb        the 54 facts, as text
 data/rules.kb        the fifteen rules, as text
 data/schema.kb       the field types, as text
@@ -541,7 +624,7 @@ examples/notes.ms    a whole host for the repl library that is not a knowledge b
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
 src/repl/            submodule: micro-repl, the loop and its commands
-test/                the 554 checks and their runner
+test/                the 653 checks and their runner
 docs/articles/       the long-form write-up
 docs/kb-grammar.md   the .kb grammar, its constraints and its schema
 docs/constraints.md  the seven built-in constraints, one by one

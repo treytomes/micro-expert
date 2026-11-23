@@ -336,19 +336,20 @@ run = function(t, rules, host, h, schema, knowledge, library)
 			printed(commandLines, "  /save-schema [FILE]  write the schema to its file, or to one named"))
 
 	// The block as the program itself prints it, pinned line for line: the first line is the
-	// greeting the session gives before the loop, the thirteen after it are /help. The labels are
+	// greeting the session gives before the loop, the fourteen after it are /help. The labels are
 	// the library's and the notes are this host's, so this is where the two meet - a change to
 	// either shows up here, rather than only in a run someone happens to be watching.
 	pinned = startSession([], [], ["/help", "q"])
-	h.check("the program's greeting and /help block are exactly these fourteen lines",
+	h.check("the program's greeting and /help block are exactly these fifteen lines",
 		pinned.answers.lines == [
-		"Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.",
+		"Type a fact, a question or a rule as 'head <- conditions', or a value to see how it reads. /help lists the commands; /exit leaves.",
 		"  /exit  leave the session",
 		"  /help [NAME]  list these commands",
 		"  /undo  take back the last change",
 		"  /retract  take a stored fact out",
 		"  /facts  list the facts",
 		"  /rules  list the rules",
+		"  /mermaid [FILE]  draw the facts as Mermaid, or write them to a file",
 		"  /save-facts [FILE]  write the facts to their file, or to one named",
 		"  /load-facts [FILE]  replace the facts with a file's",
 		"  /save-rules [FILE]  write the rules to their file, or to one named",
@@ -368,6 +369,23 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("/rules lists the rules it holds",
 		printed(commandLines, "  1 rule") and
 			holds(commandLines, "    is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y)"))
+
+	// ── The facts as a diagram ───────────────────────────────────────────────
+	// /mermaid draws what the session holds through src/mermaid.ms, so a fact added at the
+	// prompt is in the picture: a text object is an edge, and a value the schema types goes on
+	// its subject's label rather than standing in the graph as a node of its own.
+
+	typed = {"is-parent-of": ["text", "text"], "has-gender": ["text", "unique(male|female)"]}
+	drew = startSession(family + [spo("tim", "has-gender", "male")], [], ["/mermaid", "q"],
+		null, 0, typed)
+	plot = drew.answers.lines
+	h.check("/mermaid draws a flowchart of the facts it holds", printed(plot, "flowchart TD"))
+	h.check("a text object is an edge between two nodes",
+		printed(plot, "  bill -->|is parent of| tim"))
+	h.check("a value the schema types goes on its subject's label",
+		printed(plot, "  tim" + char(91) + char(34) + "Tim<br/>male" + char(34) + char(93)))
+	h.check("and does not stand as a node of its own",
+		not printed(plot, "  male" + char(91)))
 	h.check("an unknown command is refused",
 		printed(commandLines, "  no such command: /nope (/help lists them)"))
 	h.check("/exit leaves before the next line is read", commands.answers.asked.len == 5)
@@ -634,33 +652,66 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("a question with a variable predicate is not refused",
 		not holds(open.answers.lines, "refused"))
 
-	// A comparison's name is a shape a rule body checks, not a predicate a fact stores, so
-	// typing one as a fact is refused rather than filed away as something the solver proves.
-	stored = startSession([], [], ["less-than-or-equal(5, 3)"])
-	h.check("a constraint cannot be stored as a fact",
-		printed(stored.answers.lines,
-			"  refused: less-than-or-equal(5, 3): the predicate is a constraint, checked in a rule body rather than stored or asked") and
-			stored.session.facts.len == 0)
-	// A comparison asked as a question is refused the same way, before the search: no fact
-	// could ever carry it, so the report and its prompts would only be asking for nonsense.
-	question = startSession([], [], ["less-than-or-equal(?n, 18)"])
-	h.check("a constraint cannot be asked as a question",
-		printed(question.answers.lines,
+	// A constraint's name is a shape a rule body checks, not a predicate a fact stores, so a line
+	// with a value in every field is checked at the prompt and said true or false - and said in
+	// the words a fact uses, since the schema knows true and false and not MiniScript's 1 and 0.
+	checks = startSession([], [], ["less-than-or-equal(5, 3)", "less-than-or-equal(3, 5)",
+		"not-equal(tim, bob)", "equal(24, 24)"])
+	h.check("a ground constraint that does not hold says false",
+		checks.answers.lines[1] == "  false")
+	h.check("a ground constraint that holds says true", checks.answers.lines[2] == "  true")
+	h.check("not-equal compares the two values", checks.answers.lines[3] == "  true")
+	h.check("equal says the two are the same one", checks.answers.lines[4] == "  true")
+	h.check("a check stores nothing", checks.session.facts.len == 0)
+	// A comparison asked as a question is still refused before the search: no fact could ever
+	// carry it, so the report and its prompts would only be asking for nonsense.
+	openCheck = startSession([], [], ["less-than-or-equal(?n, 18)"])
+	h.check("a constraint that still holds a variable is refused",
+		printed(openCheck.answers.lines,
 			"  refused: less-than-or-equal(?n, 18): the predicate is a constraint, checked in a rule body rather than stored or asked") and
-			question.answers.asked.len == 2 and not holds(question.answers.lines, "no solution"))
+			openCheck.answers.asked.len == 2 and not holds(openCheck.answers.lines, "no solution"))
 
-	// years-since is a constraint as well, and a line naming it is refused whether or not the
-	// rest of it would look like a fact about the date.
-	sinceFact = startSession([], [], ["years-since(2019-04-01, 7)"])
-	h.check("a years-since constraint cannot be stored as a fact",
-		printed(sinceFact.answers.lines,
-			"  refused: years-since(2019-04-01, 7): the predicate is a constraint, checked in a rule body rather than stored or asked") and
-			sinceFact.session.facts.len == 0)
+	// years-since keeps the meaning the wiki gives it: its first field is a date and its second
+	// is the whole years since it, so with both fields ground the prompt checks the count the way
+	// a body does. The day is pinned, so the answer cannot change with the host's clock, and a
+	// date the calendar does not have has no years at all, which a body reads as a failed check.
+	savedToday = t.today
+	t.today = {"year": 2026, "month": 11, "day": 21}
+	since = startSession([], [], ["years-since(1948-03-14, 78)", "years-since(1948-03-14, 79)",
+		"years-since(2019-02-30, 7)"])
+	h.check("a ground years-since checks the years it counts",
+		since.answers.lines[1] == "  true" and since.answers.lines[2] == "  false")
+	h.check("a date the calendar does not have is a check that fails",
+		since.answers.lines[3] == "  false")
+	h.check("and a check stores nothing", since.session.facts.len == 0)
 	sinceQuestion = startSession([], [], ["years-since(2019-04-01, ?n)"])
-	h.check("a years-since constraint cannot be asked as a question",
+	h.check("a years-since that still holds a variable is refused",
 		printed(sinceQuestion.answers.lines,
 			"  refused: years-since(2019-04-01, ?n): the predicate is a constraint, checked in a rule body rather than stored or asked") and
 			sinceQuestion.answers.asked.len == 2 and not holds(sinceQuestion.answers.lines, "no solution"))
+	t.today = savedToday
+
+	// ── A value typed on its own ─────────────────────────────────────────────
+	// A line with no call and no pipe in it is one term, said back the way a fact would write
+	// it, so the prompt is where a value's reading is checked before it goes into a fact.
+
+	dq = char(34)
+	inQuotes = function(text)
+		return dq + text + dq
+	end function
+	echoed = startSession([], [], ["oliver", inQuotes("Dallas, TX"), "1e3", "?x"])
+	h.check("a bare term is said back", echoed.answers.lines[1] == "  oliver")
+	h.check("a quoted value is said back in the quotes it needs",
+		echoed.answers.lines[2] == "  " + inQuotes("Dallas, TX"))
+	h.check("a number is said back as the number it was read as",
+		echoed.answers.lines[3] == "  1000")
+	h.check("a variable is said back as a variable", echoed.answers.lines[4] == "  ?x")
+	h.check("a value line stores nothing", echoed.session.facts.len == 0)
+	// A line that is nearly a value is still read as a line, so a broken call keeps its message
+	// rather than being echoed as text.
+	stillBroken = startSession([], [], ["is-parent-of(bill"])
+	h.check("a line with a call in it is still a fact or a question",
+		holds(stillBroken.answers.lines, "malformed spo"))
 
 	// ── Saving and loading the domain's components ──────────────────────────
 	// The commands write what the session holds in the format the loaders read, so these
@@ -691,6 +742,26 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		if lines isa error then return []
 		return lines
 	end function
+
+	// /mermaid with a name writes the diagram and the picture drawn from it, and prints neither:
+	// a name with no extension gets .mmd, and the picture takes the same name with .svg.
+	place = scratch("mermaid")
+	diagramFile = place + ".mmd"
+	pictureFile = place + ".svg"
+	drawnTo = startSession(family + [], [], ["/mermaid " + quoted(place)], null, 0, typed)
+	diagramText = readBack(diagramFile)
+	pictureText = readBack(pictureFile)
+	file.delete(diagramFile)
+	file.delete(pictureFile)
+	h.check("/mermaid writes the diagram to the file it is given",
+		diagramText.len > 0 and diagramText[0] == "flowchart TD")
+	h.check("and the picture from the same diagram beside it",
+		pictureText.len > 0 and pictureText[0][:4] == "<svg")
+	h.check("saying what it wrote and drew",
+		holds(drawnTo.answers.lines, "  wrote " + diagramText.len + " lines to " + diagramFile) and
+			holds(drawnTo.answers.lines, "  drew " + pictureFile))
+	h.check("and printing no diagram when it writes a file",
+		not printed(drawnTo.answers.lines, "flowchart TD"))
 
 	// A save with no name writes to the file the component came from.
 	factsPath = scratch("facts.kb")

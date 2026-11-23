@@ -58,6 +58,9 @@
 // entry therefore imports "repl/repl" before it imports this module - main.ms and the suite both
 // do - and `repl` below is that same map.
 import "repl/repl"
+// mermaid.ms draws what the session holds and holds no class of its own, so importing it here
+// is safe in the way a bare import is not for triples.ms: there is no class identity to agree on.
+import "mermaid"
 
 repl = globals["repl/repl"]
 
@@ -96,6 +99,8 @@ commandTable = function()
 		{"name": "/retract", "note": "take a stored fact out", "run": @retractCommand},
 		{"name": "/facts", "note": "list the facts", "run": @listFacts},
 		{"name": "/rules", "note": "list the rules", "run": @listRules},
+		{"name": "/mermaid", "note": "draw the facts as Mermaid, or write them to a file",
+			"parameters": [{"name": "file", "optional": 1}], "run": @mermaidCommand},
 	]
 end function
 
@@ -237,6 +242,52 @@ listRules = function(session, command, argument)
 	return false
 end function
 
+mermaidCommand = function(session, command, parameters)
+	"Prints the facts the session holds as a Mermaid flowchart, or writes the diagram to a file with its picture beside it."
+	// The session's own field types are handed on, so a value the schema types stays on its
+	// subject's label and only a text object becomes a node; a session with no schema draws
+	// every object as a node, which is the reading the schema itself takes of an unknown name.
+	// Its rules go with them for the one thing the facts cannot say: a relation a rule gives
+	// both ways round is drawn without an arrow.
+	if parameters.len == 0 then
+		for line in mermaid.build(session.facts, heldTypes(session), session.rules)
+			session.io.say(line)
+		end for
+		return false
+	end if
+	// A file named at the prompt is written, and the picture from the same diagram beside it:
+	// the Mermaid text for a renderer, the SVG for a browser, neither of which needs one here.
+	path = diagramPath(parameters[0])
+	lines = mermaid.build(session.facts, heldTypes(session), session.rules)
+	problem = repl.writeLines(path, lines)
+	if problem isa error then
+		repl.say(session, "warning", "  could not write " + path + ": " + problem.message)
+		return false
+	end if
+	repl.say(session, "file", "  wrote " + repl.countText(lines.len, "line") + " to " + path)
+	picture = picturePath(path)
+	problem = repl.writeLines(picture, mermaid.svg(session.facts, heldTypes(session), session.rules))
+	if problem isa error then
+		repl.say(session, "warning", "  could not write " + picture + ": " + problem.message)
+		return false
+	end if
+	repl.say(session, "file", "  drew " + picture)
+	return false
+end function
+
+diagramPath = function(name)
+	"A name typed at the prompt as the file to write: .mmd is added to one that has no extension, the way /save-facts adds .kb."
+	if name == "" then return name
+	if file.name(name).indexOf(".") == null then return name + ".mmd"
+	return name
+end function
+
+picturePath = function(path)
+	"The diagram's file as the picture beside it: the same name, with a .svg extension."
+	if path.len > 4 and path[-4:] == ".mmd" then return path[:-4] + ".svg"
+	return path + ".svg"
+end function
+
 // ── The components ───────────────────────────────────────────────────────────
 // The three data files the session is made of, described the way the repl library builds its save and
 // load commands from: what each is called, one of them for the messages, and the two calls that
@@ -374,17 +425,27 @@ run = function(session)
 	session.paint = @paint
 	// Registered rather than seeded: this is the program's own use of the call a session makes
 	// while it is running, and it lands after the component commands the table was built from.
+	// /depth comes last in /help for that reason; /mermaid is in the seeded table above, beside
+	// the other commands that only read what the session holds.
 	registered = repl.addCommand(session, {"name": "/depth",
 		"note": "say how deep the search goes", "run": @depthCommand})
 	repl.say(session, "note",
-		"Type a fact, a question, or a rule as 'head <- conditions'. /help lists the commands; /exit leaves.")
+		"Type a fact, a question or a rule as 'head <- conditions', or a value to see how it reads. /help lists the commands; /exit leaves.")
 	repl.run(session)
 end function
 
 handleLine = function(session, line)
-	"Does what one line asks: adds a fact, asks a question, or adds a rule."
+	"Does what one line asks: adds a fact, asks a question, adds a rule, or says how a value or a constraint reads."
 	if line.indexOf("<-") != null then
 		addRule(session, line)
+		return
+	end if
+	// A line with no call and no pipe in it is one term, and it is said back the way a fact
+	// would write it. The prompt is also where a value is checked before it goes into a fact,
+	// so a quoted "Dallas, TX" comes back with the quotes it needs and 1e3 comes back as 1000.
+	term = loneTerm(session, line)
+	if term != null then
+		repl.say(session, "answer", "  " + session.triples.termText(term))
 		return
 	end if
 	triple = session.triples.SpoTriple.parse(line)
@@ -392,9 +453,14 @@ handleLine = function(session, line)
 		repl.say(session, "warning", "  " + triple.message)
 		return
 	end if
-	// A constraint's name is a shape, not a predicate: a line that names one is refused
-	// before it is searched, and addFact refuses one before it is stored.
-	if refuseConstraint(session, triple) then return
+	// A constraint's name is a shape, not a predicate: a line with a value in every field is
+	// checked and said true or false, and one that still holds a variable is refused before it
+	// is searched, since a constraint is worked out in a rule body. addFact refuses one before
+	// it is stored.
+	if session.triples.isConstraint(triple.predicate) then
+		checkConstraint(session, triple)
+		return
+	end if
 	if session.triples.hasUnknowns(triple) then
 		// A question is held against the schema too, so a field already given as a value
 		// that could never be stored is refused before the search starts, rather than
@@ -404,6 +470,33 @@ handleLine = function(session, line)
 	else
 		addFact(session, triple)
 	end if
+end function
+
+loneTerm = function(session, line)
+	"The one term a line is, or null when the line is not one: a term is not a call and holds no pipe."
+	text = session.triples.trimSpace(line)
+	if text == "" then return null
+	if text.indexOf("(") != null then return null
+	if text.indexOf("|") != null then return null
+	// An open quote is not a value, and the reader below is the one that says why.
+	if not session.triples.balancedQuotes(text) then return null
+	return session.triples.termOf(text)
+end function
+
+checkConstraint = function(session, triple)
+	"Says how a constraint typed at the prompt stands: a line with a value in every field is checked and said true or false, and one that still holds a variable is refused, since a constraint is worked out in a rule body."
+	if session.triples.hasUnknowns(triple) then
+		refuseConstraint(session, triple)
+		return
+	end if
+	holds = session.triples.settledHolds(session.triples.constraintFrom(triple))
+	repl.say(session, "answer", "  " + holdsWord(holds))
+end function
+
+holdsWord = function(holds)
+	"A check's answer in the words a fact is written with, since the schema knows true and false and not MiniScript's 1 and 0."
+	if holds then return "true"
+	return "false"
 end function
 
 addFact = function(session, triple)
