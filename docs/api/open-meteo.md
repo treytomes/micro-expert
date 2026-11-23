@@ -94,6 +94,16 @@ and the rest are given so a result can be looked up again.
 {"elevation": [38.0]}
 ```
 
+`src/api/openmeteo.ms` reads those shapes into classes rather than handing the parsed JSON on,
+and `src/openmeteo.ms` prints from them. A `Series` is one table - hourly, daily, current and
+the rest - with its instants in one list and a list per variable beside them, and the units
+that came under it. A `WeatherReply` is one place's answer: its grid point, elevation and time
+zone, and its tables in the order the reply wrote them. A `MultiReply` holds one of those per
+place when several coordinates were asked for at once, a `Place` is one geocoder result and a
+`GeocodingReply` holds them, and an `ElevationReply` holds the heights. A refusal is one of
+the same classes with `ok: 0` and the reason on it, so a program reports it rather than
+rendering it.
+
 ### Refusals
 
 A refused request is a 4xx status with the reason beside the flag:
@@ -421,8 +431,8 @@ files' instants are comparable; with `timezone=auto` or a named zone the same in
 differently in two files, so either keep the zone in the subject or ask for `GMT` and let
 `has-timezone` carry the local one as a fact.
 
-Nothing in the layer writes triples: `src/api/openmeteo.ms` hands the parsed JSON back and
-`src/openmeteo.ms` prints it, exactly as the geocoder's pair do. What is missing on the way from a
+Nothing in the layer writes triples: `src/api/openmeteo.ms` reads the reply into classes and
+`src/openmeteo.ms` prints them, exactly as the geocoder's pair do. What is missing on the way from a
 reply to a domain - the writer, a place to record which fetch a file came from, and the sizes
 involved - is collected in [gaps to close before these APIs are
 knowledge](gaps.md).
@@ -768,8 +778,15 @@ miniscript src/openmeteo.ms help forecast
 answers with, so a city works wherever a coordinate pair does; it is resolved before the
 request and never sent as a parameter. Underscores and dashes are the same in a name, a
 parameter given twice becomes a comma-separated list, and a boolean is `--name`,
-`--name false` or `--no-name`. The reply is printed as JSON - `--compact` on one line,
-`--url` with the request that was made and any key replaced.
+`--name false` or `--no-name`.
+
+The reply is printed from the layer's classes: the grid point the answer came from with its
+elevation and zone, then one table per series - the instant in the first column, then each
+variable's value under its name and unit, right-aligned, with a dash where the series has a
+gap. The geocoder prints a place per result and the elevation endpoint a height per point.
+`--json` prints the service's own JSON instead, `--compact` prints that on one line, and
+`--url` also prints the request that was made, with any key replaced. CSV, XLSX and protobuf
+replies are not JSON, so their body is printed as it came.
 
 The command line is declared with the repo's cli library, one declaration per endpoint taken
 from the same table this page describes. `--help` after the endpoint is therefore that

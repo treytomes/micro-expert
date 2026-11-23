@@ -23,9 +23,12 @@
 // longitude it answers with are sent in place of the pair, so a name works wherever
 // coordinates do. It is resolved before the request and never sent as a parameter.
 //
-// The reply is printed as JSON, indented; --compact prints it on one line, and --url also
-// prints the request that was made, with any key replaced. A refusal is reported on stdout
-// with exit status 1, so a successful run is always the JSON the API sent.
+// The reply is read into the API layer's classes and printed from those: the grid point the
+// answer came from, then one table per series - the instant, then each variable's value under
+// its name and unit, with a dash for a gap. The geocoder prints a place per result and the
+// elevation endpoint a height per point. --json prints the API's own JSON instead, --compact
+// prints that on one line, and --url also prints the request that was made, with any key
+// replaced. A refusal is reported on stdout with exit status 1.
 
 
 import "cli/cli"
@@ -67,17 +70,20 @@ usageText = function
 	lines.push "becomes a comma-separated list, a boolean is --name, --name false or --no-name,"
 	lines.push "and a value the endpoint's table refuses is reported before the request is made."
 	lines.push "--place <city> looks the city up first and sends its latitude and longitude"
-	lines.push "instead. --url also shows the request, and --compact prints the reply on one line."
+	lines.push "instead. --json prints the API's own JSON rather than the summary, --compact"
+	lines.push "prints that JSON on one line, and --url also shows the request."
 	return lines.join(char(10))
 end function
 
 
 addSwitches = function(cmd)
 	"The switches a run takes whatever the endpoint is."
+	cli.add(cmd, {"name": "json", "aliases": ["--json"], "type": "flag",
+		"description": "Print the API's own JSON instead of the summary."})
 	cli.add(cmd, {"name": "url", "aliases": ["--url"], "type": "flag",
 		"description": "Show the request that was made, with any key replaced."})
 	cli.add(cmd, {"name": "compact", "aliases": ["--compact"], "type": "flag",
-		"description": "Print the reply on one line."})
+		"description": "Print the reply on one line, with --json."})
 	cli.add(cmd, {"name": "place", "aliases": ["--place"], "type": "string",
 		"description": "A place name to look up and send as its coordinates."})
 	return cmd
@@ -109,20 +115,6 @@ surfaceCommand = function
 end function
 
 
-placeLabel = function(place)
-	"A place's name, with its country when the geocoder gave one."
-	label = ""
-	if place.hasIndex("name") then
-		if place.name isa string then label = place.name
-	end if
-	if label == "" then label = "(no name)"
-	if place.hasIndex("country") then
-		if place.country isa string then label = label + ", " + place.country
-	end if
-	return label
-end function
-
-
 resolvePlace = function(name)
 	"The coordinates of a place name: {ok, latitude, longitude, label} or {ok: 0, error}."
 	quoted = char(34) + name + char(34)
@@ -132,29 +124,25 @@ resolvePlace = function(name)
 	if not found.ok then
 		return {"ok": 0, "error": "could not look up " + quoted + ": " + found.error}
 	end if
-	reply = found.json
-	if not (reply isa map) then
+	// The API layer read the geocoder's reply into its classes; this reads them.
+	answer = found.reply
+	if answer == null then
 		return {"ok": 0, "error": "the geocoder's reply for " + quoted + " was not JSON"}
 	end if
-	// No matches comes back as an error body rather than an empty list, so both count.
-	if not reply.hasIndex("results") then
+	if not answer.ok then
+		return {"ok": 0, "error": "could not look up " + quoted + ": " + answer.error}
+	end if
+	// A name that matched nothing has no results key at all, which the classes call empty.
+	if answer.isEmpty then
 		return {"ok": 0, "error": "no place named " + quoted}
 	end if
-	results = reply.results
-	if not (results isa list) then
-		return {"ok": 0, "error": "the geocoder's reply for " + quoted + " was not what the API documents"}
-	end if
-	if results.len == 0 then
-		return {"ok": 0, "error": "no place named " + quoted}
-	end if
-	place = results[0]
-	if not (place isa map) then
-		return {"ok": 0, "error": "the geocoder's reply for " + quoted + " was not what the API documents"}
-	end if
-	if not place.hasIndex("latitude") or not place.hasIndex("longitude") then
+	place = answer.places[0]
+	latitude = place.latitude
+	longitude = place.longitude
+	if latitude == null or longitude == null then
 		return {"ok": 0, "error": "the geocoder gave no coordinates for " + quoted}
 	end if
-	return {"ok": 1, "latitude": place.latitude, "longitude": place.longitude, "label": placeLabel(place)}
+	return {"ok": 1, "latitude": latitude, "longitude": longitude, "label": place.label}
 end function
 
 
@@ -237,9 +225,11 @@ if words.len > 1 then
 	exit 1
 end if
 
-options = client.apiOptions(parsed.values, ["url", "compact", "place"])
+options = client.apiOptions(parsed.values, ["url", "compact", "place", "json"])
 showUrl = parsed.values.url
 compact = parsed.values.compact
+// One line is still the JSON, so asking for one line asks for the JSON too.
+showJson = parsed.values.json or compact
 
 // The key comes from --apikey when it was given, otherwise the environment or the nearest
 // .env; either way the request reads it off the options.
@@ -272,6 +262,149 @@ if parsed.values.place != null then
 end if
 
 
+// ── The reply, as printed ────────────────────────────────────────────────────
+// The classes say what a reply holds; these decide how it reads. A series is a table: its
+// name and extent, a row naming each variable with its unit, then one row per instant with
+// the values right-aligned under their names. A gap is a dash, because the service sends null
+// for a reading a model does not carry.
+
+valueText = function(value)
+	"One value as the reply spelled it, or a dash for a gap in the series."
+	if value isa null then return "-"
+	if value isa string then return value
+	return str(value)
+end function
+
+
+padLeft = function(text, width)
+	"text at the right of a column of this width."
+	if text.len >= width then return text
+	return " " * (width - text.len) + text
+end function
+
+
+padRight = function(text, width)
+	"text at the left of a column of this width."
+	if text.len >= width then return text
+	return text + " " * (width - text.len)
+end function
+
+
+showSeries = function(series)
+	"Prints one table: its extent, a row of variables, then a row per instant."
+	rows = series.rows
+	names = series.variables
+	if rows == 0 or names.len == 0 then return
+
+	// Each column as wide as the wider of its heading and its values.
+	columns = []
+	for name in names
+		heading = name
+		unit = series.unit(name)
+		// A timestamp's unit is iso8601, which the value already shows.
+		if unit != "" and unit != "iso8601" then heading = heading + " " + unit
+		width = heading.len
+		for i in range(0, rows - 1)
+			text = valueText(series.reading(name, i))
+			if text.len > width then width = text.len
+		end for
+		columns.push {"name": name, "heading": heading, "width": width}
+	end for
+
+	instants = []
+	instantWidth = 4
+	for i in range(0, rows - 1)
+		instant = series.instant(i)
+		instants.push instant
+		if instant.len > instantWidth then instantWidth = instant.len
+	end for
+
+	label = series.name
+	if series.times.len > 0 then
+		label = label + "  " + rows + " steps, " + instants[0] + " to " + instants[rows - 1]
+	end if
+	print label
+
+	line = "  " + padRight("time", instantWidth)
+	for column in columns
+		line = line + "  " + padLeft(column.heading, column.width)
+	end for
+	print line
+
+	for i in range(0, rows - 1)
+		line = "  " + padRight(instants[i], instantWidth)
+		for column in columns
+			line = line + "  " + padLeft(valueText(series.reading(column.name, i)), column.width)
+		end for
+		print line
+	end for
+end function
+
+
+showWeather = function(answer)
+	"Prints the grid point the answer came from, then each table it holds."
+	where = answer.coordinates
+	if where != "" then
+		line = where
+		if answer.elevation != "" then line = line + "  " + answer.elevation
+		if answer.timezone != "" then line = line + "  " + answer.timezone
+		print line
+	end if
+	tables = answer.series
+	for i in tables.indexes
+		if i > 0 then print ""
+		showSeries(tables[i])
+	end for
+end function
+
+
+showPlaces = function(answer)
+	"Prints a geocoder reply: a heading, then a name and its coordinates per place."
+	if answer.isEmpty then
+		print answer.emptyMessage
+		return
+	end if
+	print answer.heading
+	for i in answer.places.indexes
+		place = answer.places[i]
+		print "  " + (i + 1) + ". " + place.label
+		where = place.coordinates
+		if where != "" then print "     " + where
+	end for
+end function
+
+
+showHeights = function(answer)
+	"Prints the elevation endpoint's answer: one height per point asked about."
+	heights = answer.heights
+	if heights.len == 0 then
+		print "The reply held no elevation."
+		return
+	end if
+	print heights.len + " point" + "s" * (heights.len != 1) + ":"
+	for i in heights.indexes
+		print "  " + (i + 1) + ". " + valueText(heights[i]) + " m"
+	end for
+end function
+
+
+showReply = function(answer)
+	"Prints a reply the API layer read into classes, whichever shape it is."
+	if answer isa om.MultiReply then
+		for i in answer.replies.indexes
+			if i > 0 then print ""
+			showWeather(answer.replies[i])
+		end for
+	else if answer isa om.WeatherReply then
+		showWeather(answer)
+	else if answer isa om.GeocodingReply then
+		showPlaces(answer)
+	else if answer isa om.ElevationReply then
+		showHeights(answer)
+	end if
+end function
+
+
 // ── The answer ───────────────────────────────────────────────────────────────
 
 result = om.fetch(client, endpoint, options)
@@ -289,8 +422,25 @@ if not result.ok then
 	exit 1
 end if
 
-if result.json != null then
-	print json.toJSON(result.json, compact)
-else
-	print result.body
+if showJson then
+	if result.json != null then
+		print json.toJSON(result.json, compact)
+	else
+		print result.body
+	end if
+	exit 0
 end if
+
+// The API layer read the JSON into classes; this renders them. CSV, XLSX and protobuf are not
+// JSON, so there is nothing to read and the body is the reply.
+answer = result.reply
+if answer == null then
+	print result.body
+	exit 0
+end if
+if not answer.ok then
+	print "error: " + answer.error
+	exit 1
+end if
+
+showReply(answer)

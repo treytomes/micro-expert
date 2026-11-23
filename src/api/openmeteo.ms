@@ -3,8 +3,9 @@
 //
 // The shared transport is handed in rather than imported, because this interpreter discards
 // the imports of an imported module: a program imports api/client and this file, and calls
-// fetch(api, ...) and surface(api) with that module's map. Nothing here touches
-// the network by itself, and nothing here knows about a command line.
+// fetch(api, ...) and surface(api) with that module's map. Nothing here touches the network by
+// itself, and nothing here knows about a command line: what a reply says is read into the
+// classes below, and the program lays them out.
 //
 // Each API is its own host and its own parameter list; the table below is that surface. The
 // Open-Meteo pages for UKMO, MeteoSwiss, KNMI, DMI, ItaliaMeteo, GeoSphere Austria and CHMI
@@ -258,6 +259,351 @@ surface = function(api)
 end function
 
 
+// ── The reply as classes ─────────────────────────────────────────────────────
+// A reply comes in one of four shapes, and each has a class here. The forecast family - the
+// forecast endpoint, the model hosts, marine, air quality, flood, climate, seasonal, satellite
+// - answers with one place's metadata beside a table per period: hourly, daily, current,
+// minutely_15, weekly, monthly. Several coordinates in one request make that a list of such
+// replies. The geocoder answers with a list of places, or the one place a lookup asks for, and
+// the elevation endpoint with nothing but its heights.
+//
+// A Series is one of those tables: a name list and one list per variable, the same index
+// meaning the same instant, plus the units that came under it. A Place is one geocoder
+// result. The reply classes hold them and answer what the reply says about itself. reply()
+// turns the parsed JSON into them, and fetch puts one on the result it returns.
+//
+// Nothing here prints. The classes answer values and words, and the program lays them out.
+
+Place = {}
+
+
+Place.build = function(raw)
+	"One geocoder result, with its fields kept exactly as the service sent them."
+	place = new Place
+	place.raw = raw
+	return place
+end function
+
+
+Place.value = function(field)
+	"The field the reply carried, or null when it carried none."
+	if not self.raw.hasIndex(field) then return null
+	return self.raw[field]
+end function
+
+
+Place.text = function(field)
+	"The field when it is text with something in it, otherwise null."
+	value = self.value(field)
+	if not (value isa string) then return null
+	if value == "" then return null
+	return value
+end function
+
+
+Place.label = function
+	"What a place is known by: its name, and the country it is in when the reply says."
+	label = self.text("name")
+	if label == null then label = "(no name)"
+	country = self.text("country")
+	if country != null then return label + ", " + country
+	return label
+end function
+
+
+Place.coordinates = function
+	"Where it is, as the latitude and longitude the geocoder gave; empty when it gave none."
+	lat = self.latitude
+	lon = self.longitude
+	if lat == null or lon == null then return ""
+	return str(lat) + ", " + str(lon)
+end function
+
+
+Place.latitude = function
+	"The latitude itself, to send as a parameter; null when the reply gave none."
+	return self.value("latitude")
+end function
+
+
+Place.longitude = function
+	"The longitude itself, to send as a parameter; null when the reply gave none."
+	return self.value("longitude")
+end function
+
+
+Series = {}
+
+
+Series.build = function(name, raw, units={})
+	"One table of the reply: its name, its fields, and the unit of each field."
+	series = new Series
+	series.name = name
+	series.raw = raw
+	series.units = units
+	return series
+end function
+
+
+Series.value = function(field)
+	"The field the reply carried, or null when it carried none."
+	if not self.raw.hasIndex(field) then return null
+	return self.raw[field]
+end function
+
+
+Series.times = function
+	"The instants it runs through, one per row; empty for a table of a single reading."
+	times = self.value("time")
+	if not (times isa list) then return []
+	return times
+end function
+
+
+Series.variables = function
+	"The names it holds a list for, in the order the reply wrote them."
+	fields = []
+	for field in self.raw.indexes
+		if field == "time" then continue
+		// current also carries the seconds it is read over, which is not a variable.
+		if field == "interval" then continue
+		fields.push field
+	end for
+	return fields
+end function
+
+
+Series.unit = function(field)
+	"The unit the reply gave that field, empty when it gave none."
+	if not self.units.hasIndex(field) then return ""
+	return str(self.units[field])
+end function
+
+
+Series.rows = function
+	"How many rows it has: one per instant, or one for a single reading."
+	times = self.times
+	if times.len > 0 then return times.len
+	if self.variables.len > 0 then return 1
+	return 0
+end function
+
+
+Series.instant = function(index)
+	"The instant at one row: the time list's entry, or a single reading's own time."
+	times = self.times
+	if times.len > 0 then return str(times[index])
+	value = self.value("time")
+	if value isa string then return value
+	return ""
+end function
+
+
+Series.reading = function(field, index)
+	"One variable's value at one row, or null for a gap in the series."
+	values = self.value(field)
+	if values isa list then
+		if index >= values.len then return null
+		return values[index]
+	end if
+	// A current reading holds its values once rather than as a list.
+	if index == 0 then return values
+	return null
+end function
+
+
+Reply = {"ok": 1, "error": null}
+
+
+WeatherReply = new Reply
+
+
+WeatherReply.value = function(field)
+	"The field the reply carried, or null when it carried none."
+	if not self.raw.hasIndex(field) then return null
+	return self.raw[field]
+end function
+
+
+WeatherReply.unitsFor = function(name)
+	"The unit map that came under a table, when the reply sent one."
+	units = self.value(name + "_units")
+	if not (units isa map) then return {}
+	return units
+end function
+
+
+WeatherReply.series = function
+	"The tables it holds, in the order the reply wrote them."
+	tables = []
+	for field in self.raw.indexes
+		if field.len > 6 then
+			if field[field.len - 6:] == "_units" then continue
+		end if
+		value = self.raw[field]
+		if not (value isa map) then continue
+		tables.push Series.build(field, value, self.unitsFor(field))
+	end for
+	return tables
+end function
+
+
+WeatherReply.coordinates = function
+	"The grid point the answer came from, which can differ from the one asked for."
+	lat = self.value("latitude")
+	lon = self.value("longitude")
+	if lat == null or lon == null then return ""
+	return str(lat) + ", " + str(lon)
+end function
+
+
+WeatherReply.elevation = function
+	"The elevation used for downscaling in metres, empty when the reply gave none."
+	value = self.value("elevation")
+	if value == null then return ""
+	return str(value) + " m"
+end function
+
+
+WeatherReply.timezone = function
+	"The zone its timestamps are in, empty when the reply gave none."
+	value = self.value("timezone")
+	if not (value isa string) then return ""
+	return value
+end function
+
+
+GeocodingReply = new Reply
+GeocodingReply.query = ""
+
+
+GeocodingReply.count = function
+	"How many places the reply holds."
+	return self.places.len
+end function
+
+
+GeocodingReply.isEmpty = function
+	"True when it holds no places."
+	return self.places.len == 0
+end function
+
+
+GeocodingReply.heading = function
+	"The count, and the name that asked for it."
+	text = self.count + " place" + "s" * (self.count != 1)
+	if self.query != "" then text = text + " for " + char(34) + self.query + char(34)
+	return text + ":"
+end function
+
+
+GeocodingReply.emptyMessage = function
+	"What to say when no place matched."
+	if self.query != "" then return "No place named " + char(34) + self.query + char(34) + "."
+	return "No places."
+end function
+
+
+ElevationReply = new Reply
+
+
+MultiReply = new Reply
+
+
+reasonOf = function(json)
+	"The refusal's reason as the word the service sent, or a stand-in when it sent none."
+	if json.hasIndex("reason") then
+		if json.reason isa string then return json.reason
+	end if
+	return "no reason given."
+end function
+
+
+refusedReply = function(message)
+	"The reply a refusal, or a shape no endpoint documents, answers with."
+	answer = new Reply
+	answer.ok = 0
+	answer.error = message
+	return answer
+end function
+
+
+weatherReply = function(raw)
+	"One place's series reply, as it came."
+	answer = new WeatherReply
+	answer.raw = raw
+	return answer
+end function
+
+
+placeReply = function(places, asked={})
+	"One reply holding the places it was given."
+	answer = new GeocodingReply
+	answer.places = places
+	if asked.hasIndex("name") then answer.query = str(asked.name)
+	return answer
+end function
+
+
+geocodingReply = function(raw, asked={})
+	"A search's list of places; a name that matched nothing has no results key at all."
+	places = []
+	if raw.hasIndex("results") then
+		if raw.results isa list then
+			for item in raw.results
+				if item isa map then places.push Place.build(item)
+			end for
+		end if
+	end if
+	return placeReply(places, asked)
+end function
+
+
+lookupReply = function(raw)
+	"A lookup answers with the one place, in the same shape a search entry has."
+	if not raw.hasIndex("latitude") then return placeReply([])
+	return placeReply([Place.build(raw)])
+end function
+
+
+elevationReply = function(raw)
+	"The elevation endpoint's bare list of heights, one per coordinate pair."
+	answer = new ElevationReply
+	answer.heights = []
+	if raw.hasIndex("elevation") then
+		if raw.elevation isa list then answer.heights = raw.elevation[:]
+	end if
+	return answer
+end function
+
+
+reply = function(endpointName, json, asked={})
+	"The parsed JSON as one of the reply classes; null when there is no JSON to read."
+	if json == null then return null
+
+	if json isa list then
+		// Several coordinates in one request: one series reply per location, in that order.
+		answer = new MultiReply
+		answer.replies = []
+		for item in json
+			if item isa map then answer.replies.push weatherReply(item)
+		end for
+		return answer
+	end if
+	if not (json isa map) then return refusedReply("The API returned an unexpected reply.")
+
+	// A refusal is {reason, error: true}; client already reports the 4xx status it came with.
+	if json.hasIndex("error") then
+		if json.error then return refusedReply("The API refused the request: " + reasonOf(json))
+	end if
+
+	if endpointName == "geocoding" then return geocodingReply(json, asked)
+	if endpointName == "geocoding-lookup" then return lookupReply(json)
+	if endpointName == "elevation" then return elevationReply(json)
+	return weatherReply(json)
+end function
+
+
 fetch = function(api, endpointName, options={})
 	"One request to an Open-Meteo endpoint, with the key added and hidden from the url."
 	spec = specFor(endpointName)
@@ -285,5 +631,8 @@ fetch = function(api, endpointName, options={})
 	url = api.urlFor("https://" + host + spec.path, params)
 	result = api.get(url)
 	result.url = api.redactUrl(url, ["apikey"])
+	// The parsed JSON as the classes that describe it; null for CSV, XLSX and a failed request.
+	result.reply = null
+	if result.ok then result.reply = reply(endpointName, result.json, options)
 	return result
 end function
