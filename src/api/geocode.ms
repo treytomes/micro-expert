@@ -1,10 +1,17 @@
 // geocode.ms — geocode.maps.co's surface: its three GET endpoints, every parameter each
-// accepts, and the request that turns an options map into one call.
+// accepts, the classes its replies come back as, and the request that turns an options map
+// into one call.
 //
 // The shared transport is handed in rather than imported, because this interpreter discards
 // the imports of an imported module: a program imports api/client and this file, and calls
 // fetch(api, ...) and surface(api) with that module's map. Nothing here touches
 // the network by itself, and nothing here knows about a command line.
+//
+// fetch answers the transport's map with one field of its own: reply. It is a SearchReply,
+// a ReverseReply or a LookupReply - the parsed JSON read as Place objects - or null when the
+// request failed or the service sent no JSON. The parsed JSON stays beside it, untouched,
+// for a program that wants to print the service's own answer; a program that renders the
+// results reads the classes instead of picking fields out of a map.
 //
 // The key travels as the api_key parameter, which the service accepts. The Authorization
 // header its documentation also names answers 401, so there is no header path to fall back to.
@@ -100,6 +107,225 @@ flags = function(spec, params)
 end function
 
 
+// ── The reply as classes ─────────────────────────────────────────────────────
+// The three endpoints answer in two shapes - /search and /lookup with a list of results,
+// /reverse with one object - and a result carries the same fields whichever endpoint sent
+// it. A Place is one result, with the fields a program shows read through accessors and the
+// rest kept as it came; the reply classes hold the endpoint's results and know what the
+// answer says about itself. reply() turns the parsed JSON into them, and fetch puts one on
+// the result it returns. A refusal, or a shape no endpoint documents, is one of the same
+// classes with ok 0 and error set: there is nothing to render, only something to report.
+//
+// Nothing here prints. The classes answer values and words, and the program lays them out.
+
+Place = {}
+
+
+Place.build = function(raw)
+	"One result, with its fields kept exactly as the service sent them."
+	place = new Place
+	place.raw = raw
+	return place
+end function
+
+
+Place.value = function(field)
+	"The field the reply carried, or null when it carried none."
+	if not self.raw.hasIndex(field) then return null
+	return self.raw[field]
+end function
+
+
+Place.text = function(field)
+	"The field when it is text with something in it, otherwise null."
+	value = self.value(field)
+	if not (value isa string) then return null
+	if value == "" then return null
+	return value
+end function
+
+
+Place.label = function
+	"What a result is known by: its display name, its own name, or its local name."
+	for field in ["display_name", "name", "localname"]
+		text = self.text(field)
+		if text != null then return text
+	end for
+	return ""
+end function
+
+
+Place.coordinates = function
+	"Where it is, as the reply spelled it: lat and lon, or a GeoJSON centroid's point."
+	lat = self.text("lat")
+	lon = self.text("lon")
+	if lat != null and lon != null then return lat + ", " + lon
+	// A lookup result may carry no lat and lon, and a GeoJSON point as [longitude, latitude].
+	centroid = self.value("centroid")
+	if centroid isa map then
+		if centroid.hasIndex("coordinates") then
+			if centroid.coordinates isa list then
+				if centroid.coordinates.len >= 2 then
+					return str(centroid.coordinates[1]) + ", " + str(centroid.coordinates[0])
+				end if
+			end if
+		end if
+	end if
+	return ""
+end function
+
+
+Place.typeName = function
+	"The OSM type it was classified as, such as tower; empty when the reply names none."
+	text = self.text("type")
+	if text == null then return ""
+	return text
+end function
+
+
+Reply = {"ok": 1, "error": null}
+
+
+Reply.count = function
+	"How many results the reply holds."
+	return self.places.len
+end function
+
+
+Reply.isEmpty = function
+	"True when it holds no results."
+	return self.places.len == 0
+end function
+
+
+Reply.numbered = function
+	"True when the results are a list to number."
+	return 1
+end function
+
+
+Reply.emptyMessage = function
+	"What to say when nothing matched."
+	return "No matches."
+end function
+
+
+SearchReply = new Reply
+SearchReply.query = ""
+
+
+SearchReply.heading = function
+	"The count, and the query that asked for it."
+	text = self.count + " result" + "s" * (self.count != 1)
+	if self.query != "" then text = text + " for " + char(34) + self.query + char(34)
+	return text + ":"
+end function
+
+
+SearchReply.emptyMessage = function
+	"What to say when a search matched nothing."
+	if self.query != "" then return "No matches for " + char(34) + self.query + char(34) + "."
+	return "No matches."
+end function
+
+
+LookupReply = new Reply
+LookupReply.ids = ""
+
+
+LookupReply.heading = function
+	"The count, and the ids that asked for them."
+	text = self.count + " result" + "s" * (self.count != 1)
+	if self.ids != "" then text = text + " for " + self.ids
+	return text + ":"
+end function
+
+
+ReverseReply = new Reply
+
+
+ReverseReply.heading = function
+	"One place rather than a list: there is no line to put above it."
+	return ""
+end function
+
+
+ReverseReply.numbered = function
+	"Nor a number in front of it."
+	return 0
+end function
+
+
+replyClass = function(endpointName)
+	"The class this endpoint's reply comes back as."
+	if endpointName == "reverse" then return ReverseReply
+	if endpointName == "lookup" then return LookupReply
+	return SearchReply
+end function
+
+
+refusalMessage = function(value)
+	"The service's error field as one line: a word, or the message inside its object."
+	if value isa string then return value
+	if value isa map then
+		if value.hasIndex("message") then
+			if value.message isa string then return value.message
+		end if
+	end if
+	return str(value)
+end function
+
+
+refusedReply = function(message)
+	"The reply a refusal, or a shape no endpoint documents, answers with."
+	answer = new Reply
+	answer.ok = 0
+	answer.error = message
+	answer.places = []
+	return answer
+end function
+
+
+reply = function(endpointName, json, asked={})
+	"The parsed JSON as one of the reply classes; null when there is no JSON to read."
+	if json == null then return null
+	if json isa map then
+		if json.hasIndex("error") then
+			return refusedReply("The API refused the request: " + refusalMessage(json.error))
+		end if
+	end if
+
+	items = json
+	if json isa map then
+		// /reverse answers with one object rather than a list of matches.
+		items = [json]
+	else if not (json isa list) then
+		return refusedReply("The API returned an unexpected reply.")
+	end if
+
+	proto = replyClass(endpointName)
+	answer = new proto
+	answer.places = []
+	for item in items
+		// A result is one object; an entry that is not one is not a result to show.
+		if item isa map then answer.places.push Place.build(item)
+	end for
+
+	// The question is part of what the reply says about itself.
+	if answer isa SearchReply then
+		if asked.hasIndex("q") then answer.query = str(asked.q)
+	end if
+	if answer isa LookupReply then
+		if asked.hasIndex("osm_ids") then
+			ids = asked.osm_ids
+			if ids isa list then ids = ids.join(",")
+			answer.ids = str(ids)
+		end if
+	end if
+	return answer
+end function
+
+
 fetch = function(api, endpointName, options={})
 	"One request to a geocoding endpoint, with the key added and hidden from the url."
 	spec = specFor(endpointName)
@@ -119,5 +345,8 @@ fetch = function(api, endpointName, options={})
 	url = api.urlFor(base + spec.path, params)
 	result = api.get(url)
 	result.url = api.redactUrl(url, ["api_key"])
+	// The reply read as classes, so a program renders objects rather than fields.
+	result.reply = null
+	if result.ok then result.reply = reply(endpointName, result.json, options)
 	return result
 end function

@@ -20,10 +20,12 @@
 // that was misspelt is named rather than sent, and a value outside the range the table gives
 // never leaves the program.
 //
-// --json prints the API's own JSON instead of the summary. Errors go to stdout with a
-// non-zero exit status: a missing key, nothing to search with, an option the parser cannot
-// read, a failed request, or a reply that is not what the endpoint documents. The key is
-// never printed - the URL is built and handed to curl, not shown.
+// Without --json, the reply is read into the API layer's classes - a Place per result, held
+// by a SearchReply, a ReverseReply or a LookupReply - and printed from those: a name, then
+// its coordinates and type. --json prints the API's own JSON instead. Errors go to stdout
+// with a non-zero exit status: a missing key, nothing to search with, an option the parser
+// cannot read, a failed request, or a reply that is not what the endpoint documents. The key
+// is never printed - the URL is built and handed to curl, not shown.
 
 
 import "cli/cli"
@@ -86,65 +88,34 @@ client.addParameters(cli, cmd, surface, 0)
 
 // ── One result ───────────────────────────────────────────────────────────────
 
-nameOf = function(item)
-	"The name a result is known by, whichever field the endpoint used."
-	if item.hasIndex("display_name") then
-		if item.display_name isa string then return item.display_name
-	end if
-	if item.hasIndex("localname") then
-		if item.localname isa string then return item.localname
-	end if
-	return "(no name)"
-end function
-
-
-whereOf = function(item)
-	"The coordinates a result carries, as the API gave them."
-	where = ""
-	if item.hasIndex("lat") then
-		if item.lat isa string then where = item.lat
-	end if
-	if item.hasIndex("lon") then
-		if item.lon isa string then
-			if where != "" then where = where + ", "
-			where = where + item.lon
-		end if
-	end if
-	if where == "" then
-		// A lookup result carries a GeoJSON point instead, as [longitude, latitude].
-		if item.hasIndex("centroid") then
-			centroid = item.centroid
-			if centroid isa map then
-				if centroid.hasIndex("coordinates") then
-					if centroid.coordinates isa list then
-						if centroid.coordinates.len >= 2 then
-							where = str(centroid.coordinates[1]) + ", " + str(centroid.coordinates[0])
-						end if
-					end if
-				end if
-			end if
-		end if
-	end if
-	return where
-end function
-
-
-kindOf = function(item)
-	"The result's type in parentheses, when it has one."
-	if item.hasIndex("type") then
-		if item["type"] isa string then return "  (" + item["type"] + ")"
-	end if
-	return ""
-end function
-
-
-showMatch = function(item, number=null)
+showMatch = function(place, number=0)
 	"Prints one result: its name, then its coordinates and type."
 	prefix = "  "
-	if number != null then prefix = "  " + number + ". "
-	print prefix + nameOf(item)
-	where = whereOf(item)
-	if where != "" then print "     " + where + kindOf(item)
+	if number > 0 then prefix = "  " + number + ". "
+	label = place.label
+	if label == "" then label = "(no name)"
+	print prefix + label
+	where = place.coordinates
+	if where != "" then
+		text = "     " + where
+		if place.typeName != "" then text = text + "  (" + place.typeName + ")"
+		print text
+	end if
+end function
+
+
+showReply = function(answer)
+	"Prints a reply the API layer read into classes: a heading, then each result."
+	if answer.isEmpty then
+		print answer.emptyMessage
+		return
+	end if
+	if answer.heading != "" then print answer.heading
+	for i in answer.places.indexes
+		number = 0
+		if answer.numbered then number = i + 1
+		showMatch(answer.places[i], number)
+	end for
 end function
 
 
@@ -231,43 +202,15 @@ if result.json == null then
 	exit 1
 end if
 
-reply = result.json
-
-if reply isa map then
-	if reply.hasIndex("error") then
-		print "The API refused the request: " + reply.error
-		exit 1
-	end if
-	// /reverse answers with one object rather than a list of matches.
-	showMatch(reply)
-	exit 0
-end if
-
-if not (reply isa list) then
+// The API layer read the JSON into classes; this renders them.
+answer = result.reply
+if answer == null then
 	print "The API returned an unexpected reply."
 	exit 1
 end if
-
-if reply.len == 0 then
-	if mode == "search" and options.hasIndex("q") then
-		print "No matches for " + char(34) + options.q + char(34) + "."
-	else
-		print "No matches."
-	end if
-	exit 0
+if not answer.ok then
+	print answer.error
+	exit 1
 end if
 
-header = reply.len + " result" + "s" * (reply.len != 1)
-if mode == "search" then
-	if options.hasIndex("q") then header = header + " for " + char(34) + options.q + char(34)
-else if mode == "lookup" then
-	ids = options.osm_ids
-	if ids isa list then ids = ids.join(",")
-	header = header + " for " + ids
-end if
-print header + ":"
-
-for i in reply.indexes
-	item = reply[i]
-	if item isa map then showMatch(item, i + 1)
-end for
+showReply(answer)

@@ -4,9 +4,9 @@
 // Exit code 0 means every check passed.
 //
 // The API layer's cases are here too: the split of a command line into options and the
-// words a program reads itself, the parameter table's checks, and the .env reader. That
-// layer is part of this program rather than a library with a suite of its own, so its cases
-// share this runner, its --file names and its totals.
+// words a program reads itself, the parameter table's checks, the geocode reply classes and
+// the .env reader. That layer is part of this program rather than a library with a suite of
+// its own, so its cases share this runner, its --file names and its totals.
 //
 // A test runner asks for part of the suite instead:
 //
@@ -52,8 +52,10 @@ import "../src/mermaid"
 env["MS_IMPORT_PATH"] = savedImportPath
 
 // The API layer's client reaches the bundled json and stringUtil libraries, which a src/-only
-// import path hides, so it loads here, with the .env reader beside it.
+// import path hides, so it loads here, with the .env reader beside it. geocode.ms imports
+// nothing, and is here for the cases about the reply it reads the service's JSON into.
 import "../src/api/client"
+import "../src/api/geocode"
 import "../src/dotenv"
 
 import "harness"
@@ -73,6 +75,7 @@ import "domain"
 import "options"
 import "arguments"
 import "parameters"
+import "replies"
 import "dotenv"
 
 // shellArgs[0] is this script, so the options start at index 1.
@@ -131,6 +134,10 @@ optionsModule = globals["../src/options"]
 apiClient = globals["../src/api/client"]
 argumentCases = globals["arguments"]
 parameterCases = globals["parameters"]
+// geocode.ms is the geocoder's surface and the classes its replies come back as; `replies`
+// is this suite's case module for those classes.
+geocode = globals["../src/api/geocode"]
+replyCases = globals["replies"]
 // src/dotenv.ms reads .env files and finds settings; `dotenv` is this suite's case module.
 dotenvModule = globals["../src/dotenv"]
 dotenvCases = globals["dotenv"]
@@ -164,6 +171,10 @@ end if
 
 if apiClient == null or apiClient.hasIndex("splitArguments") == 0 then
 	print "error: could not import ../src/api/client"
+	exit 1
+end if
+if geocode == null or geocode.hasIndex("reply") == 0 then
+	print "error: could not import ../src/api/geocode"
 	exit 1
 end if
 if dotenvModule == null or dotenvModule.hasIndex("find") == 0 then
@@ -214,6 +225,7 @@ globals["domain"].run(domainModule, harness)
 globals["options"].run(cliLibrary, optionsModule, harness)
 argumentCases.run(cliLibrary, apiClient, harness)
 parameterCases.run(apiClient, harness)
+replyCases.run(geocode, harness)
 dotenvCases.run(dotenvModule, harness)
 
 harness.summary()

@@ -78,6 +78,10 @@ A result looks like this (one entry of a `/search` reply, trimmed):
 
 `lat` and `lon` are strings, not numbers, which is worth knowing before doing arithmetic on
 them. The layer hands the parsed JSON through as the service sent it, so they stay strings.
+Beside it, `fetch` puts the reply read into classes: a `Place` per result, held by a
+`SearchReply`, a `ReverseReply` or a `LookupReply` that knows the endpoint's shape and what
+the whole answer says about itself. `src/geocode.ms` renders from those objects rather than
+picking fields out of the map, and `--json` is what still prints the service's own JSON.
 
 `format=xml`, `format=geojson` and `format=geocodejson` answer in those formats instead.
 `geojson` and `geocodejson` are still JSON, so the layer's `json` field is filled;
@@ -300,11 +304,11 @@ parenthesis, and no `//`. That rules out some of the reply outright:
 
 ### From a reply to a facts file
 
-Nothing in the layer writes triples: `src/api/geocode.ms` hands the parsed JSON back and
-`src/geocode.ms` prints it. The conversion is a loop over the results - subject from `osm_type`
-and `osm_id`, one fact per property, `val` on the two coordinates because the reply writes them as
-strings, and no fact at all for a field that is absent - and the writer in `src/knowledge.ms`
-turns the facts back into `.kb` text. `--facts` or `/load-facts` then reads that file with the same
+Nothing in the layer writes triples: `src/api/geocode.ms` reads the reply into `Place`
+objects and `src/geocode.ms` prints them. The conversion is a loop over the results - subject
+from `osm_type` and `osm_id`, one fact per property, `val` on the two coordinates because the
+reply writes them as strings, and no fact at all for a field that is absent - and the writer
+in `src/knowledge.ms` turns the facts back into `.kb` text. `--facts` or `/load-facts` then reads that file with the same
 reader the shipped domain uses, so a fetched place can be asked about beside hand-written facts in
 one query. Keeping `was-answer-to` makes that join reversible: the file says which query produced
 it, and a second run of the same query can be compared rather than merged.
