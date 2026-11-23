@@ -470,6 +470,15 @@ handleLine = function(session, line)
 		repl.say(session, "warning", "  " + triple.message)
 		return
 	end if
+	// A question is a search, not a stored fact: '@' and '~' say when a fact holds and how
+	// confident we are of it, and the search reads neither, so a line that still holds a
+	// variable takes none. Refused rather than searched, since dropping what the line says
+	// would answer a different question than the one typed.
+	if session.triples.hasUnknowns(triple) and session.triples.indexOfAnnotation(line) != null then
+		repl.say(session, "warning", "  refused: " + session.triples.trimSpace(line) +
+			": a question is not a stored fact, so it takes no annotation")
+		return
+	end if
 	// A constraint's name is a shape, not a predicate: a line with a value in every field is
 	// checked and said true or false, and one that still holds a variable is refused before it
 	// is searched, since a constraint is worked out in a rule body. addFact refuses one before

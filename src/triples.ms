@@ -182,16 +182,172 @@ SpoTriple.make = function(subject, predicate, object, at=null, confidence=100)
 end function
 
 SpoTriple.parse = function(line)
-	"Parses 'predicate(subject, object)' or 'subject | predicate | object'; '?x' fields become Vars."
-	fields = parseLine(line)
+	"Parses 'predicate(subject, object)' or 'subject | predicate | object', with the '@' and '~' annotations a fact may carry after it; '?x' fields become Vars."
+	// The annotations follow the triple, so what comes before the first sign is the line read
+	// here and what comes from it on is read apart: a fact typed at the prompt and one read
+	// from a file are the same fact, because this module is where both doors read the form.
+	signAt = indexOfAnnotation(line)
+	callText = line
+	written = ""
+	if signAt != null then
+		callText = line[:signAt]
+		written = line[signAt:]
+	end if
+	fields = parseLine(callText)
 	if fields isa error then return fields
 	// A predicate that cannot be said is refused with the line it came on, here and not
 	// later: this is the one reader a typed fact, question or rule comes through.
 	if fields[1] isa string then
 		problem = predicateProblem(fields[1])
-		if problem != null then return err(problem + ": " + line)
+		if problem != null then return err(problem + ": " + callText)
 	end if
-	return SpoTriple.make(fields[0], fields[1], fields[2])
+	triple = SpoTriple.make(fields[0], fields[1], fields[2])
+	if written == "" then return triple
+	read = readAnnotations(written)
+	if read isa error then return read
+	triple.at = read.at
+	triple.confidence = read.confidence
+	return triple
+end function
+
+SpoTriple.parseBare = function(line)
+	"SpoTriple.parse with no annotations, for a rule's head and conditions, which are written bare: only a stored fact carries one."
+	if indexOfAnnotation(line) != null then
+		return err("an annotation belongs to a fact, not to a rule's head or condition: " + line)
+	end if
+	return SpoTriple.parse(line)
+end function
+
+// ── A fact's annotations ─────────────────────────────────────────────────────
+// The two signs are read from the text after the call, left to right, and each sign opens one
+// annotation: '@' reads a moment, '~' reads a percentage. Either may come first, each at most
+// once, and nothing else may follow them, since a fact that said more than the form holds
+// would be read as something it does not say.
+//
+// A moment is what temporal.ms reads - a date, a time, a datetime, or a span in brackets - and
+// its text is kept as it was written rather than as the value it stands for: '@ 2019-04' stays
+// 2019-04, the way a reader typed it.
+//
+// The reader lives here rather than in knowledge.ms because both doors to a fact come through
+// this module: a line in a facts file and a line typed at the prompt are read by the same code,
+// so the two cannot drift into accepting different things.
+
+indexOfAnnotation = function(text)
+	"Where the first '@' or '~' stands outside quotes and the call's brackets, or null when there is none."
+	atSign = indexOfOutside(text, "@", true)
+	tilde = indexOfOutside(text, "~", true)
+	if atSign == null then return tilde
+	if tilde == null then return atSign
+	if atSign < tilde then return atSign
+	return tilde
+end function
+
+readAnnotations = function(text)
+	"Reads the annotations after a fact, '@ ' and '~ ', into {at, confidence}, or says what is wrong with them."
+	at = null
+	confidence = 100
+	seenAt = false
+	seenConfidence = false
+	rest = trimSpace(text)
+	while rest != ""
+		sign = rest[:1]
+		if sign != "@" and sign != "~" then
+			return err("a fact's annotations are '@' and '~': " + trimSpace(text))
+		end if
+		if sign == "@" then
+			if seenAt then return err("a fact takes one '@': " + trimSpace(text))
+			seenAt = true
+			moment = readMoment(rest[1:])
+			if moment isa error then return moment
+			at = moment.text
+			rest = moment.rest
+		else
+			if seenConfidence then return err("a fact takes one '~': " + trimSpace(text))
+			seenConfidence = true
+			percent = readConfidence(rest[1:])
+			if percent isa error then return percent
+			confidence = percent.value
+			rest = percent.rest
+		end if
+		rest = trimSpace(rest)
+	end while
+	return {"at": at, "confidence": confidence}
+end function
+
+readMoment = function(text)
+	"Reads one date, time, datetime or span from the front of text, as {text, rest}, or says what is wrong with it."
+	text = trimSpace(text)
+	if text == "" then return err("'@' needs a date, a time or a span")
+	// A span is one piece of text between brackets, so where it ends is its own ']': the two
+	// moments inside it are separated by a comma, and either may hold a space of its own.
+	if text[:1] == "[" then
+		closeAt = text.indexOf("]")
+		if closeAt == null then
+			return err("'@' needs a date, a time or a span in brackets: " + text)
+		end if
+		written = trimSpace(text[:closeAt + 1])
+		span = temporal.TimeSpan.receive(written)
+		if span isa error then return err(span.message)
+		return {"text": written, "rest": text[closeAt + 1:]}
+	end if
+	// A moment holds neither sign, so it ends where the next annotation opens, and the space
+	// a datetime has is its own: what is left is one piece of text and the reader says
+	// whether it is a moment, rather than the piece being guessed at its spaces.
+	last = text.len
+	for at in range(0, text.len - 1)
+		if text[at] == "@" or text[at] == "~" then
+			last = at
+			break
+		end if
+	end for
+	written = trimSpace(text[:last])
+	momentValue = temporal.DateTime.receive(written)
+	if momentValue isa error then return err("'@' needs a date, a time or a span: " + written)
+	return {"text": written, "rest": text[last:]}
+end function
+
+readConfidence = function(text)
+	"Reads '<number>%' from the front of text, as {value, rest}, or says what is wrong with it."
+	text = trimSpace(text)
+	stop = 0
+	while stop < text.len and not isSpace(text[stop]) and text[stop] != "@" and text[stop] != "~"
+		stop = stop + 1
+	end while
+	written = text[:stop]
+	if written.len < 2 or written[-1] != "%" then
+		return err("a confidence is a number and the sign '%', as in '~ 80%': " + text)
+	end if
+	spelled = written[:-1]
+	if not spelledNumber(spelled) then
+		return err("a confidence is a number and the sign '%', as in '~ 80%': " + text)
+	end if
+	value = val(spelled)
+	if value < 0 or value > 100 then
+		return err("a confidence runs from 0% to 100%: " + text)
+	end if
+	return {"value": value, "rest": text[stop:]}
+end function
+
+spelledNumber = function(text)
+	"Says whether text spells a decimal number in the plain shape a confidence is written in."
+	if text.len == 0 then return false
+	start = 0
+	if text[:1] == "-" then start = 1
+	if text.len <= start then return false
+	digits = 0
+	dots = 0
+	for at in range(start, text.len - 1)
+		c = text[at]
+		if c >= "0" and c <= "9" then
+			digits = digits + 1
+		else if c == "." then
+			dots = dots + 1
+			if dots > 1 then return false
+		else
+			return false
+		end if
+	end for
+	return digits > 0
 end function
 
 SpoTriple.text = function
@@ -1443,7 +1599,7 @@ parseRule = function(line)
 	// A head that does not parse keeps its own error: it names the piece that is wrong,
 	// where the rule's one message would only repeat the line, and a predicate name it
 	// refuses is the one message a typo can act on.
-	head = SpoTriple.parse(line[:arrowAt])
+	head = SpoTriple.parseBare(line[:arrowAt])
 	if head isa error then return head
 	body = trimSpace(line[arrowAt + 2:])
 	if body == "" then return err(badRule(line))
@@ -1469,7 +1625,7 @@ parseCondition = function(text, line)
 	if text == "" then return err(badRule(line))
 	constraint = constraintOf(text)
 	if constraint != null then return constraint
-	return SpoTriple.parse(text)
+	return SpoTriple.parseBare(text)
 end function
 
 constraintOf = function(text)

@@ -140,6 +140,29 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		holds(shouted.answers.lines, "a predicate is lower-case letters and digits, joined by '-'"))
 	h.check("and nothing is stored from it", shouted.session.facts.len == family.len)
 
+	// A fact typed at the prompt takes the annotations a facts file does, through the reader
+	// both doors use, so what the prompt stores is the fact the same line in a file would be.
+	annotated = startSession(family + [], [], ["has-gender(zed, male) @ 1990-01-01 ~ 80%"])
+	timed = annotated.session.facts[annotated.session.facts.len - 1]
+	h.check("a typed fact keeps the moment and confidence it was given",
+		timed.at == "1990-01-01" and timed.confidence == 80)
+	h.check("and is stored as the call it is, without them",
+		printed(annotated.answers.lines, "  added has-gender(zed, male)"))
+	// The line a save writes is the file form of the same fact, so /save-facts keeps them.
+	savedTimed = knowledge.factsLines(annotated.session.facts)
+	h.check("the line /save-facts writes carries them back",
+		savedTimed[savedTimed.len - 1] == "has-gender(zed, male) @ 1990-01-01 ~ 80%")
+	// A question is a search rather than a stored fact, and the search reads neither
+	// annotation, so a line that still holds a variable and carries one is refused: answering
+	// it would drop what the line says about when it holds and how sure it is.
+	askedTimed = startSession(family + [], [], ["is-parent-of(?p, susan) @ 2019-04-01 ~ 80%"])
+	h.check("a typed question that carries an annotation is refused, and says why",
+		printed(askedTimed.answers.lines,
+			"  refused: is-parent-of(?p, susan) @ 2019-04-01 ~ 80%: a question is not a stored fact, so it takes no annotation"))
+	h.check("and nothing is stored or searched from it",
+		askedTimed.session.facts.len == family.len and
+			not holds(askedTimed.answers.lines, "no solution found"))
+
 	// A rule is a line too, and it is the door most likely to be typed: its head and every
 	// condition are asked the same question, and the answer says why rather than falling back
 	// to the malformed-line message the rest of a rule gets.

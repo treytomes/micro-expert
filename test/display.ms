@@ -167,4 +167,66 @@ run = function(t, h)
 	equal = t.constraintOf("equal(?x, " + inQuotes("Dallas, TX") + ")")
 	h.check("a constraint reads a quoted field too", not (equal isa error) and
 		equal != null and equal.right == "Dallas, TX")
+
+	// ── A fact's annotations ────────────────────────────────────────────────
+	// A typed line carries the two annotations a facts file does, through the one reader both
+	// doors use: '@' names the moment the fact holds at and '~' how confident we are. Both
+	// are optional, either may stand first, and neither is part of the fact's own form.
+
+	untimed = t.SpoTriple.parse("wakes-up(anna, early)")
+	h.check("a typed fact with no annotation is not time-bound and fully confident",
+		untimed.at == null and untimed.confidence == 100)
+	timed = t.SpoTriple.parse("wakes-up(anna, early) @ 2019-04-05")
+	h.check("a typed fact reads the moment it holds at",
+		timed.at == "2019-04-05" and timed.confidence == 100)
+	h.check("the annotations stay out of the fact's own text",
+		timed.text == "wakes-up(anna, early)")
+	sure = t.SpoTriple.parse("wakes-up(anna, early) ~ 80%")
+	h.check("a confidence reads on its own, leaving the fact untimed",
+		sure.confidence == 80 and sure.at == null)
+	both = t.SpoTriple.parse("wakes-up(anna, early) ~ 80% @ 2019-04-05")
+	h.check("the two annotations may be typed in either order",
+		both.at == "2019-04-05" and both.confidence == 80)
+	h.check("a confidence may be zero",
+		t.SpoTriple.parse("wakes-up(anna, early) ~ 0%").confidence == 0)
+	h.check("a confidence may be a fraction",
+		t.SpoTriple.parse("wakes-up(anna, early) ~ 87.5%").confidence == 87.5)
+
+	// The moment is kept as it was typed, not as the value it stands for, so a short shape
+	// stays short. A datetime's space is part of it, and a span is read between its brackets.
+	h.check("a moment is kept as it was typed",
+		t.SpoTriple.parse("wakes-up(anna, early) @ 2019-4").at == "2019-4")
+	h.check("a datetime keeps its one space",
+		t.SpoTriple.parse("wakes-up(anna, early) @ 2019-04-01 09:30").at == "2019-04-01 09:30")
+	h.check("a span reads between its brackets",
+		t.SpoTriple.parse("works-at(tim, school) @ [2019-04-01, 2019-04-03]").at ==
+			"[2019-04-01, 2019-04-03]")
+
+	// The pipe form is the same fact spelled the other way, so it takes the annotations too.
+	piped = t.SpoTriple.parse("anna | wakes-up | early @ 2019-04-05 ~ 60%")
+	h.check("the pipe form takes the annotations after its last field",
+		piped.at == "2019-04-05" and piped.confidence == 60 and
+			piped.text == "wakes-up(anna, early)")
+	// A sign inside a quoted value is the value's, not an annotation's.
+	h.check("a quoted '@' is part of the value",
+		t.SpoTriple.parse("has-home-page(guid, " + inQuotes("http://a@b") + ")").at == null)
+
+	// Everything the file refuses is refused here too, in the same words.
+	h.check("a confidence past 100 is refused",
+		t.SpoTriple.parse("wakes-up(anna, early) ~ 101%") isa error)
+	h.check("a negative confidence is refused",
+		t.SpoTriple.parse("wakes-up(anna, early) ~ -1%") isa error)
+	h.check("a number with no '%' is refused",
+		t.SpoTriple.parse("wakes-up(anna, early) ~ 80") isa error)
+	h.check("one '@' is all a fact takes",
+		t.SpoTriple.parse("wakes-up(anna, early) @ 2019-04-05 @ 2019-04-06") isa error)
+	h.check("a moment no reader takes is refused",
+		t.SpoTriple.parse("wakes-up(anna, early) @ 2019-02-30") isa error)
+
+	// A rule is not a fact: its head and its conditions are written bare, so an annotation on
+	// either is refused where the rule is read rather than kept as something it is not.
+	h.check("an annotation on a rule's head is refused",
+		t.parseRule("wakes-up(anna, early) @ 2019-04-05 <- is-parent-of(anna, ?y)") isa error)
+	h.check("an annotation on a condition is refused",
+		t.parseRule("wakes-up(?x, early) <- is-parent-of(?x, ?y) @ 2019-04-05") isa error)
 end function

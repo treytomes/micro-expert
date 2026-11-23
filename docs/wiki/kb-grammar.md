@@ -225,6 +225,14 @@ wakes-up(anna, early) ~ 60% @ 07:30:00
 The first two carry neither annotation, so each is `~ 100%` and not time-bound, which is what
 every fact written before the annotations existed says.
 
+Both doors read this. A fact typed at the prompt takes the same annotations through the same
+reader, so `won-prize(bill, sprint) @ 2002-04-05` typed there is the fact the same line in a
+ file is — kept with its text, and written back in that form by `/save-facts`. A question is not a
+fact either: a line that still holds a variable is a search, and the search reads neither
+annotation, so it is refused rather than answered with the annotation dropped. And neither is
+a rule: its head and every condition are written bare, so an annotation on either is refused
+wherever the rule is read.
+
 ### When a fact holds
 
 `@` followed by a date, a time, a datetime, or a span between two of them, says when the
@@ -426,7 +434,7 @@ repo writes one.
 | --- | --- |
 | `src/knowledge.ms` | `entries`, `parseFacts`, `parseRules`, `parseSchema`, and the writer that puts each back |
 | `src/temporal.ms` | `DateTime` and `TimeSpan`, the values behind those types |
-| `src/triples.ms` | `termOf` and `isNumber`, the reading of one term |
+| `src/triples.ms` | `termOf` and `isNumber`, the reading of one term, and the two annotations a fact may carry, which the file and the prompt both read |
 | `test/knowledge.ms` | 141 checks on the format, a fact's annotations, and its writer |
 | `test/schema.ms` | 43 checks on the schema format, the field check and the one-value rule |
 | `test/temporal.ms` | 79 checks on the three date types, the shapes a text reads from (a month, a day and an hour may be one digit), the value it is read into, the span between two, and whether a value stands inside one |
