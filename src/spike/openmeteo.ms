@@ -1,11 +1,11 @@
 // openmeteo.ms — asks Open-Meteo for data and prints the JSON it returns.
 //
-//   ./3rd-party/miniscript-linux/miniscript src/openmeteo.ms forecast --latitude 52.52 --longitude 13.41 --hourly temperature_2m
-//   ./3rd-party/miniscript-linux/miniscript src/openmeteo.ms forecast --place Berlin --hourly temperature_2m
-//   ./3rd-party/miniscript-linux/miniscript src/openmeteo.ms air-quality --latitude 52.52 --longitude 13.41 --hourly pm10
-//   ./3rd-party/miniscript-linux/miniscript src/openmeteo.ms geocoding --name Berlin --count 3
-//   ./3rd-party/miniscript-linux/miniscript src/openmeteo.ms endpoints
-//   ./3rd-party/miniscript-linux/miniscript src/openmeteo.ms forecast --help
+//   ./3rd-party/miniscript-linux/miniscript src/spike/openmeteo.ms forecast --latitude 52.52 --longitude 13.41 --hourly temperature_2m
+//   ./3rd-party/miniscript-linux/miniscript src/spike/openmeteo.ms forecast --place Berlin --hourly temperature_2m
+//   ./3rd-party/miniscript-linux/miniscript src/spike/openmeteo.ms air-quality --latitude 52.52 --longitude 13.41 --hourly pm10
+//   ./3rd-party/miniscript-linux/miniscript src/spike/openmeteo.ms geocoding --name Berlin --count 3
+//   ./3rd-party/miniscript-linux/miniscript src/spike/openmeteo.ms endpoints
+//   ./3rd-party/miniscript-linux/miniscript src/spike/openmeteo.ms forecast --help
 //
 // The first word names an endpoint; every other argument is one of that endpoint's own URL
 // parameters, declared from the service's table, so the command line and the request are
@@ -31,16 +31,26 @@
 // replaced. A refusal is reported on stdout with exit status 1.
 
 
-import "cli/cli"
-import "api/client"
-import "api/openmeteo"
-// Importing the loader puts the .env beside the runner into env.
-import "dotenv"
+import "../cli/cli"
+import "../api/client"
+import "../api/openmeteo"
+// Importing the loader puts the .env above the runner into env.
+import "../dotenv"
 import "json"
 
-cli = globals["cli/cli"]
-client = globals["api/client"]
-om = globals["api/openmeteo"]
+cli = globals["../cli/cli"]
+client = globals["../api/client"]
+om = globals["../api/openmeteo"]
+dotenv = globals["../dotenv"]
+
+// The loader reaches the .env one folder above the runner; this program sits two folders
+// below the repository, in src/spike, so the .env it wants is one more above that. A run
+// from inside src/spike keeps the working folder's .env, as the loader already read it.
+if shellArgs.len > 0 then
+	if shellArgs[0].indexOf("/") != null or shellArgs[0].indexOf(char(92)) != null then
+		dotenv.load(file.child(file.parent(shellArgs[0]), "../../.env"))
+	end if
+end if
 
 scriptName = "openmeteo.ms"
 if shellArgs.len > 0 then scriptName = file.name(shellArgs[0])
@@ -369,7 +379,9 @@ showPlaces = function(answer)
 	print answer.heading
 	for i in answer.places.indexes
 		place = answer.places[i]
-		print "  " + (i + 1) + ". " + place.label
+		label = place.label
+		if label == "" then label = "(no name)"
+		print "  " + (i + 1) + ". " + label
 		where = place.coordinates
 		if where != "" then print "     " + where
 	end for

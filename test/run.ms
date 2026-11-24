@@ -57,6 +57,7 @@ env["MS_IMPORT_PATH"] = savedImportPath
 import "../src/api/client"
 import "../src/api/geocode"
 import "../src/api/openmeteo"
+import "../src/api/ipwhois"
 import "../src/dotenv"
 
 import "harness"
@@ -78,6 +79,7 @@ import "arguments"
 import "parameters"
 import "replies"
 import "weather"
+import "ipwhois"
 import "dotenv"
 
 // shellArgs[0] is this script, so the options start at index 1.
@@ -142,6 +144,10 @@ geocode = globals["../src/api/geocode"]
 replyCases = globals["replies"]
 meteo = globals["../src/api/openmeteo"]
 weatherCases = globals["weather"]
+// ipwhois.ms is ipwho.is's surface and the classes its reply comes back as; `ipwhois` is this
+// suite's case module for those classes and for the request they are read from.
+ipwhoisModule = globals["../src/api/ipwhois"]
+ipwhoisCases = globals["ipwhois"]
 // src/dotenv.ms puts the .env's settings into env; `dotenv` is this suite's case module.
 dotenvModule = globals["../src/dotenv"]
 dotenvCases = globals["dotenv"]
@@ -183,6 +189,10 @@ if geocode == null or geocode.hasIndex("reply") == 0 then
 end if
 if meteo == null or meteo.hasIndex("reply") == 0 then
 	print "error: could not import ../src/api/openmeteo"
+	exit 1
+end if
+if ipwhoisModule == null or ipwhoisModule.hasIndex("reply") == 0 then
+	print "error: could not import ../src/api/ipwhois"
 	exit 1
 end if
 if dotenvModule == null or dotenvModule.hasIndex("load") == 0 then
@@ -233,8 +243,9 @@ globals["domain"].run(domainModule, harness)
 globals["options"].run(cliLibrary, optionsModule, harness)
 argumentCases.run(cliLibrary, apiClient, harness)
 parameterCases.run(apiClient, harness)
-replyCases.run(geocode, harness)
-weatherCases.run(meteo, harness)
+replyCases.run(geocode, apiClient, harness)
+weatherCases.run(meteo, apiClient, harness)
+ipwhoisCases.run(ipwhoisModule, apiClient, harness)
 dotenvCases.run(dotenvModule, harness)
 
 harness.summary()

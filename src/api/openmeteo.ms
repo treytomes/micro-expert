@@ -274,62 +274,8 @@ end function
 //
 // Nothing here prints. The classes answer values and words, and the program lays them out.
 
-Place = {}
-
-
-Place.build = function(raw)
-	"One geocoder result, with its fields kept exactly as the service sent them."
-	place = new Place
-	place.raw = raw
-	return place
-end function
-
-
-Place.value = function(field)
-	"The field the reply carried, or null when it carried none."
-	if not self.raw.hasIndex(field) then return null
-	return self.raw[field]
-end function
-
-
-Place.text = function(field)
-	"The field when it is text with something in it, otherwise null."
-	value = self.value(field)
-	if not (value isa string) then return null
-	if value == "" then return null
-	return value
-end function
-
-
-Place.label = function
-	"What a place is known by: its name, and the country it is in when the reply says."
-	label = self.text("name")
-	if label == null then label = "(no name)"
-	country = self.text("country")
-	if country != null then return label + ", " + country
-	return label
-end function
-
-
-Place.coordinates = function
-	"Where it is, as the latitude and longitude the geocoder gave; empty when it gave none."
-	lat = self.latitude
-	lon = self.longitude
-	if lat == null or lon == null then return ""
-	return str(lat) + ", " + str(lon)
-end function
-
-
-Place.latitude = function
-	"The latitude itself, to send as a parameter; null when the reply gave none."
-	return self.value("latitude")
-end function
-
-
-Place.longitude = function
-	"The longitude itself, to send as a parameter; null when the reply gave none."
-	return self.value("longitude")
-end function
+// A geocoder result is the API layer's shared Place, built with the name it goes by and the
+// country after it, so there is no class of its own to keep here.
 
 
 Series = {}
@@ -545,13 +491,13 @@ placeReply = function(places, asked={})
 end function
 
 
-geocodingReply = function(raw, asked={})
+geocodingReply = function(api, raw, asked={})
 	"A search's list of places; a name that matched nothing has no results key at all."
 	places = []
 	if raw.hasIndex("results") then
 		if raw.results isa list then
 			for item in raw.results
-				if item isa map then places.push Place.build(item)
+				if item isa map then places.push api.Place.build(item, ["name"], ["country"])
 			end for
 		end if
 	end if
@@ -559,10 +505,10 @@ geocodingReply = function(raw, asked={})
 end function
 
 
-lookupReply = function(raw)
+lookupReply = function(api, raw)
 	"A lookup answers with the one place, in the same shape a search entry has."
 	if not raw.hasIndex("latitude") then return placeReply([])
-	return placeReply([Place.build(raw)])
+	return placeReply([api.Place.build(raw, ["name"], ["country"])])
 end function
 
 
@@ -577,7 +523,7 @@ elevationReply = function(raw)
 end function
 
 
-reply = function(endpointName, json, asked={})
+reply = function(api, endpointName, json, asked={})
 	"The parsed JSON as one of the reply classes; null when there is no JSON to read."
 	if json == null then return null
 
@@ -597,8 +543,8 @@ reply = function(endpointName, json, asked={})
 		if json.error then return refusedReply("The API refused the request: " + reasonOf(json))
 	end if
 
-	if endpointName == "geocoding" then return geocodingReply(json, asked)
-	if endpointName == "geocoding-lookup" then return lookupReply(json)
+	if endpointName == "geocoding" then return geocodingReply(api, json, asked)
+	if endpointName == "geocoding-lookup" then return lookupReply(api, json)
 	if endpointName == "elevation" then return elevationReply(json)
 	return weatherReply(json)
 end function
@@ -633,6 +579,6 @@ fetch = function(api, endpointName, options={})
 	result.url = api.redactUrl(url, ["apikey"])
 	// The parsed JSON as the classes that describe it; null for CSV, XLSX and a failed request.
 	result.reply = null
-	if result.ok then result.reply = reply(endpointName, result.json, options)
+	if result.ok then result.reply = reply(api, endpointName, result.json, options)
 	return result
 end function

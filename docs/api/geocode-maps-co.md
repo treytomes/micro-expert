@@ -2,7 +2,7 @@
 
 geocode.maps.co is a small geocoder over OpenStreetMap data: an address in, coordinates and a
 display name out, and the reverse. It has three GET endpoints, and `src/api/geocode.ms` holds
-all three with every parameter each one takes. `src/geocode.ms` is the program built on that
+all three with every parameter each one takes. `src/spike/geocode.ms` is the program built on that
 table.
 
 This document is the remote surface written out: what a request looks like, what comes back,
@@ -80,7 +80,8 @@ A result looks like this (one entry of a `/search` reply, trimmed):
 them. The layer hands the parsed JSON through as the service sent it, so they stay strings.
 Beside it, `fetch` puts the reply read into classes: a `Place` per result, held by a
 `SearchReply`, a `ReverseReply` or a `LookupReply` that knows the endpoint's shape and what
-the whole answer says about itself. `src/geocode.ms` renders from those objects rather than
+the whole answer says about itself. The `Place` itself is the API layer's shared one, in
+`src/api/client.ms`, built with the three names an OSM result may carry. `src/spike/geocode.ms` renders from those objects rather than
 picking fields out of the map, and `--json` is what still prints the service's own JSON.
 
 `format=xml`, `format=geojson` and `format=geocodejson` answer in those formats instead.
@@ -304,8 +305,8 @@ parenthesis, and no `//`. That rules out some of the reply outright:
 
 ### From a reply to a facts file
 
-Nothing in the layer writes triples: `src/api/geocode.ms` reads the reply into `Place`
-objects and `src/geocode.ms` prints them. The conversion is a loop over the results - subject
+Nothing in the layer writes triples: `src/api/geocode.ms` reads the reply into the API layer's
+`Place` objects and `src/spike/geocode.ms` prints them. The conversion is a loop over the results - subject
 from `osm_type` and `osm_id`, one fact per property, `val` on the two coordinates because the
 reply writes them as strings, and no fact at all for a field that is absent - and the writer
 in `src/knowledge.ms` turns the facts back into `.kb` text. `--facts` or `/load-facts` then reads that file with the same
@@ -425,14 +426,14 @@ path.
 
 ## How the program maps to all this
 
-`src/geocode.ms` takes the endpoint as a word - `search`, `reverse`, `lookup` - or as nothing
+`src/spike/geocode.ms` takes the endpoint as a word - `search`, `reverse`, `lookup` - or as nothing
 for a bare query, and every parameter above as a `--name`:
 
 ```
-miniscript src/geocode.ms "Eiffel Tower" --limit 1
-miniscript src/geocode.ms reverse --lat 48.8583 --lon 2.2945 --zoom 18
-miniscript src/geocode.ms lookup --osm-ids R253832,W175905 --polygon-geojson
-miniscript src/geocode.ms search --q Berlin --format geojson --json
+miniscript src/spike/geocode.ms "Eiffel Tower" --limit 1
+miniscript src/spike/geocode.ms reverse --lat 48.8583 --lon 2.2945 --zoom 18
+miniscript src/spike/geocode.ms lookup --osm-ids R253832,W175905 --polygon-geojson
+miniscript src/spike/geocode.ms search --q Berlin --format geojson --json
 ```
 
 Underscores and dashes are the same in a name, `--name value` and `--name=value` are the same

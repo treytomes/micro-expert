@@ -4,7 +4,7 @@ Open-Meteo is not one API but a family of them. Each forecast product has its ow
 domain APIs - marine, air quality, flood, climate, seasonal, satellite - add more, and the
 geocoder is a separate service that shares the parameter style. `src/api/openmeteo.ms` holds
 the layer's table of them: 23 endpoints, each with its host, path and the complete set of
-query parameters it accepts. The program, `src/openmeteo.ms`, turns that table into a command
+query parameters it accepts. The program, `src/spike/openmeteo.ms`, turns that table into a command
 line.
 
 This document writes the table out: the shape of a request, the shape of a reply, every
@@ -95,7 +95,7 @@ and the rest are given so a result can be looked up again.
 ```
 
 `src/api/openmeteo.ms` reads those shapes into classes rather than handing the parsed JSON on,
-and `src/openmeteo.ms` prints from them. A `Series` is one table - hourly, daily, current and
+and `src/spike/openmeteo.ms` prints from them. A `Series` is one table - hourly, daily, current and
 the rest - with its instants in one list and a list per variable beside them, and the units
 that came under it. A `WeatherReply` is one place's answer: its grid point, elevation and time
 zone, and its tables in the order the reply wrote them. A `MultiReply` holds one of those per
@@ -432,7 +432,7 @@ differently in two files, so either keep the zone in the subject or ask for `GMT
 `has-timezone` carry the local one as a fact.
 
 Nothing in the layer writes triples: `src/api/openmeteo.ms` reads the reply into classes and
-`src/openmeteo.ms` prints them, exactly as the geocoder's pair do. What is missing on the way from a
+`src/spike/openmeteo.ms` prints them, exactly as the geocoder's pair do. What is missing on the way from a
 reply to a domain - the writer, a place to record which fetch a file came from, and the sizes
 involved - is collected in [gaps to close before these APIs are
 knowledge](gaps.md).
@@ -762,16 +762,16 @@ comma-separated list of names, `date` is `yyyy-mm-dd`, `datetime` is `yyyy-mm-dd
 
 ## How the program maps to all this
 
-`src/openmeteo.ms` takes an endpoint name as its first word and every parameter above as a
+`src/spike/openmeteo.ms` takes an endpoint name as its first word and every parameter above as a
 `--name`:
 
 ```
-miniscript src/openmeteo.ms forecast --latitude 52.52 --longitude 13.41 --hourly temperature_2m
-miniscript src/openmeteo.ms forecast --place Berlin --daily temperature_2m_max --forecast-days 3
-miniscript src/openmeteo.ms air-quality --latitude 52.52 --longitude 13.41 --hourly pm10
-miniscript src/openmeteo.ms geocoding --name Berlin --count 3
-miniscript src/openmeteo.ms endpoints
-miniscript src/openmeteo.ms help forecast
+miniscript src/spike/openmeteo.ms forecast --latitude 52.52 --longitude 13.41 --hourly temperature_2m
+miniscript src/spike/openmeteo.ms forecast --place Berlin --daily temperature_2m_max --forecast-days 3
+miniscript src/spike/openmeteo.ms air-quality --latitude 52.52 --longitude 13.41 --hourly pm10
+miniscript src/spike/openmeteo.ms geocoding --name Berlin --count 3
+miniscript src/spike/openmeteo.ms endpoints
+miniscript src/spike/openmeteo.ms help forecast
 ```
 
 `--place` resolves a name through the `geocoding` endpoint and sends the coordinates it

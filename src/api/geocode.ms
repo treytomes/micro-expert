@@ -109,78 +109,14 @@ end function
 
 // ── The reply as classes ─────────────────────────────────────────────────────
 // The three endpoints answer in two shapes - /search and /lookup with a list of results,
-// /reverse with one object - and a result carries the same fields whichever endpoint sent
-// it. A Place is one result, with the fields a program shows read through accessors and the
-// rest kept as it came; the reply classes hold the endpoint's results and know what the
-// answer says about itself. reply() turns the parsed JSON into them, and fetch puts one on
-// the result it returns. A refusal, or a shape no endpoint documents, is one of the same
-// classes with ok 0 and error set: there is nothing to render, only something to report.
+// /reverse with one object - and a result carries the same fields whichever endpoint sent it,
+// so one Place reads them all: the API layer's shared one, built with the three names an OSM
+// result may carry. The reply classes hold those and know what the answer says about itself.
+// reply() turns the parsed JSON into them, and fetch puts one on the result it returns. A
+// refusal, or a shape no endpoint documents, is one of the same classes with ok 0 and error
+// set: there is nothing to render, only something to report.
 //
 // Nothing here prints. The classes answer values and words, and the program lays them out.
-
-Place = {}
-
-
-Place.build = function(raw)
-	"One result, with its fields kept exactly as the service sent them."
-	place = new Place
-	place.raw = raw
-	return place
-end function
-
-
-Place.value = function(field)
-	"The field the reply carried, or null when it carried none."
-	if not self.raw.hasIndex(field) then return null
-	return self.raw[field]
-end function
-
-
-Place.text = function(field)
-	"The field when it is text with something in it, otherwise null."
-	value = self.value(field)
-	if not (value isa string) then return null
-	if value == "" then return null
-	return value
-end function
-
-
-Place.label = function
-	"What a result is known by: its display name, its own name, or its local name."
-	for field in ["display_name", "name", "localname"]
-		text = self.text(field)
-		if text != null then return text
-	end for
-	return ""
-end function
-
-
-Place.coordinates = function
-	"Where it is, as the reply spelled it: lat and lon, or a GeoJSON centroid's point."
-	lat = self.text("lat")
-	lon = self.text("lon")
-	if lat != null and lon != null then return lat + ", " + lon
-	// A lookup result may carry no lat and lon, and a GeoJSON point as [longitude, latitude].
-	centroid = self.value("centroid")
-	if centroid isa map then
-		if centroid.hasIndex("coordinates") then
-			if centroid.coordinates isa list then
-				if centroid.coordinates.len >= 2 then
-					return str(centroid.coordinates[1]) + ", " + str(centroid.coordinates[0])
-				end if
-			end if
-		end if
-	end if
-	return ""
-end function
-
-
-Place.typeName = function
-	"The OSM type it was classified as, such as tower; empty when the reply names none."
-	text = self.text("type")
-	if text == null then return ""
-	return text
-end function
 
 
 Reply = {"ok": 1, "error": null}
@@ -286,7 +222,7 @@ refusedReply = function(message)
 end function
 
 
-reply = function(endpointName, json, asked={})
+reply = function(api, endpointName, json, asked={})
 	"The parsed JSON as one of the reply classes; null when there is no JSON to read."
 	if json == null then return null
 	if json isa map then
@@ -308,7 +244,7 @@ reply = function(endpointName, json, asked={})
 	answer.places = []
 	for item in items
 		// A result is one object; an entry that is not one is not a result to show.
-		if item isa map then answer.places.push Place.build(item)
+		if item isa map then answer.places.push api.Place.build(item, ["display_name", "name", "localname"])
 	end for
 
 	// The question is part of what the reply says about itself.
@@ -347,6 +283,6 @@ fetch = function(api, endpointName, options={})
 	result.url = api.redactUrl(url, ["api_key"])
 	// The reply read as classes, so a program renders objects rather than fields.
 	result.reply = null
-	if result.ok then result.reply = reply(endpointName, result.json, options)
+	if result.ok then result.reply = reply(api, endpointName, result.json, options)
 	return result
 end function

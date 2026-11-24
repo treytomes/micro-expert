@@ -1,15 +1,15 @@
 // geocode.ms — asks geocode.maps.co about a place, and prints what comes back.
 //
 // A standalone program, not part of the session: it reads GEOCODE_MAPS_API_KEY from the
-// environment - the .env beside the runner is loaded into it - asks one of the service's three
+// environment - the repository's .env is loaded into it - asks one of the service's three
 // endpoints, and prints the answer.
 //
-//   ./3rd-party/miniscript-linux/miniscript src/geocode.ms "Eiffel Tower"
-//   ./3rd-party/miniscript-linux/miniscript src/geocode.ms Paris, Texas
-//   ./3rd-party/miniscript-linux/miniscript src/geocode.ms reverse 48.8584 2.2945
-//   ./3rd-party/miniscript-linux/miniscript src/geocode.ms lookup R253832,W175905
-//   ./3rd-party/miniscript-linux/miniscript src/geocode.ms --json --limit 3 "Paris, Texas"
-//   ./3rd-party/miniscript-linux/miniscript src/geocode.ms --help
+//   ./3rd-party/miniscript-linux/miniscript src/spike/geocode.ms "Eiffel Tower"
+//   ./3rd-party/miniscript-linux/miniscript src/spike/geocode.ms Paris, Texas
+//   ./3rd-party/miniscript-linux/miniscript src/spike/geocode.ms reverse 48.8584 2.2945
+//   ./3rd-party/miniscript-linux/miniscript src/spike/geocode.ms lookup R253832,W175905
+//   ./3rd-party/miniscript-linux/miniscript src/spike/geocode.ms --json --limit 3 "Paris, Texas"
+//   ./3rd-party/miniscript-linux/miniscript src/spike/geocode.ms --help
 //
 // A bare query searches, so the first form and "search "Eiffel Tower"" mean the same thing;
 // the other two subcommands name the other two endpoints. The words after the subcommand are
@@ -28,16 +28,26 @@
 // is never printed - the URL is built and handed to curl, not shown.
 
 
-import "cli/cli"
-import "api/client"
-import "api/geocode"
-// Importing the loader puts the .env beside the runner into env.
-import "dotenv"
+import "../cli/cli"
+import "../api/client"
+import "../api/geocode"
+// Importing the loader puts the .env above the runner into env.
+import "../dotenv"
 import "json"
 
-cli = globals["cli/cli"]
-client = globals["api/client"]
-geo = globals["api/geocode"]
+cli = globals["../cli/cli"]
+client = globals["../api/client"]
+geo = globals["../api/geocode"]
+dotenv = globals["../dotenv"]
+
+// The loader reaches the .env one folder above the runner; this program sits two folders
+// below the repository, in src/spike, so the .env it wants is one more above that. A run
+// from inside src/spike keeps the working folder's .env, as the loader already read it.
+if shellArgs.len > 0 then
+	if shellArgs[0].indexOf("/") != null or shellArgs[0].indexOf(char(92)) != null then
+		dotenv.load(file.child(file.parent(shellArgs[0]), "../../.env"))
+	end if
+end if
 
 scriptName = "geocode.ms"
 if shellArgs.len > 0 then scriptName = file.name(shellArgs[0])
@@ -98,7 +108,8 @@ showMatch = function(place, number=0)
 	where = place.coordinates
 	if where != "" then
 		text = "     " + where
-		if place.typeName != "" then text = text + "  (" + place.typeName + ")"
+		kind = place.text("type")
+		if kind != null then text = text + "  (" + kind + ")"
 		print text
 	end if
 end function
