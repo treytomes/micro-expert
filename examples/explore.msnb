@@ -1,0 +1,55 @@
+{
+	"version": 1,
+	"cells": [
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "# The family, one cell at a time\n\nA notebook's cells share one MiniScript session, so the names a cell defines are still there in the next one. Run a cell with **Shift+Enter**, or the ▶ beside it."
+		},
+		{
+			"kind": "code",
+			"language": "miniscript",
+			"source": "import \"schema\"\nimport \"facts\"\nimport \"rules\"\nimport \"triples\"\n\n// A notebook has no entry script, so the data files are named here, relative to the\n// project folder the session runs in.\ntypes = schema.build(\"data/schema.kb\")\nfacts = facts.build(triples, \"data/facts.kb\", types)\nrules = rules.build(triples, \"data/rules.kb\")\n\nprint facts.len + \" facts, \" + rules.len + \" rules\""
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "The facts are data — `data/facts.kb`, one `predicate(subject, object)` per line — and so are the rules. Nothing above knows what a family is.\n\nA cell can draw the diagram too: `notebook.mermaid(...)` takes the diagram's lines, and the notebook draws them under the text."
+		},
+		{
+			"kind": "code",
+			"language": "miniscript",
+			"source": "import \"mermaid\"\n\ndiagram = mermaid.build(facts, types, rules)\nprint \"The diagram is \" + diagram.len + \" lines; the first few:\"\nprint diagram[0:6].join(char(10))\n\n// The whole diagram, drawn under the text.\nnotebook.mermaid(diagram)"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "`notebook.svg(...)` draws a picture VS Code shows as it is, so it needs nothing from the version: the same diagram again, from this project's own SVG renderer."
+		},
+		{
+			"kind": "code",
+			"language": "miniscript",
+			"source": "notebook.svg(mermaid.svg(facts, types, rules))"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "A function defined in one cell is there for the next, the way a value is."
+		},
+		{
+			"kind": "code",
+			"language": "miniscript",
+			"source": "double = function(n)\n\treturn n * 2\nend function\n\nprint \"double(21) is \" + double(21)"
+		},
+		{
+			"kind": "code",
+			"language": "miniscript",
+			"source": "print \"and double(100) is \" + double(100)"
+		},
+		{
+			"kind": "code",
+			"language": "miniscript",
+			"source": ""
+		}
+	]
+}

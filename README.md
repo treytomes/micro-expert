@@ -623,6 +623,7 @@ data/facts.kb        the 54 facts, as text
 data/rules.kb        the sixteen rules, as text
 data/schema.kb       the field types, as text
 examples/notes.ms    a whole host for the repl library that is not a knowledge base
+examples/explore.msnb  a MiniScript notebook that loads the family knowledge base
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
 src/repl/            submodule: micro-repl, the loop and its commands
