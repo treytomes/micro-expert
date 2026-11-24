@@ -1,7 +1,3 @@
-* A domain is composed of the combination of schema, rules, and facts.
-* Add to CLI: load individual components of a domain by file, or an entire domain by folder, or keep the default paths.
-* /save {"filename{.kb}"}
-
 * Generate a tokenizer and parser from the BNF.
 * Need a syntax highlighter for the BNF grammar.
 * Create submodule packages for the syntax highlighter, `repl` library, and BNF parser.
@@ -24,7 +20,9 @@
 
 * Need to begin building wiki-style documentation under `./docs`.  Use CI/CD to generate the GitHub wiki.
 
-* Use doc-strings in `vscode-miniscript`.  Also alt-click symbol linking?
+* ~~Use doc-strings in `vscode-miniscript`.  Also alt-click symbol linking?~~ -- done: hover
+  shows a function's docstring (or the `//` comment above it), Ctrl-click goes to the
+  definition, and the Outline lists the file's symbols.
 
 # Later
 
