@@ -1,10 +1,12 @@
 // Cases for src/providers.ms: the registry the service maps declare, and a question the session
-// answers by asking a service rather than the reader.
+// answers by asking a service rather than the reader. geocode.maps.co's two declarations are here
+// too - a search asked by a place's own name and a reverse asked by its coordinates - both read
+// back onto the place the question named rather than onto the OSM object the reply identifies.
 //
 // No request leaves the program: a client stand-in answers get with the canned Fort Worth reply,
 // the way test/location.ms and test/declared.ms do, and counts what it was asked.
 
-run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, sessionModule, rules, h)
+run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocodeMap, sessionModule, rules, h)
 	decl = ipwhoisMap.build()
 
 	fortWorth = {"success": true, "continent": "North America", "country": "United States",
@@ -22,8 +24,10 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, session
 		fake.fails = fails
 		fake.why = why
 		fake.seenTimeout = null
+		fake.seenUrl = null
 		fake.get = function(url, timeout=null)
 			self.calls = self.calls + 1
+			self.seenUrl = url
 			self.seenTimeout = timeout
 			if self.fails then
 				return {"ok": 0, "status": null, "body": "", "json": null, "url": url,
@@ -76,6 +80,15 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, session
 		found = 0
 		for line in lines
 			if line.indexOf(piece) != null then found = found + 1
+		end for
+		return found
+	end function
+
+	countWhere = function(items, name, value)
+		"How many of these maps name this value under this field."
+		found = 0
+		for item in items
+			if item[name] == value then found = found + 1
 		end for
 		return found
 	end function
@@ -207,6 +220,127 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, session
 		unreachable.calls - before == 1)
 	h.check("and the pass that reads the attempt says nothing new",
 		said.len == 1 and probe.facts.len == 0)
+
+	// ── A geocoder asked about a place the session names ────────────────────
+
+	// geocode.maps.co's request fields are the place's own: a search is asked by its name or
+	// city, a reverse by its coordinates, and both replies are read back onto the place the
+	// question named rather than onto the OSM object they identify.
+	geoDecl = geocodeMap.build()
+	named = uid.of("place", ["Fort Worth", "Texas", "United States"])
+	namedLat = triples.SpoTriple.make(named, "has-latitude", 32.7254134)
+	namedLon = triples.SpoTriple.make(named, "has-longitude", -97.3208492)
+	namedCity = triples.SpoTriple.make(named, "has-city", "Fort Worth")
+
+	searchReply = [{"osm_type": "relation", "osm_id": 12345, "lat": "32.7555",
+		"lon": "-97.3308", "name": "Fort Worth", "class": "place", "type": "city",
+		"place_rank": 16, "importance": 0.7, "place_id": 1,
+		"address": {"city": "Fort Worth", "country": "United States", "country_code": "us"}}]
+	reverseReply = {"osm_type": "way", "osm_id": 5013364, "lat": "32.7254",
+		"lon": "-97.3208", "name": "Main Street",
+		"address": {"house_number": "500", "road": "Main Street", "city": "Fort Worth",
+			"country": "United States", "country_code": "us"}}
+
+	geoRegistry = providers.registry(stubFor(searchReply), declared, uid, [geoDecl])
+	h.check("the geocode map declares a fact per answer it can give", geoRegistry.len == 4)
+	h.check("two of them the search's coordinates",
+		countWhere(geoRegistry, "endpoint", "search") == 2)
+	h.check("and two the reverse's address",
+		countWhere(geoRegistry, "endpoint", "reverse") == 2)
+
+	needCoords = triples.SpoTriple.make(named, "has-latitude", triples.var("lat"))
+	needRoad = triples.SpoTriple.make(named, "has-road", triples.var("road"))
+	searchCap = providers.forGoal(geoRegistry, triples, needCoords)
+	reverseCap = providers.forGoal(geoRegistry, triples, needRoad)
+	h.check("a question needing a named place's coordinates finds the search",
+		searchCap != null and searchCap.endpoint == "search")
+	h.check("and one needing its address finds the reverse",
+		reverseCap != null and reverseCap.endpoint == "reverse")
+	h.check("the query the search is asked by is the place's own city",
+		providers.requestFor(searchCap, triples, [namedCity], named).q == "Fort Worth")
+	namedName = triples.SpoTriple.make(named, "has-name", "Cowtown")
+	h.check("a name is asked with before a city",
+		providers.requestFor(searchCap, triples, [namedCity, namedName], named).q == "Cowtown")
+	h.check("a place with neither is no search's to ask",
+		providers.requestFor(searchCap, triples, [], named) == null)
+	reverseRequest = providers.requestFor(reverseCap, triples, [namedLat, namedLon], named)
+	h.check("the reverse is asked by the place's own coordinates",
+		reverseRequest != null and reverseRequest.lat == 32.7254134 and
+			reverseRequest.lon == -97.3208492)
+	h.check("and a place with none is no reverse's to ask",
+		providers.requestFor(reverseCap, triples, [namedCity], named) == null)
+
+	searching = stubFor(searchReply)
+	searchAnswer = providers.answer(
+		providers.forGoal(providers.registry(searching, declared, uid, [geoDecl]), triples, needCoords),
+		triples, providers.requestFor(searchCap, triples, [namedCity], named), named)
+	answeredLat = null
+	for fact in searchAnswer.facts
+		if fact.predicate == "has-latitude" then answeredLat = fact
+	end for
+	h.check("the search's answer is about the place the question named",
+		searchAnswer.ok and answeredLat != null and
+			triples.termText(answeredLat.subject) == named)
+	h.check("with the coordinates the reply carried",
+		answeredLat != null and answeredLat.object == 32.7555)
+	h.check("and the request sent with the query and the one result",
+		searching.seenUrl != null and searching.seenUrl.indexOf("Fort") != null and
+			searching.seenUrl.indexOf("limit=1") != null)
+
+	// A session needing the coordinates of the place it names asks the search, and holds what
+	// it answered under that place.
+	asking = stubFor(searchReply)
+	coordSaid = []
+	coordSession = {"triples": triples, "Rule": rules.Rule, "facts": [namedCity], "rules": [],
+		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"providers": providers.registry(asking, declared, uid, [geoDecl]),
+		"io": {"read": null, "say": function(line)
+			coordSaid.push(line)
+		end function}}
+	changed = sessionModule.provideMissing(coordSession,
+		triples.needsFor(needCoords, coordSession.facts, [], 8))
+	h.check("a session needing a named place's coordinates asks the search once",
+		asking.calls == 1 and changed)
+	h.check("and holds the coordinates it answered as that place's",
+		holds(coordSaid, "added has-latitude(" + named + ", 32.7555)"))
+
+	// The reverse takes the coordinates the place already has, and answers its address.
+	addressed = stubFor(reverseReply)
+	addressSaid = []
+	addressSession = {"triples": triples, "Rule": rules.Rule,
+		"facts": [namedLat, namedLon, namedCity], "rules": [], "depth": 8, "verbose": 0,
+		"nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"providers": providers.registry(addressed, declared, uid, [geoDecl]),
+		"io": {"read": null, "say": function(line)
+			addressSaid.push(line)
+		end function}}
+	roadOptions = triples.needsFor(needRoad, addressSession.facts, [], 8)
+	changed = sessionModule.provideMissing(addressSession, roadOptions)
+	road = null
+	for fact in addressSession.facts
+		if fact.predicate == "has-road" then road = fact
+	end for
+	h.check("a session needing the address at a named place asks the reverse once",
+		addressed.calls == 1 and changed)
+	h.check("and holds the road it answered as that place's",
+		road != null and triples.termText(road.subject) == named and road.object == "Main Street")
+	// The transport writes a number to seven significant digits, which is what the service reads.
+	h.check("asked with the coordinates that place's facts hold",
+		addressed.seenUrl != null and addressed.seenUrl.indexOf("lat=32.725413&") != null and
+			addressed.seenUrl.indexOf("lon=-97.320849") != null)
+	h.check("and a second pass over that need reads the first attempt",
+		sessionModule.provideMissing(addressSession, roadOptions) == false and addressed.calls == 1)
+
+	// A place with nothing to ask by is left to the reader, not asked about.
+	unasked = stubFor(reverseReply)
+	noCoords = {"triples": triples, "Rule": rules.Rule, "facts": [namedCity], "rules": [],
+		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"providers": providers.registry(unasked, declared, uid, [geoDecl]),
+		"io": {"read": null, "say": function(line)
+		end function}}
+	changed = sessionModule.provideMissing(noCoords, triples.needsFor(needRoad, noCoords.facts, [], 8))
+	h.check("a place with no coordinates is never asked about",
+		unasked.calls == 0 and not changed)
 
 	// ── A session given no registry asks nothing ────────────────────────────
 

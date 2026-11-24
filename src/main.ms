@@ -156,7 +156,8 @@ end if
 // The maps in src/spike/ declare three services, and an endpoint says in its own "provides"
 // block which fact it can answer: ipwho.is's lookup answers has-location(session, ?place), so
 // the prompt's has-location(session, ?p) asks the service when it needs to and the domain's is-a
-// rule types the place it names. Nothing is asked at startup, so a run that never asks where it
+// rule types the place it names; geocode.maps.co answers a place's coordinates by its name and
+// its address by its coordinates. Nothing is asked at startup, so a run that never asks where it
 // is never reaches the network, and a lookup that fails is a warning rather than a lost session.
 
 engineSession.providers = providers.registry(globals["api/client"], globals["spike/declared"],

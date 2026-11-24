@@ -428,3 +428,31 @@ paths, longitude first. Only a search records `was-answer-to`, because only a se
 `src/spike/declared.ms` reads a list reply (`/search`, `/lookup`) one result at a time and a
 single-object reply (`/reverse`) as one, and leaves out a field the reply did not carry rather
 than writing an empty term.
+
+## What a question may ask
+
+Two of the endpoints declare what a question can ask them, in the `provides` block
+`src/providers.ms` collects into the session's registry:
+
+```text
+search:  [{"fact": ["has-latitude", "?place", "?lat"], "about": "?place",
+           "from": {"q": ["has-name", "has-city"]}, "request": {"limit": 1}},
+          {"fact": ["has-longitude", "?place", "?lon"], "about": "?place",
+           "from": {"q": ["has-name", "has-city"]}, "request": {"limit": 1}}]
+reverse: [{"fact": ["has-road", "?place", "?road"], "about": "?place",
+           "from": {"lat": "has-latitude", "lon": "has-longitude"}},
+          {"fact": ["has-house-number", "?place", "?number"], "about": "?place",
+           "from": {"lat": "has-latitude", "lon": "has-longitude"}}]
+```
+
+`about` says the reply is read onto the place the question named. geocode.maps.co hangs its facts
+on the OSM object, but `has-latitude(place-f1d6…, ?lat)` is a question about the domain's place,
+so each fact the reply writes is read back onto that term. `from` fills the request's fields from
+facts the session already holds about that place: the first of its `has-name` and `has-city`, or
+its `has-latitude` and `has-longitude`. A place with neither is not asked about - there is
+nothing to put in the request - so the question falls through to the prompt as it would with no
+registry at all.
+
+Nothing is asked at startup and `/lookup` declares nothing, since it needs an OSM id the session
+has no way to settle on its own. The search sends `limit=1`, because one place's coordinates are
+the first match's and a second answer would only be a second opinion.

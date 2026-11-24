@@ -20,6 +20,13 @@
 //
 // Only /search records the question that asked for its result: was-answer-to is the free-form
 // query, and a reverse or a lookup has none.
+//
+// Two endpoints declare what a question may ask them, so a session that names a place can be
+// answered about that place rather than the reader: /search answers its coordinates, asked by the
+// place's own name or city, and /reverse answers its address, asked by the place's own
+// coordinates. "about" says the reply is read onto the place the question named - geocode.maps.co
+// hangs its facts on the OSM object, which is its identity rather than the domain's - and "from"
+// names the facts the request's fields are filled from.
 
 build = function
 	"geocode.maps.co, as the writer reads it."
@@ -112,6 +119,13 @@ build = function
 					{"name": "accept-language", "type": "text",
 						"doc": "Language the names come back in, e.g. en or fr."},
 				],
+				// A question needing the coordinates of a place the session already names.
+				"provides": [
+					{"fact": ["has-latitude", "?place", "?lat"], "about": "?place",
+						"from": {"q": ["has-name", "has-city"]}, "request": {"limit": 1}},
+					{"fact": ["has-longitude", "?place", "?lon"], "about": "?place",
+						"from": {"q": ["has-name", "has-city"]}, "request": {"limit": 1}},
+				],
 				// /search answers with a list, so every entry is one place.
 				"reply": replyShape("$", 1),
 			},
@@ -139,6 +153,14 @@ build = function
 						"default": "json", "doc": "Reply format."},
 					{"name": "accept-language", "type": "text",
 						"doc": "Language the names come back in."},
+				],
+				// A question needing the address at a place the session already names, asked by the
+				// coordinates that place's facts hold.
+				"provides": [
+					{"fact": ["has-road", "?place", "?road"], "about": "?place",
+						"from": {"lat": "has-latitude", "lon": "has-longitude"}},
+					{"fact": ["has-house-number", "?place", "?number"], "about": "?place",
+						"from": {"lat": "has-latitude", "lon": "has-longitude"}},
 				],
 				// /reverse answers with one object rather than a list of matches.
 				"reply": replyShape(null, 0),

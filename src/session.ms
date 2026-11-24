@@ -779,10 +779,18 @@ end function
 // the service rather than the reader. The registry is src/providers.ms's, built from the service
 // maps at startup, and a session given none - a notebook's - asks nothing of the network.
 //
+// A declaration may also need to be asked with something the question settled: ipwho.is's lookup
+// takes no parameters, but geocode.maps.co's search is asked by the place's own name or city and
+// its reverse by the place's own coordinates, and both read their reply back onto the place the
+// question named. providers.requestFor fills those fields from the facts the session already
+// holds, and a place without them is one no service is asked about.
+//
 // A service is asked once, and what it answered is kept whether it answered or failed: a question
 // that comes round again, or a second question needing the same fact, reads the first attempt
-// rather than making the same request again. A failure is a warning and nothing more - the fact
-// falls through to the prompt, which is where a session with no registry would have started.
+// rather than making the same request again. What is remembered is the request - the endpoint and
+// the fields it was sent - so two places are two requests, and two facts about one place are one.
+// A failure is a warning and nothing more - the fact falls through to the prompt, which is where a
+// session with no registry would have started.
 
 provideMissing = function(session, options)
 	"Lets a declared service answer the first missing fact one can supply, adding what it says; says whether the session now holds more than it did."
@@ -797,10 +805,14 @@ provideMissing = function(session, options)
 			if not session.triples.hasUnknowns(triple) and proved(session, triple) then continue
 			capability = providers.forGoal(session.providers, session.triples, triple)
 			if capability == null then continue
-			key = capability.service + " " + capability.endpoint
+			// The request's own fields come from what the session holds about the subject the
+			// question names; without them there is nothing to ask the service with.
+			request = providers.requestFor(capability, session.triples, session.facts, triple.subject)
+			if request == null then continue
+			key = capability.service + " " + capability.endpoint + " " + providers.requestText(request)
 			if session.providerCalls.hasIndex(key) then continue
 			session.providerCalls[key] = 1
-			answered = providers.answer(capability, session.triples)
+			answered = providers.answer(capability, session.triples, request, triple.subject)
 			if not answered.ok then
 				repl.say(session, "warning", "  " + capability.service + " could not answer " +
 					triple.text + ": " + answered.error)

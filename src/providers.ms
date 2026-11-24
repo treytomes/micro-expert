@@ -28,6 +28,22 @@
 // a list of them, and an endpoint that says nothing provides none, so a map can describe a whole
 // service and still answer only the facts it is good for.
 //
+// A declaration may also say what its request is asked with, when the reply is read back onto the
+// place the question names rather than onto an identity of the service's own:
+//
+//   "provides": [
+//       {"fact": ["has-latitude", "?place", "?lat"], "about": "?place",
+//        "from": {"q": ["has-name", "has-city"]}, "request": {"limit": 1}},
+//   ]
+//
+// "about" names the declared part the reply's facts are read onto: a question may name that part
+// - has-latitude(place-1, ?lat) - and each fact the reply writes is then about the place the
+// question named. "from" fills the request's fields from facts the session already holds about
+// that place, here the first of its has-name and has-city, so a service that needs an address or
+// a coordinate before it can answer is asked with the one the question already settled. A field
+// with no fact to fill it leaves the capability unusable for that question, and the session asks
+// the reader instead.
+//
 // The reading is the map's own: declared.read turns the reply into facts, the same lines the
 // reply always writes, so a provider answers with the facts the service declares rather than
 // with a second description of them. What a provider's facts are worth - whether the session
@@ -63,6 +79,8 @@ capabilityOf = function(decl, name, spec, api, declared, uid)
 		"service": serviceOf(decl),
 		"endpoint": name,
 		"fact": spec.fact,
+		"about": option(spec, "about", null),
+		"from": option(spec, "from", {}),
 		"request": option(spec, "request", {}),
 		"timeout": option(spec, "timeout", defaultTimeout),
 		"decl": decl,
@@ -97,35 +115,81 @@ end function
 forGoal = function(registry, triples, triple)
 	"The capability that says it can answer this fact, or null when none does."
 	for capability in registry
-		if fits(capability.fact, triples, triple) then return capability
+		if fits(capability, triples, triple) then return capability
 	end for
 	return null
 end function
 
 
-fits = function(pattern, triples, triple)
+fits = function(capability, triples, triple)
 	"Says whether a declared fact's shape is this fact's: a variable part only while the fact is unknown there, a literal part only itself."
+	pattern = capability.fact
 	if not (pattern isa list) then return false
 	if pattern.len < 3 then return false
 	if pattern[0] != triple.predicate then return false
-	return answers(triples, pattern[1], triple.subject) and
-		answers(triples, pattern[2], triple.object)
+	return answers(triples, pattern[1], triple.subject, capability.about) and
+		answers(triples, pattern[2], triple.object, null)
 end function
 
 
-answers = function(triples, part, term)
-	"One declared part against one of a fact's terms: a variable part is a term still unknown, which the reply fills; a literal part only itself."
-	if part isa string and part[:1] == "?" then return triples.isVar(term)
+answers = function(triples, part, term, about)
+	"One declared part against one of a fact's terms: a variable part is a term still unknown, which the reply fills, or the part the declaration reads its reply onto; a literal part only itself."
+	if part isa string and part[:1] == "?" then
+		if triples.isVar(term) then return true
+		return about != null and about == part
+	end if
 	return triples.termText(term) == part
 end function
 
 
-answer = function(capability, triples)
+requestFor = function(capability, triples, facts, subject)
+	"The request to send, its fields filled from facts the session holds about the subject; null when one of them has no fact to fill it."
+	request = capability.request + {}
+	for name in capability.from.indexes
+		wanted = capability.from[name]
+		if not (wanted isa list) then wanted = [wanted]
+		value = null
+		for predicate in wanted
+			value = heldTerm(triples, facts, subject, predicate)
+			if value != null then break
+		end for
+		if value == null then return null
+		request[name] = value
+	end for
+	return request
+end function
+
+
+heldTerm = function(triples, facts, subject, predicate)
+	"The first value a held fact gives this subject under this predicate, or null when it gives none."
+	for fact in facts
+		if fact.predicate != predicate then continue
+		if triples.termText(fact.subject) != triples.termText(subject) then continue
+		if triples.isVar(fact.object) then continue
+		return fact.object
+	end for
+	return null
+end function
+
+
+requestText = function(request)
+	"One request's fields as text, so the session's one-attempt memory tells two places apart."
+	names = request.indexes
+	names.sort
+	parts = []
+	for name in names
+		parts.push name + "=" + str(request[name])
+	end for
+	return parts.join("&")
+end function
+
+
+answer = function(capability, triples, request=null, subject=null)
 	"One provider's answer, as the facts its endpoint maps: ok with them, or ok 0 and the reason there are none."
 	declared = capability.declared
 	api = capability.api
-	result = declared.fetch(api, capability.decl, capability.endpoint,
-		capability.request, capability.timeout)
+	if request == null then request = capability.request
+	result = declared.fetch(api, capability.decl, capability.endpoint, request, capability.timeout)
 	if not result.ok then
 		return {"ok": 0, "facts": [], "error": result.error}
 	end if
@@ -133,9 +197,19 @@ answer = function(capability, triples)
 		return {"ok": 0, "facts": [], "error": "the service did not answer with JSON"}
 	end if
 	reading = declared.read(triples, capability.uid, capability.decl, capability.endpoint,
-		result.json, capability.request)
+		result.json, request)
 	if not reading.ok then
 		return {"ok": 0, "facts": [], "error": reading.error}
 	end if
-	return {"ok": 1, "facts": reading.facts, "error": null}
+	// A declaration that says which part its reply is about reads the reply onto the place the
+	// question named, so the facts prove that question rather than one about an identity the
+	// service made up.
+	if capability.about == null or subject == null then
+		return {"ok": 1, "facts": reading.facts, "error": null}
+	end if
+	facts = []
+	for fact in reading.facts
+		facts.push triples.SpoTriple.make(subject, fact.predicate, fact.object, fact.at, fact.confidence)
+	end for
+	return {"ok": 1, "facts": facts, "error": null}
 end function

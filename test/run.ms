@@ -307,7 +307,7 @@ declaredCases.run(declaredModule, declaredMap, apiClient, triples, uidModule, ha
 geocoderCases.run(declaredModule, geocodeMap, apiClient, triples, uidModule, schemaLoader, harness)
 openmeteoCases.run(declaredModule, openmeteoMap, apiClient, triples, uidModule, schemaLoader, harness)
 providersCases.run(providersModule, declaredModule, apiClient, triples, uidModule, declaredMap,
-	sessionModule, rules, harness)
+	geocodeMap, sessionModule, rules, harness)
 notebookCases.run(notebookModule, engineModule, sessionModule, triples, rules, cliLibrary, optionsModule, harness)
 
 harness.summary()
