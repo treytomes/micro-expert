@@ -16,7 +16,7 @@
 //
 //   session = {"triples": triples, "Rule": Rule, "facts": facts, "rules": rules,
 //       "depth": 8, "verbose": 0, "nlp": 0, "style": style, "schema": schema,
-//       "types": types, "paths": paths, "knowledge": knowledge,
+//       "types": types, "paths": paths, "knowledge": knowledge, "providers": registry,
 //       "io": {"read": reader, "say": writer}, "askWhy": reason}
 //
 // verbose prints the proof tree before each answer, and nlp says an answer - and the tree
@@ -36,6 +36,12 @@
 //
 // io is how a session talks, and the reason its checks need no terminal: read takes
 // the prompt and returns a line (null ends the session), say takes a finished line.
+//
+// providers is the registry src/providers.ms builds from the service maps, or null for a
+// session that asks nothing of the network: a notebook's. A question needing a fact a service
+// declares it can answer asks that service before it asks the reader, and a service that fails
+// says so once and leaves the fact to the prompt, which is what a session with no registry
+// does for every fact.
 //
 // askWhy is set while a question waits for a value: what a value there stands for, and the
 // question the fact is needed for when it is a rule's. A host that reads at a terminal has
@@ -66,6 +72,10 @@ import "repl/repl"
 // mermaid.ms draws what the session holds and holds no class of its own, so importing it here
 // is safe in the way a bare import is not for triples.ms: there is no class identity to agree on.
 import "mermaid"
+// providers.ms holds no class of its own either, so it is imported for the same reason: the
+// registry a session is handed is read through it, and there is nothing for two copies to
+// disagree about.
+import "providers"
 
 repl = globals["repl/repl"]
 
@@ -664,6 +674,11 @@ askGoal = function(session, goal)
 		// asked about are the ones the report showed - with the values given so far in
 		// them, and without the facts the session can already prove, which need nothing.
 		options = session.triples.needsFor(goal, session.facts, session.rules, session.depth)
+		// A fact a declared service can answer is asked of the service before it is asked of
+		// the reader: the report and the prompt are for what no service supplies. What the
+		// service says is added as facts, so the question comes round again and is answered
+		// the way any other fact answers it.
+		if provideMissing(session, options) then continue
 		shown = withoutHeld(session, withGiven(session, options, goal, given))
 		report = session.triples.reportLines(shown, session.style)
 		// The report changes as facts are added and as values are given, so it is
@@ -756,6 +771,52 @@ end function
 proved = function(session, triple)
 	"Says whether the session can already prove this fact."
 	return session.triples.proveGoals(triple, session.facts, session.rules, session.depth).len > 0
+end function
+
+// ── What a service can answer ───────────────────────────────────────────────
+// A question the facts and rules cannot answer may still be one a service can: ipwho.is's lookup
+// declares that it answers has-location(session, ?place), so a question needing that fact asks
+// the service rather than the reader. The registry is src/providers.ms's, built from the service
+// maps at startup, and a session given none - a notebook's - asks nothing of the network.
+//
+// A service is asked once, and what it answered is kept whether it answered or failed: a question
+// that comes round again, or a second question needing the same fact, reads the first attempt
+// rather than making the same request again. A failure is a warning and nothing more - the fact
+// falls through to the prompt, which is where a session with no registry would have started.
+
+provideMissing = function(session, options)
+	"Lets a declared service answer the first missing fact one can supply, adding what it says; says whether the session now holds more than it did."
+	if not session.hasIndex("providers") then return false
+	if session.providers == null then return false
+	if not session.hasIndex("providerCalls") then session.providerCalls = {}
+	for option in options
+		for need in option.needs
+			triple = need.triple
+			// A fact the session can already prove needs no service, the way withoutHeld drops
+			// it from the report.
+			if not session.triples.hasUnknowns(triple) and proved(session, triple) then continue
+			capability = providers.forGoal(session.providers, session.triples, triple)
+			if capability == null then continue
+			key = capability.service + " " + capability.endpoint
+			if session.providerCalls.hasIndex(key) then continue
+			session.providerCalls[key] = 1
+			answered = providers.answer(capability, session.triples)
+			if not answered.ok then
+				repl.say(session, "warning", "  " + capability.service + " could not answer " +
+					triple.text + ": " + answered.error)
+				continue
+			end if
+			// The facts go in the way a typed one does, so each is held against the schema and
+			// none is stored twice; /undo takes them back one at a time, as it does any add.
+			added = 0
+			for fact in answered.facts
+				if alreadyKnown(session, fact) then continue
+				if addFact(session, fact) then added = added + 1
+			end for
+			if added > 0 then return true
+		end for
+	end for
+	return false
 end function
 
 nameSet = function(session, triple)

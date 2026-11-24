@@ -17,14 +17,16 @@ import "session"
 import "rule"
 import "engine"
 import "options"
-// The API layer, the declared writer and the location module are here for --where: the option
-// asks ipwho.is where this session is, and location.ms turns that answer into facts about the
-// session subject through src/spike/ipwhois_map.ms.
+// The API layer, the declared writer and the three service maps are here for the provider
+// registry: src/providers.ms reads what each map's endpoints declare they can answer, so a
+// question needing a fact one of them supplies asks that service rather than the reader.
 import "api/client"
 import "spike/declared"
 import "spike/ipwhois_map"
+import "spike/geocode_map"
+import "spike/openmeteo_map"
 import "uid"
-import "location"
+import "providers"
 
 // src/cli and src/logging are submodules, so their modules live at <folder>/<file>:
 // import names the resulting map after the path it was given, so each is aliased back
@@ -150,15 +152,16 @@ if engineSession isa error then
 	finish 1
 end if
 
-// ── Where the session is ─────────────────────────────────────────────────────
-// A run asks ipwho.is where this session reaches the network from and adds the place's facts
-// under the session subject, so the prompt answers has-location(session, ?p) and the domain's
-// is-a rule types the place. A machine with no network still gets a session: the lookup's failure
-// is a warning, and the facts are simply not there.
+// ── The services a question may ask ──────────────────────────────────────────
+// The maps in src/spike/ declare three services, and an endpoint says in its own "provides"
+// block which fact it can answer: ipwho.is's lookup answers has-location(session, ?place), so
+// the prompt's has-location(session, ?p) asks the service when it needs to and the domain's is-a
+// rule types the place it names. Nothing is asked at startup, so a run that never asks where it
+// is never reaches the network, and a lookup that fails is a warning rather than a lost session.
 
-engine.includePlace(engineSession, globals["location"], globals["uid"],
-	globals["api/client"], globals["spike/declared"],
-	globals["spike/ipwhois_map"].build(), log)
+engineSession.providers = providers.registry(globals["api/client"], globals["spike/declared"],
+	globals["uid"], [globals["spike/ipwhois_map"].build(),
+		globals["spike/geocode_map"].build(), globals["spike/openmeteo_map"].build()])
 
 // 'known', not 'fact': a top-level loop variable is a global here, so naming it
 // fact would overwrite the fact() shorthand with a triple as soon as the loop ran.

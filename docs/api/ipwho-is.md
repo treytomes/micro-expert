@@ -166,9 +166,10 @@ coordinates are numbers here, where the geocoder's reply writes its two as text:
 `has-latitude(way/5013364, "48.8582599")` does not, and the schema line says so by refusing the
 geocoder's spelling of a coordinate.
 
-Nothing writes these lines to a file on its own: `src/where.ms` prints them, and a run loads them
-into the session at startup, where `/save-facts` writes them with the rest of what the session
-holds. A run that loads them again finds the saved ones already there and adds nothing twice.
+Nothing writes these lines to a file on its own: `src/where.ms` prints them, and a session holds
+them once a question has asked for them, where `/save-facts` writes them with the rest of what the
+session holds. A run that loads them again finds the saved ones already there and adds nothing
+twice.
 
 ## Endpoints
 
@@ -208,13 +209,17 @@ where = location.sessionFacts(globals["triples"], globals["uid"], api, declared,
 where.facts[0].text               has-location(session, place-f1d6b283a52a28dc)
 ```
 
-The session at the prompt takes them by the same route: every run calls `engine.includePlace`,
-which calls `location.sessionFacts`, before the first question, so `? has-location(session, ?p)`
-answers and the domain's `is-a` rule
-types the place, with nothing pasted into a file. A lookup that fails is a warning rather than a
-failed run: the session starts without the place's facts. The startup call asks for ten seconds
-rather than the client's default minute, since it stands between a run and its first question;
-`declared.fetch` takes that deadline as its last argument and gives it to the transport.
+The session at the prompt takes them the same way, but only when a question needs them: the
+lookup's endpoint declares
+`"provides": [{"fact": ["has-location", "session", "?place"], "request": {}}]`, and
+`src/providers.ms` collects that declaration into the registry `main.ms` gives the session. A
+question needing `has-location(session, ?p)` - the query itself, or a rule's condition - asks the
+service, adds the facts above, and answers, so the domain's `is-a` rule types the place with
+nothing pasted into a file. A lookup that fails is a warning and the fact falls through to the
+prompt, which asks for it as it asks for any other. Nothing is asked at startup, so a run that
+never asks where it is never reaches the network. The request asks for ten seconds rather than
+the client's default minute, since it stands between a question and its answer; `declared.fetch`
+takes that deadline as its last argument and gives it to the transport.
 
 A host doing the lookup itself reads the same map by hand - `declared.fetch(api, decl, "lookup",
 {"fields": ["city", "country"]})` - and finds the request at `result.url` and the service's own

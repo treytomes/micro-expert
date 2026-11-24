@@ -116,6 +116,10 @@ run = function(notebook, engine, sessionModule, triples, rules, cli, options, h)
 
 	first = startSession()
 	h.check("a notebook's session is the domain's", not (first isa error))
+	// engine.build answers no registry, and notebook.ms never gives it one, so a cell that asks
+	// where the session is prompts rather than reaching the network.
+	h.check("a notebook's session asks no service",
+		not (first isa error) and first.providers == null)
 
 	// ── One cell, one marked answer ─────────────────────────────────────────
 

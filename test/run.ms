@@ -64,6 +64,8 @@ import "../src/spike/declared"
 import "../src/spike/ipwhois_map"
 import "../src/spike/geocode_map"
 import "../src/spike/openmeteo_map"
+// The registry the service maps declare their capabilities in.
+import "../src/providers"
 
 import "harness"
 import "display"
@@ -88,6 +90,7 @@ import "location"
 import "declared"
 import "geocoder"
 import "openmeteo"
+import "providers"
 import "notebook"
 
 // shellArgs[0] is this script, so the options start at index 1.
@@ -169,6 +172,10 @@ geocoderCases = globals["geocoder"]
 // `openmeteo` is this suite's case module for it.
 openmeteoMap = globals["../src/spike/openmeteo_map"]
 openmeteoCases = globals["openmeteo"]
+// src/providers.ms is the registry of what those maps say they can answer; `providers` is this
+// suite's case module for it.
+providersModule = globals["../src/providers"]
+providersCases = globals["providers"]
 
 // The library and the session module, both loaded by the block above.
 replLibrary = globals["repl/repl"]
@@ -236,6 +243,11 @@ if openmeteoMap == null or openmeteoMap.hasIndex("build") == 0 then
 	exit 1
 end if
 
+if providersModule == null or providersModule.hasIndex("registry") == 0 then
+	print "error: could not import ../src/providers"
+	exit 1
+end if
+
 if engineModule == null or engineModule.hasIndex("build") == 0 then
 	print "error: could not import ../src/engine"
 	exit 1
@@ -294,6 +306,8 @@ locationCases.run(locationModule, uidModule, triples, apiClient, declaredModule,
 declaredCases.run(declaredModule, declaredMap, apiClient, triples, uidModule, harness)
 geocoderCases.run(declaredModule, geocodeMap, apiClient, triples, uidModule, schemaLoader, harness)
 openmeteoCases.run(declaredModule, openmeteoMap, apiClient, triples, uidModule, schemaLoader, harness)
+providersCases.run(providersModule, declaredModule, apiClient, triples, uidModule, declaredMap,
+	sessionModule, rules, harness)
 notebookCases.run(notebookModule, engineModule, sessionModule, triples, rules, cliLibrary, optionsModule, harness)
 
 harness.summary()

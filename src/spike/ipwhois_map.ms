@@ -24,6 +24,13 @@ build = function
 					{"name": "fields", "type": "csv",
 						"doc": "Only these fields, comma-separated."},
 				],
+				// What this endpoint can answer on its own: a question needing this fact asks the
+				// service rather than the reader. src/providers.ms reads the block, and the place
+				// it names is the reading's own subject, so the pattern says which fact the
+				// answer settles rather than what the reply holds.
+				"provides": [
+					{"fact": ["has-location", "session", "?place"], "request": {}},
+				],
 				"reply": {
 					// A refusal is a 200 with success false, so it is read before any fact is.
 					"refuse": {"when": "success", "is": false, "message": "message"},

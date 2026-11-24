@@ -6,7 +6,7 @@
 //   import "engine"
 //
 //   session = engine.build(triples, Rule, options, style)
-//   engine.includePlace(session, location, uid, client, declared, decl, log)
+//   session.providers = providers.registry(api, declared, uid, maps)
 //   replSession.run(session)
 //
 // build reads the domain's three files and answers the session they make, or the error
@@ -18,11 +18,10 @@
 // input and print, notebook.ms gives it a notebook's writer - so it is set on the session
 // once build has answered.
 //
-// includePlace stands apart because it is a network lookup with a wait: a run at the prompt
-// says where it is and holds the place's facts, while a notebook starts from the domain's
-// files with no request at all. It is handed the pieces that lookup reads - the location
-// module, the id generator, the client, the declared writer and ipwho.is's map - so this
-// module stays clear of the API layer and of the bundled libraries behind it.
+// providers is the one field a run fills in after build: the services a question may ask for a
+// fact it needs, which main.ms builds from the service maps with src/providers.ms. build answers
+// null, so a session nobody gave a registry - a notebook's - starts from the domain's files and
+// asks nothing of the network, and this module stays clear of the API layer either way.
 
 import "domain"
 import "facts"
@@ -71,26 +70,6 @@ build = function(triples, Rule, options, style)
 		"types": types,
 		"paths": paths,
 		"knowledge": knowledge,
+		"providers": null,
 	}
-end function
-
-includePlace = function(session, location, uid, client, declared, decl, log=null)
-	"Adds the place the lookup answers with, or says through log why it is not there."
-	here = location.sessionFacts(session.triples, uid, client, declared, decl)
-	if not here.ok then
-		if log != null then log.warning "{Warning}", {"Warning": here.error}
-		return here
-	end if
-	// A domain that already holds the place's facts is not given them twice.
-	held = {}
-	for known in session.facts
-		held[known.text] = 1
-	end for
-	for placeFact in here.facts
-		if not held.hasIndex(placeFact.text) then
-			session.facts.push(placeFact)
-			held[placeFact.text] = 1
-		end if
-	end for
-	return here
 end function

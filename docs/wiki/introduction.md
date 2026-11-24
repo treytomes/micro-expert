@@ -176,9 +176,10 @@ Type a fact, a question or a rule as 'head => conditions', or a value to see how
 ? /exit
 ```
 
-Before the first question the run asks ipwho.is where the session is and adds that place's facts
-under the `session` subject, so `has-location(session, ?p)` is already there. With no network it
-logs a warning within seconds and starts without them.
+When a question needs a fact a service declares it can answer, the session asks that service:
+ipwho.is's lookup answers `has-location(session, ?p)`, so asking where the session is adds that
+place's facts under the `session` subject. With no network the lookup is a warning and the
+question falls through to the prompt, which asks for the fact as it asks for any other.
 
 Every option:
 
@@ -204,7 +205,7 @@ The suite needs the same interpreter your `.env` points at:
 
 ```text
 "%MINISCRIPT_EXE_PATH%" test\run.ms
-1152 passed, 0 failed
+1061 passed, 0 failed
 ```
 
 On Linux, `"$MINISCRIPT_EXE_PATH"` — but a plain shell does not read `.env`, so export it or paste
