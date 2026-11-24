@@ -8,6 +8,7 @@
 //   spo = triples.SpoTriple.make("trey", "avoids", "gluten")
 //   print spo.text                          // avoids(trey, gluten)
 //   print triples.SpoTriple.parse("avoids(trey, gluten)").text   // reads back
+//   print triples.SpoTriple.parse("won-prize(bill, sprint) @ 2002-04-05 ~ 80%").text
 //   print triples.SpoTriple.parse("trey | avoids | gluten").text // same triple
 //   print triples.SpoTriple.make(triples.var("x"), "child", triples.var("y")).text
 //   // child(?x, ?y)
@@ -350,9 +351,16 @@ spelledNumber = function(text)
 end function
 
 SpoTriple.text = function
-	"Formats the triple for display as 'predicate(subject, object)'; the annotations a fact carries are written beside it, not in it."
-	return termText(self.predicate) + "(" + termText(self.subject) + ", " +
+	"Formats the fact as the line that reads back as itself: 'predicate(subject, object)', then the annotations it carries."
+	// The annotations are part of the line because they are part of the fact: two readings
+	// that differ only in when they hold are two facts, and a fact is known by its text.
+	// The moment comes first and the confidence second, so a fact reads one way whatever
+	// order the two were written in; a fact that says nothing about either stays bare.
+	line = termText(self.predicate) + "(" + termText(self.subject) + ", " +
 		termText(self.object) + ")"
+	if self.at != null then line = line + " @ " + self.at
+	if self.confidence != 100 then line = line + " ~ " + str(self.confidence) + "%"
+	return line
 end function
 
 SpoTriple.parts = function
@@ -361,12 +369,23 @@ SpoTriple.parts = function
 end function
 
 SpoTriple.sentence = function
-	"Formats the triple as a sentence, 'oliver has uncle zed': the predicate's dashes read as spaces."
+	"Formats the fact as a sentence, 'oliver has uncle zed': the predicate's dashes read as spaces, and the annotations follow in words."
 	// A variable predicate is not a name, so the triple keeps the fact form that shows
 	// the variable itself rather than inventing a word for it.
 	if not (self.predicate isa string) then return self.text
-	return termText(self.subject) + " " + self.predicate.split("-").join(" ") + " " +
+	said = termText(self.subject) + " " + self.predicate.split("-").join(" ") + " " +
 		termText(self.object)
+	// The annotation is part of the fact, so the sentence says it too: two readings of one value
+	// at different hours would otherwise be the same sentence twice.
+	if self.at != null then
+		if self.at[:1] == "[" then
+			said = said + " during " + self.at
+		else
+			said = said + " at " + self.at
+		end if
+	end if
+	if self.confidence != 100 then said = said + ", " + str(self.confidence) + "% confident"
+	return said
 end function
 
 // ── Predicate names ──────────────────────────────────────────────────────────
@@ -474,13 +493,21 @@ resolveBindings = function(binds)
 end function
 
 substitute = function(term, binds)
-	"Applies bindings: a new triple with resolved fields, or the resolved term."
+	"Applies bindings: a new triple with resolved fields and the annotations it carries, or the resolved term."
 	if binds == null then return term
 	if term isa SpoTriple then
 		return SpoTriple.make(deref(term.subject, binds), deref(term.predicate, binds),
-			deref(term.object, binds))
+			deref(term.object, binds), term.at, term.confidence)
 	end if
 	return deref(term, binds)
+end function
+
+answerTriple = function(goal, binds, at=null, confidence=100)
+	"One answer's triple: the goal with its bindings applied, carrying the annotations of the fact it was proved from."
+	settled = substitute(goal, binds)
+	if not (settled isa SpoTriple) then return settled
+	if at == null and confidence == 100 then return settled
+	return SpoTriple.make(settled.subject, settled.predicate, settled.object, at, confidence)
 end function
 
 // ── Constraints ──────────────────────────────────────────────────────────────
@@ -881,7 +908,8 @@ proveGoals = function(goal, facts, rules, depth, binds=null, open=null, index=nu
 	// A fact is a derivation on its own; a rule is one derivation per way its body
 	// proves, so both are collected from their matches and merged the same way.
 	for matched in matchingFacts(goal, facts, binds, index)
-		mergeAnswer(results, goal, matched, {"rule": null, "conditions": []})
+		mergeAnswer(results, goal, matched.binds, {"rule": null, "conditions": []},
+			matched.fact.at, matched.fact.confidence)
 	end for
 	if depth <= 0 then return results.list
 	for candidate in matchingRules(goal, rules, binds)
@@ -984,13 +1012,13 @@ candidateFacts = function(goal, facts, binds, index)
 end function
 
 matchingFacts = function(goal, facts, binds, index=null)
-	"The bindings of every fact that meets the goal, in order."
+	"The bindings and the fact of every fact that meets the goal, in order: the annotations a fact carries are not in the bindings, so the fact comes back with them."
 	matches = []
 	for fact in candidateFacts(goal, facts, binds, index)
 		if not predicatesMeet(goal, fact, binds) then continue
 		if not fieldsMeet(goal, fact, binds) then continue
 		matched = unify(goal, fact, binds)
-		if matched != null then matches.push(matched)
+		if matched != null then matches.push({"binds": matched, "fact": fact})
 	end for
 	return matches
 end function
@@ -1051,11 +1079,14 @@ proveConditions = function(conditions, facts, rules, depth, binds, open=null, in
 	return results
 end function
 
-mergeAnswer = function(results, goal, binds, reason)
-	"One entry per answer, holding every way that answer was proved."
-	key = substitute(goal, binds).text
+mergeAnswer = function(results, goal, binds, reason, at=null, confidence=100)
+	"One entry per answer, holding every way that answer was proved; the annotations are the fact's, since the goal is only a pattern."
+	// The key is the whole line, so two readings of the same value at different hours are two
+	// answers rather than one with two derivations.
+	key = answerTriple(goal, binds, at, confidence).text
 	if results.byText.hasIndex(key) == 0 then
-		results.byText[key] = {"goal": goal, "binds": binds, "reasons": []}
+		results.byText[key] = {"goal": goal, "binds": binds, "at": at,
+			"confidence": confidence, "reasons": []}
 		results.list.push(results.byText[key])
 	end if
 	results.byText[key].reasons.push(reason)
@@ -1091,14 +1122,16 @@ end function
 proofLines = function(answer, indent="", nlp=0)
 	"Describes every derivation of an answer, with the conditions behind each, said as sentences when nlp asks for them."
 	lines = []
-	appendDerivations(answer.goal, answer.binds, answer.reasons, indent, lines, nlp)
+	appendDerivations(answer.goal, answer.binds, answer.reasons, indent, lines, nlp,
+		answer.at, answer.confidence)
 	return lines
 end function
 
-appendDerivations = function(goal, binds, reasons, indent, lines, nlp=0)
+appendDerivations = function(goal, binds, reasons, indent, lines, nlp=0, at=null, confidence=100)
 	"Appends each derivation's line, then the block behind each of its conditions."
 	for reason in reasons
-		lines.push(indent + speak(substitute(goal, binds), nlp) + "  => " + reasonText(reason, nlp))
+		lines.push(indent + speak(answerTriple(goal, binds, at, confidence), nlp) + "  => " +
+			reasonText(reason, nlp))
 		appendConditions(reason.conditions, indent + "  ", lines, nlp)
 	end for
 end function
@@ -1106,7 +1139,8 @@ end function
 appendConditions = function(conditions, indent, lines, nlp=0)
 	"Appends the block behind each proved condition, in order."
 	for condition in conditions
-		appendDerivations(condition.goal, condition.binds, condition.reasons, indent, lines, nlp)
+		appendDerivations(condition.goal, condition.binds, condition.reasons, indent, lines, nlp,
+			condition.at, condition.confidence)
 	end for
 end function
 

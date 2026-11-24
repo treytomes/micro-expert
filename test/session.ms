@@ -151,12 +151,47 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	timed = annotated.session.facts[annotated.session.facts.len - 1]
 	h.check("a typed fact keeps the moment and confidence it was given",
 		timed.at == "1990-01-01" and timed.confidence == 80)
-	h.check("and is stored as the call it is, without them",
-		printed(annotated.answers.lines, "  added has-gender(zed, male)"))
+	h.check("and is stored as the line it is, annotations and all",
+		printed(annotated.answers.lines,
+			"  added has-gender(zed, male) @ 1990-01-01 ~ 80%"))
 	// The line a save writes is the file form of the same fact, so /save-facts keeps them.
 	savedTimed = knowledge.factsLines(annotated.session.facts)
 	h.check("the line /save-facts writes carries them back",
 		savedTimed[savedTimed.len - 1] == "has-gender(zed, male) @ 1990-01-01 ~ 80%")
+	// A fact is known by its whole line, annotations and all, so two readings that differ only
+	// in when they hold are two facts: the second hour is not taken for the first.
+	firstHour = "has-precipitation(berlin, 4.1) @ [2026-11-22 00:00, 2026-11-22 01:00] ~ 40%"
+	secondHour = "has-precipitation(berlin, 4.1) @ [2026-11-22 01:00, 2026-11-22 02:00] ~ 35%"
+	hours = startSession(family + [], [], [firstHour, secondHour])
+	h.check("two hours holding the same amount are two facts",
+		hours.session.facts.len == family.len + 2)
+	h.check("and each is added as its own line",
+		printed(hours.answers.lines, "  added " + firstHour) and
+			printed(hours.answers.lines, "  added " + secondHour))
+	// The same hour twice is one fact, whichever way round the annotations were written.
+	repeatedHour = startSession(family + [], [], [firstHour,
+		"has-precipitation(berlin, 4.1) ~ 40% @ [2026-11-22 00:00, 2026-11-22 01:00]"])
+	h.check("the same hour twice is already known",
+		repeatedHour.session.facts.len == family.len + 1 and
+			printed(repeatedHour.answers.lines, "  already known: " + firstHour))
+	// The answer carries the fact's annotation, so a question says which hour each one covers,
+	// in the fact form and in words alike: two hours are never the same line or sentence.
+	askedHours = startSession(family + [], [],
+		[firstHour, secondHour, "has-precipitation(berlin, ?amount)"])
+	saidHours = saying(family + [], [],
+		[firstHour, secondHour, "has-precipitation(berlin, ?amount)"])
+	h.check("a question answers both hours, each with its own annotation",
+		printed(askedHours.answers.lines, "  " + firstHour) and
+			printed(askedHours.answers.lines, "  " + secondHour) and
+			printed(saidHours.answers.lines,
+				"  berlin has precipitation 4.1 during [2026-11-22 00:00, 2026-11-22 01:00], 40% confident") and
+			printed(saidHours.answers.lines,
+				"  berlin has precipitation 4.1 during [2026-11-22 01:00, 2026-11-22 02:00], 35% confident"))
+	// /retract names the whole line, so it takes back one hour rather than both.
+	retractedHour = startSession(family + [], [], [firstHour, secondHour, "/retract " + firstHour])
+	h.check("retract takes back the hour its line names",
+		retractedHour.session.facts.len == family.len + 1 and
+			printed(retractedHour.answers.lines, "  retracted " + firstHour))
 	// A question is a search rather than a stored fact, and the search reads neither
 	// annotation, so a line that still holds a variable and carries one is refused: answering
 	// it would drop what the line says about when it holds and how sure it is.

@@ -43,7 +43,7 @@ that would close it, not the best thing.
 | **Text does not order.** `2026-11-22T00:00` and `2026-11-22T01:00` sort nowhere. | Chronology is impossible without the numeric instant, so a time rule needs `has-instant` and `timeformat=unixtime`. | Always write `has-instant` for a file that is meant to be reasoned over. |
 | **Matching is exact.** `52.52437` and `52.512604` are different numbers, `Paris` and `paris` are different places, `°C` and `celsius` are different words. | Nothing joins two sources on a near-match, so the two services' coordinates cannot meet. | Key on a name chosen once, never on a coordinate, and normalise text in the writer. |
 | **Negation is failure.** `not(p(...))` means "not provable", which is also "not said". | Absence can never be asserted, only unknown. | Assert the negatives worth knowing, or let the writer record them. |
-| **`unique(...)` is per subject, and refused on a derived predicate.** | It cannot say "one reading per variable per instant" except by the subject carrying the instant, and a rule's conclusion cannot be given a one-value rule at all. | The composite subject is the answer; nothing to close but the habit. |
+| **`unique(...)` is per subject, and refused on a derived predicate.** | It cannot say "one reading per variable per instant", and a rule's conclusion cannot be given a one-value rule at all. | A fact's `@` carries the instant, so two hours are two facts without a composite subject; `unique(...)` stays about the subject and predicate a fact names. |
 
 ## 4. What the programs do not do
 

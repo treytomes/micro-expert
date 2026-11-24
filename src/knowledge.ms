@@ -357,15 +357,10 @@ end function
 // Rule.text prints, which is the implied and(...) the file may have spelled out.
 
 factsLines = function(facts)
-	"One line per fact, in the facts-file form, with the annotations it carries."
+	"One line per fact, in the facts-file form: the fact's own text, annotations and all."
 	lines = []
 	for fact in facts
-		line = fact.text
-		// The moment first and the confidence second, so a file reads one way whatever order
-		// the two were written in; a fact that says nothing about either stays bare.
-		if fact.at != null then line = line + " @ " + fact.at
-		if fact.confidence != 100 then line = line + " ~ " + str(fact.confidence) + "%"
-		lines.push(line)
+		lines.push(fact.text)
 	end for
 	return lines
 end function

@@ -15,6 +15,15 @@ run = function(t, h)
 	h.check("display with variables", spo(v("x"), "child", v("y")).text == "child(?x, ?y)")
 	h.check("display with a variable predicate", spo("bill", v("p"), "susan").text == "?p(bill, susan)")
 
+	// The annotations are part of the line a fact renders as, so two facts that differ only in
+	// when they hold read as two lines and neither is taken for the other.
+	annotatedFact = t.SpoTriple.parse("won-prize(bill, sprint) ~ 80% @ 2002-04-05")
+	h.check("a fact renders with its annotations, as a line and as a sentence",
+		annotatedFact.text == "won-prize(bill, sprint) @ 2002-04-05 ~ 80%" and
+			annotatedFact.sentence == "bill won prize sprint at 2002-04-05, 80% confident")
+	h.check("and that line reads back as itself",
+		t.SpoTriple.parse(annotatedFact.text).text == annotatedFact.text)
+
 	// ── A sentence ──────────────────────────────────────────────────────────
 
 	// A predicate is named in sections joined by dashes, and the sentence is that name with
@@ -171,7 +180,7 @@ run = function(t, h)
 	// ── A fact's annotations ────────────────────────────────────────────────
 	// A typed line carries the two annotations a facts file does, through the one reader both
 	// doors use: '@' names the moment the fact holds at and '~' how confident we are. Both
-	// are optional, either may stand first, and neither is part of the fact's own form.
+	// are optional, either may stand first, and both are part of the line the fact renders as.
 
 	untimed = t.SpoTriple.parse("wakes-up(anna, early)")
 	h.check("a typed fact with no annotation is not time-bound and fully confident",
@@ -179,8 +188,8 @@ run = function(t, h)
 	timed = t.SpoTriple.parse("wakes-up(anna, early) @ 2019-04-05")
 	h.check("a typed fact reads the moment it holds at",
 		timed.at == "2019-04-05" and timed.confidence == 100)
-	h.check("the annotations stay out of the fact's own text",
-		timed.text == "wakes-up(anna, early)")
+	h.check("the annotations are part of the fact's own text",
+		timed.text == "wakes-up(anna, early) @ 2019-04-05")
 	sure = t.SpoTriple.parse("wakes-up(anna, early) ~ 80%")
 	h.check("a confidence reads on its own, leaving the fact untimed",
 		sure.confidence == 80 and sure.at == null)
@@ -206,7 +215,7 @@ run = function(t, h)
 	piped = t.SpoTriple.parse("anna | wakes-up | early @ 2019-04-05 ~ 60%")
 	h.check("the pipe form takes the annotations after its last field",
 		piped.at == "2019-04-05" and piped.confidence == 60 and
-			piped.text == "wakes-up(anna, early)")
+			piped.text == "wakes-up(anna, early) @ 2019-04-05 ~ 60%")
 	// A sign inside a quoted value is the value's, not an annotation's.
 	h.check("a quoted '@' is part of the value",
 		t.SpoTriple.parse("has-home-page(guid, " + inQuotes("http://a@b") + ")").at == null)

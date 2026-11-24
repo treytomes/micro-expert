@@ -705,7 +705,7 @@ showProofs = function(session, goal, proofs)
 		// are the spaces of the sentence it reads as. The report, /facts and the fact form the
 		// session prints without the flag stay as they are, since each of them is something to
 		// write back or read as data.
-		answer = session.triples.substitute(goal, proof.binds)
+		answer = session.triples.answerTriple(goal, proof.binds, proof.at, proof.confidence)
 		repl.say(session, "answer", "  " + session.triples.speak(answer, session.nlp))
 	end for
 end function

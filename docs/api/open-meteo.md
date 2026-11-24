@@ -153,18 +153,18 @@ it back and other data names the same place by it. It sits in a fact rather than
 only because a forecast reply never carries it.
 
 A reading then needs two things at once, the place and the instant, and the object of a fact holds
-neither: the object is the value. Both go in the subject, joined by `@`:
+neither: the object is the value. The subject stays the place, and the instant goes in the fact's
+`@` annotation as the hour the reading covers:
 
 ```prolog
-has-temperature-2m(berlin@2026-11-22T00:00, 4.1)
+has-temperature-2m(berlin, 4.1) @ [2026-11-22 00:00, 2026-11-22 01:00]
 ```
 
-`@`, `T` and `:` are ordinary characters in a text field, so the term is legal, and it has the
-property that matters most here: every variable read at one instant shares one subject, so a rule
-needs no second variable to say "the same hour". What it does not have is a way back. Nothing
-splits `berlin@2026-11-22T00:00` into its two halves, so anything that has to compare or join on one
-half - the same instant in another city, everything about one place - needs that half written as a
-fact of its own, as `has-instant` below.
+A fact is known by its whole line, annotations included, so two hours holding the same value are
+two facts and the annotation is what tells them apart. What the subject then lacks is a way to say
+"the same hour" on its own: the span is on the fact rather than in a term, so anything that has to
+compare or join on one half - the same instant in another city, everything about one place - needs
+that half written as a fact of its own, as `has-instant` below.
 
 The grid point is a fact about the answer rather than about the place, so it gets its own predicates
 and leaves `has-latitude` to the geocoder:
@@ -180,11 +180,11 @@ and leaves `has-latitude` to the geocoder:
 | `has-grid-latitude(?p, 52.512604)`, `has-grid-longitude(?p, 13.419517)` | the reply's `latitude`, `longitude` | `text, unique(number)` |
 | `has-elevation(?p, 38)` | the reply's `elevation` | `text, unique(number)` |
 | `has-timezone(?p, GMT)` | the reply's `timezone`, with `timezone=auto` | `text, unique(text)` |
-| `has-utc-offset(?p@instant, 3600)` | the reply's `utc_offset_seconds` | `text, unique(number)` |
+| `has-utc-offset(?p, 3600) @ 2026-11-22` | the reply's `utc_offset_seconds` | `text, number` |
 
-Only the last line needs the instant, and only when `timezone=auto` asks for local timestamps: the
-zone is a property of the place, and how far it is from UTC is a property of the place on that
-date, because the offset moves twice a year.
+Only the last line needs a date, and only when `timezone=auto` asks for local timestamps: the zone
+is a property of the place, and how far it is from UTC is a property of the place on that date,
+because the offset moves twice a year, so the date is on the fact's `@`.
 
 Five of those spellings are the geocoder's, not this service's - `has-name`, `has-latitude`,
 `has-longitude`, `has-country` and `has-country-code` - written here exactly as they are on its
@@ -220,10 +220,10 @@ heights or ask at which one a value was read.
 | `has-wave-height(?s, 0.3)` | marine `hourly.wave_height[i]` | `text, number` |
 | `has-temperature-2m-max(?s, 9.4)` | `daily.temperature_2m_max[i]` | `text, number` |
 | `has-sunrise(?s, 2026-11-22T07:41)` | `daily.sunrise[i]` | `text, text` |
-| `has-instant(?s, 1795305600)` | the index's `time`, with `timeformat=unixtime` | `text, unique(number)` |
+| `has-instant(?s, 1795305600)` | the index's `time`, with `timeformat=unixtime` | `text, number` |
 
-A daily variable takes a date for its instant rather than a clock time, `berlin@2026-11-22`, so a
-day and its first hour are separate subjects and an aggregate never collides with a reading.
+A daily variable takes a date for its instant rather than a clock time, `@ 2026-11-22`, so a day
+and its first hour are separate facts and an aggregate never collides with a reading.
 `sunrise` is a timestamp rather than a number - `2026-11-22T07:41` - which fits a `text` field and
 does not fit the schema's `time` type, whose one spelling is `07:41:00`.
 
@@ -255,12 +255,12 @@ has-grid-longitude(berlin, 13.419517)
 // The unit each variable was asked for.
 has-unit(temperature_2m, celsius)
 
-// One fact per number: the predicate is the variable, the subject is the place and the
-// instant, and the object is the value that series holds at that index.
-has-temperature-2m(berlin@2026-11-22T00:00, 4.1)
-has-temperature-2m(berlin@2026-11-22T01:00, 3.8)
-has-instant(berlin@2026-11-22T00:00, 1795305600)
-has-instant(berlin@2026-11-22T01:00, 1795309200)
+// One fact per number: the predicate is the variable, the subject is the place, '@' is the
+// hour the reading covers, and the object is the value that series holds at that index.
+has-temperature-2m(berlin, 4.1) @ [2026-11-22 00:00, 2026-11-22 01:00]
+has-temperature-2m(berlin, 3.8) @ [2026-11-22 01:00, 2026-11-22 02:00]
+has-instant(berlin, 1795305600) @ [2026-11-22 00:00, 2026-11-22 01:00]
+has-instant(berlin, 1795309200) @ [2026-11-22 01:00, 2026-11-22 02:00]
 ```
 
 and the three files of a domain take these schema lines, one per predicate, with both field types
@@ -280,11 +280,11 @@ has-grid-latitude(text, unique(number))
 has-grid-longitude(text, unique(number))
 has-elevation(text, unique(number))
 has-timezone(text, unique(text))
-has-utc-offset(text, unique(number))
+has-utc-offset(text, number)
 has-unit(text, unique(text))
 
-// The readings. Nothing here needs unique(...): one place at one instant is one subject,
-// so a second temperature for it is a fact about a different subject.
+// The readings. Nothing here needs unique(...): the hour is on each fact's '@', so two
+// hours of the same variable are two facts with different annotations.
 has-temperature-2m(text, number)
 has-relative-humidity-2m(text, number)
 has-precipitation(text, number)
@@ -294,7 +294,7 @@ has-pm10(text, number)
 has-wave-height(text, number)
 has-temperature-2m-max(text, number)
 has-sunrise(text, text)
-has-instant(text, unique(number))
+has-instant(text, number)
 
 // What the rules conclude. A derived predicate carries the value it derived from, because a
 // schema line types exactly two fields.
@@ -304,18 +304,20 @@ is-warmer-hour-than(text, text)
 is-earlier-than(text, text)
 ```
 
-Every line begins `text` because the subject is a place, or a place and an instant. `has-instant`
-is the one reading predicate that carries `unique(...)`, since a reading has one time; the rest are
-one value by construction, which is what the composite subject buys, and it is also why none of
-them can be written for a place rather than for one of its instants.
+Every line begins `text` because the subject is a place. None of the readings carries
+`unique(...)`: a place holds one value per hour, and the hour is the fact's `@` rather than part of
+the subject, so two hours of the same variable sit beside each other. What the subject no longer
+says is which hour a value belongs to, so a rule that has to compare two readings of one hour needs
+the instant as a fact of its own, `has-instant`.
 
 ### Rules the vocabulary supports
 
-The shared subject is the join: two variables read at one instant are two facts about one term, so
-a rule comparing them needs nothing else.
+The subject is the place, and it joins every reading of that place. The hour is on each fact's
+`@`, which a rule does not read, so two readings of one hour are joined only by a fact of their own
+(`has-instant`), not by a shared term.
 
 ```prolog
-// Both readings are of the same hour, because they are of the same subject.
+// Both readings are of the same place; the hour is not what joins them.
 is-warm-and-humid(?s, ?t) => and(has-temperature-2m(?s, ?t), greater-than(?t, 25), has-relative-humidity-2m(?s, ?h), greater-than(?h, 70))
 
 // A category, from a threshold the reply's number passes.
@@ -350,10 +352,10 @@ A fact is exactly three terms, and text in a field may hold no top-level comma, 
 parenthesis and no `//`. Weather data strains that harder than a geocoder result does:
 
 - **A reading has four parts** - place, variable, instant, value - and a fact holds three terms. The
-  compact shape above puts place and instant in the subject and the variable in the predicate,
-  which is one fact per number and makes every same-instant join free. It cannot join two places at
-  one instant, because the instant is buried in the subject beside the place. The way out is to
-  reify the reading and write its parts as facts of their own:
+  compact shape above puts the place in the subject, the variable in the predicate and the instant
+  in `@`, which is one fact per number. It cannot join two readings of one instant, or two places at
+  one instant: the annotation is not a term a rule can bind. The way out is to reify the reading
+  and write its parts as facts of their own:
 
   ```prolog
   is-reading-of(berlin@2026-11-22T00:00, berlin)

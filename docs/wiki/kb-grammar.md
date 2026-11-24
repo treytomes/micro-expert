@@ -289,6 +289,14 @@ works-at(tim, school) ~ 80% @ [2019-04-01 09:00:00, 2019-04-01 17:00:00]
 
 The last two lines are one fact written twice: the annotations may stand in either order.
 
+A fact is known by its whole line, annotations and all, so those two lines are one fact and
+`works-at(tim, school) @ 2002-04-05 ~ 80%` is another. Two facts that differ only in when they
+hold, or only in how sure we are, are two facts: a reading at 1 pm and a reading at 2 pm sit
+beside each other rather than one being taken for the other. An answer carries the annotation of
+the fact it came from, so a question about two hours says which hour each answer covers; with
+`--nlp` it says so in words as well - `berlin has precipitation 4.1 during [2026-11-22 00:00,
+2026-11-22 01:00], 40% confident` - rather than printing one sentence twice.
+
 ## Rules
 
 ```bnf
