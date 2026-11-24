@@ -237,7 +237,9 @@ location.generateLocationFacts(globals["triples"], globals["uid"], where)   the 
 The session at the prompt takes them by the same route: every run calls `location.sessionFacts`
 before the first question, so `? has-location(session, ?p)` answers and the domain's `is-a` rule
 types the place, with nothing pasted into a file. A lookup that fails is a warning rather than a
-failed run: the session starts without the place's facts.
+failed run: the session starts without the place's facts. The startup call asks for ten seconds
+rather than the client's default minute, since it stands between a run and its first question;
+`fetch` takes that deadline as its last argument and gives it to the transport.
 
 A program doing the lookup itself reads the same layer by hand - `ipwhois.fetch(api, "lookup",
 {"fields": "city,country"})` - and finds the shared `Place` at `result.reply.place`, the request

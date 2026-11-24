@@ -178,7 +178,7 @@ Type a fact, a question or a rule as 'head <- conditions', or a value to see how
 
 Before the first question the run asks ipwho.is where the session is and adds that place's facts
 under the `session` subject, so `has-location(session, ?p)` is already there. With no network it
-logs a warning and starts without them.
+logs a warning within seconds and starts without them.
 
 Every option:
 
@@ -204,7 +204,7 @@ The suite needs the same interpreter your `.env` points at:
 
 ```text
 "%MINISCRIPT_EXE_PATH%" test\run.ms
-1036 passed, 0 failed
+1040 passed, 0 failed
 ```
 
 On Linux, `"$MINISCRIPT_EXE_PATH"` — but a plain shell does not read `.env`, so export it or paste

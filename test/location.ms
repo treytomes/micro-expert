@@ -111,17 +111,27 @@ run = function(location, uid, triples, apiClient, ipwhois, h)
 			fake[name] = apiClient[name]
 		end for
 		fake.canned = json
+		// What the client was asked to wait, so a case can see the timeout reach it.
+		fake.seenTimeout = null
 		fake.get = function(url, timeout=null)
+			self.seenTimeout = timeout
 			return {"ok": 1, "status": 200, "body": "", "json": self.canned, "url": url, "error": null}
 		end function
 		return fake
 	end function
 
-	looked = location.sessionFacts(triples, uid, stubFor({"success": 1, "continent": "North America",
-		"country": "United States", "region": "Texas", "city": "Fort Worth",
-		"latitude": 32.7254134, "longitude": -97.3208492}), ipwhois)
+	answer = {"success": 1, "continent": "North America", "country": "United States",
+		"region": "Texas", "city": "Fort Worth", "latitude": 32.7254134, "longitude": -97.3208492}
+	client = stubFor(answer)
+	looked = location.sessionFacts(triples, uid, client, ipwhois)
 	h.check("a session's facts come from one lookup", looked.ok and looked.facts.len == 7 and
 		looked.facts[0].text == "has-location(session, place-f1d6b283a52a28dc)")
+	h.check("and the startup lookup waits seconds rather than the client's minute",
+		client.seenTimeout == location.startupTimeout and location.startupTimeout < 60)
+	// The short wait is the startup's own: a caller that names no timeout keeps the client's.
+	unhurried = stubFor(answer)
+	location.getCurrentLocation(unhurried, ipwhois)
+	h.check("while a lookup that names no timeout keeps the client's own", unhurried.seenTimeout == null)
 	refusedLookup = location.sessionFacts(triples, uid, stubFor({"success": 0, "message": "404 not found"}), ipwhois)
 	h.check("a refused lookup leaves the session without facts",
 		not refusedLookup.ok and refusedLookup.facts.len == 0 and refusedLookup.error != null)

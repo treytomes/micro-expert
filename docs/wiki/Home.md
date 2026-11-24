@@ -82,7 +82,7 @@ files in `data/` and the same engine answers questions about a different world.
 | `data/facts.kb` | The 54 facts, as text |
 | `data/rules.kb` | The sixteen rules, as text |
 | `data/schema.kb` | The field types, as text |
-| `test/` | The 1036 checks and their runner |
+| `test/` | The 1040 checks and their runner |
 | `docs/` | This wiki, the long-form articles, and the format references |
 | `vscode-knowledge/` | Syntax highlighting for `.kb` files |
 | `bootstrap.bat`, `bootstrap.sh` | Submodules, interpreter, `.env` |

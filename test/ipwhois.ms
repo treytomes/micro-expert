@@ -44,7 +44,10 @@ run = function(ipwhois, apiClient, h)
 		end for
 		fake.canned = json
 		fake.cannedError = errorMessage
+		// What the client was asked to wait, so a case can see the timeout reach it.
+		fake.seenTimeout = null
 		fake.get = function(url, timeout=null)
+			self.seenTimeout = timeout
 			if self.cannedError != null then
 				return {"ok": 0, "status": null, "body": "", "json": null, "url": url,
 					"error": self.cannedError}
@@ -153,6 +156,14 @@ run = function(ipwhois, apiClient, h)
 		full.ok and full.reply isa ipwhois.LocationReply)
 	h.check("with nothing to send, its url is the host's root", full.url == "https://ipwho.is/")
 	h.check("and its reply reads like the one read by hand", full.reply.label == answer.label)
+
+	// A caller with its own deadline hands it down; one that names none leaves the client's.
+	patient = stubFor(fortWorth)
+	ipwhois.fetch(patient, "lookup", {}, 3)
+	h.check("a lookup hands the client the timeout it was given", patient.seenTimeout == 3)
+	relaxed = stubFor(fortWorth)
+	ipwhois.fetch(relaxed, "lookup")
+	h.check("and leaves the client's own in place when none is named", relaxed.seenTimeout == null)
 
 	narrowRequest = ipwhois.fetch(stubFor({"success": 1, "city": "Fort Worth", "country": "United States"}),
 		"lookup", {"fields": "city,country"})

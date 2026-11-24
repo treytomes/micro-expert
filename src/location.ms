@@ -41,9 +41,15 @@
 // session the prompt reasons from already holds where it is.
 
 
-getCurrentLocation = function(api, ipwhois)
-	"Where this session is: ok with its names and coordinates, or ok 0 and error."
-	result = ipwhois.fetch(api, "lookup")
+// The seconds the startup lookup may take. The client's default minute is right for a program whose
+// job is the request; a run asks this before its first question, and should not wait that long on a
+// network that is not there.
+startupTimeout = 10
+
+
+getCurrentLocation = function(api, ipwhois, timeout=null)
+	"Where this session is: ok with its names and coordinates, or ok 0 and error; timeout is the seconds the lookup may take, the client's own when none is given."
+	result = ipwhois.fetch(api, "lookup", {}, timeout)
 	if not result.ok then
 		return {"ok": 0, "error": "could not find this session's location: " + result.error}
 	end if
@@ -115,7 +121,7 @@ end function
 
 sessionFacts = function(triples, uid, api, ipwhois)
 	"Where this session is, as the facts it starts with: ok with them, or ok 0 and the reason there are none."
-	here = getCurrentLocation(api, ipwhois)
+	here = getCurrentLocation(api, ipwhois, startupTimeout)
 	if not here.ok then return {"ok": 0, "facts": [], "error": here.error}
 	return {"ok": 1, "facts": generateLocationFacts(triples, uid, here), "error": null}
 end function

@@ -164,8 +164,8 @@ reply = function(api, json)
 end function
 
 
-fetch = function(api, endpointName, options={})
-	"One lookup at ipwho.is: the caller's own address, as the service reads it."
+fetch = function(api, endpointName, options={}, timeout=null)
+	"One lookup at ipwho.is: the caller's own address, as the service reads it; timeout is the seconds the request may take, the client's own when none is given."
 	spec = specFor(endpointName)
 	if spec == null then
 		return api.failure("Unknown endpoint " + api.quote(endpointName) + ".")
@@ -176,7 +176,7 @@ fetch = function(api, endpointName, options={})
 	end if
 
 	url = api.urlFor(base + spec.path, checked.params)
-	result = api.get(url)
+	result = api.get(url, timeout)
 	// The reply read as classes, so a program renders objects rather than fields.
 	result.reply = null
 	if result.ok then result.reply = reply(api, result.json)
