@@ -6,8 +6,17 @@
 // No request leaves the program: a client stand-in answers get with the canned Fort Worth reply,
 // the way test/location.ms and test/declared.ms do, and counts what it was asked.
 
-run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocodeMap, sessionModule, rules, h)
+run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocodeMap, sessionModule, rules,
+	engineModule, cliLibrary, optionsModule, h)
 	decl = ipwhoisMap.build()
+
+	// The arguments a run parses, so the session below is built the way a program builds its
+	// own rather than from a hand-made table of values.
+	parsed = function(arguments)
+		cmd = cliLibrary.newCommand("micro-expert-providers", "0.2.0", "the suite")
+		optionsModule.declare(cliLibrary, cmd)
+		return cliLibrary.parse(cmd, ["providers.ms"] + arguments)
+	end function
 
 	fortWorth = {"success": true, "continent": "North America", "country": "United States",
 		"region": "Texas", "city": "Fort Worth", "latitude": 32.7254134, "longitude": -97.3208492}
@@ -341,6 +350,35 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	changed = sessionModule.provideMissing(noCoords, triples.needsFor(needRoad, noCoords.facts, [], 8))
 	h.check("a place with no coordinates is never asked about",
 		unasked.calls == 0 and not changed)
+
+	// ── The shipped domain holds what a service answers ─────────────────────
+
+	// Every session above is handed no schema and no types, so a service's facts are held as
+	// they come. engine.build reads data/schema.kb, which is what a run holds them against:
+	// the search's has-latitude is a number there, so the coordinate is added through the same
+	// addFact a typed line goes through rather than refused, and the place learns it.
+	shipped = engineModule.build(triples, rules.Rule, parsed(["--domain", "data"]), null)
+	h.check("the shipped domain builds for a provider's answer", not (shipped isa error))
+	if not (shipped isa error) then
+		shippedSaid = []
+		shipped.providers = providers.registry(stubFor(searchReply), declared, uid, [geoDecl])
+		shipped.io = {"read": null, "say": function(line)
+			shippedSaid.push(line)
+		end function}
+		sessionModule.addFact(shipped, triples.SpoTriple.make(named, "has-city", "Fort Worth"))
+		changed = sessionModule.provideMissing(shipped,
+			triples.needsFor(needCoords, shipped.facts, [], 8))
+		heldLat = null
+		for fact in shipped.facts
+			if fact.predicate == "has-latitude" and triples.termText(fact.subject) == named then
+				heldLat = fact
+			end if
+		end for
+		h.check("data/schema.kb adds the latitude a geocoder answers",
+			changed and heldLat != null and heldLat.object == 32.7555)
+		h.check("and refuses none of the facts the answer carried",
+			not holds(shippedSaid, "refused") and not holds(shippedSaid, "could not answer"))
+	end if
 
 	// ── A session given no registry asks nothing ────────────────────────────
 
