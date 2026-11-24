@@ -58,7 +58,7 @@ build = function
 			"refuse": {"present": "error", "message": "error.message"},
 			"require": ["osm_type", "osm_id"],
 			"subject": {"name": "place", "from": ["osm_type", "osm_id"], "join": "/"},
-			// The first of these three that carries text, as Place.build reads them.
+			// The first of these three that carries text, as the label reads them.
 			"label": {"name": ["display_name", "name", "localname"], "also": []},
 			"coordinates": ["lat", "lon"],
 			"facts": placeFacts(withQuery),

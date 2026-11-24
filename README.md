@@ -606,7 +606,7 @@ explanations (23), the missing-fact report (34), recursion and cycle handling (1
 including the family rules (104), the session at the prompt (202), the notebook's cells (30),
 the notes example on the repl library (1), the command line (6), the domain (10), the Mermaid
 diagram (49), the id generator (21), the location module (23), the declared writer (29), the geocode mapping (22), the Open-Meteo mapping (22), and the API layer's argument split,
-parameter engine, both services' and ipwho.is's reply classes, and .env reader (203).
+parameter engine and .env reader (203).
 
 ## Repository layout
 

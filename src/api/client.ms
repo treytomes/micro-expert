@@ -1,19 +1,19 @@
-// client.ms — what the API programs share: one HTTP request path, one set of parameter checks,
-// the classes their replies come back as, and the cli library's declarations.
+// client.ms — what the API maps share: one HTTP request path, one set of parameter checks, and
+// the cli library's declarations.
 //
 //   1. Transport        query strings, curl, the HTTP status, JSON
 //   2. Parameters       names, types, ranges, required fields, one validator
-//   3. Replied objects  one object of a reply as the service sent it, and a place among them
-//   4. Arguments        the cli library's declarations, and the split into options and words
+//   3. Arguments        the cli library's declarations, and the split into options and words
 //
-// geocode.maps.co's three endpoints and Open-Meteo's twenty-three are maps in
-// src/spike/geocode_map.ms and src/spike/openmeteo_map.ms. Neither can import this file -
-// this interpreter discards the imports of an imported module - so a program imports both and
-// hands them this module's map, which they call through: api.validate, api.get. The endpoint
-// tables are still the whole surface of each service; validate passes a name a table does not
-// list through untouched, for the parts the services extend without notice.
+// geocode.maps.co's three endpoints, Open-Meteo's twenty-three and ipwho.is's one are maps in
+// src/spike/geocode_map.ms, src/spike/openmeteo_map.ms and src/spike/ipwhois_map.ms. A map
+// cannot import this file - this interpreter discards the imports of an imported module - so a
+// host imports both and hands the map this module's map, which it calls through: api.validate,
+// api.get. The endpoint tables are still the whole surface of each service; validate passes a
+// name a table does not list through untouched, for the parts the services extend without
+// notice.
 //
-// Both services answer with JSON by default, and every request returns the same map:
+// The services answer with JSON by default, and every request returns the same map:
 //
 //   {"ok": 1, "status": 200, "body": "...", "json": {...}, "url": "...", "error": null}
 //
@@ -381,224 +381,15 @@ validate = function(spec, options={})
 end function
 
 
-// ══ 3. Replied objects ══════════════════════════════════════════════════════════
-// Every service answers with objects - a result, a place, a flag, a clock - and each of them
-// is read the same way: a map exactly as the service sent it, with named fields asked of it.
-// That is Fields, and Place is a Fields that knows what it is called and where it is. The one
-// thing that differs between services is the field names, so building one takes them:
-// geocode.maps.co names a result display_name, Open-Meteo names it name and puts country after
-// it, ipwho.is has no name at all but a city, a region and a country.
-//
-// They live here, beside the transport, because one service module cannot import another: this
-// interpreter resolves an import against the entry script's folder, and an imported module's
-// `globals` is the entry's. A service is handed this map instead, and builds its results from
-// the classes on it, so all three services' places are one class.
-
-Fields = {}
+// ══ 3. Arguments ════════════════════════════════════════════════════════════════
+// The command line is the cli library's. What is left here is the seam a host needs: one
+// parameter surface from several tables, and the split between the options the library parses
+// and the bare words a host reads itself, such as a query or a place. The library still
+// generates --help and --version and names the mistake; validate still refuses a value the
+// table cannot use before a request is made.
 
 
-Fields.build = function(raw)
-	"One object of a reply, its fields kept exactly as the service sent them."
-	instance = new self
-	instance.raw = raw
-	return instance
-end function
-
-
-Fields.value = function(field)
-	"The field the reply carried, or null when it carried none."
-	if self.raw == null then return null
-	if not self.raw.hasIndex(field) then return null
-	return self.raw[field]
-end function
-
-
-Fields.text = function(field)
-	"The field when it is text with something in it, otherwise null."
-	value = self.value(field)
-	if not (value isa string) then return null
-	if value == "" then return null
-	return value
-end function
-
-
-Fields.number = function(field)
-	"The field when it is a number, otherwise null."
-	value = self.value(field)
-	if not (value isa number) then return null
-	return value
-end function
-
-
-Fields.names = function
-	"Every field it carries, in the order the service wrote them."
-	if self.raw == null then return []
-	return self.raw.indexes
-end function
-
-
-Fields.describe = function
-	"Every field it carries as one line each, a nested object's fields indented under it."
-	lines = []
-	for field in self.names
-		value = self.raw[field]
-		if value isa map then
-			lines.push field + ":"
-			for inner in value.indexes
-				lines.push "  " + inner + ": " + str(value[inner])
-			end for
-		else if value isa list then
-			lines.push field + ": " + value.join(", ")
-		else
-			lines.push field + ": " + str(value)
-		end if
-	end for
-	return lines
-end function
-
-
-Place = new Fields
-
-
-Place.build = function(raw, nameFields=["name"], alsoFields=[])
-	"A result of a reply, with the field names this service calls it by."
-	place = new Place
-	place.raw = raw
-	place.nameFields = nameFields
-	place.alsoFields = alsoFields
-	return place
-end function
-
-
-Place.label = function
-	"What it is known by: the first of its name fields with text, then the fields around it."
-	words = []
-	for field in self.nameFields
-		text = self.text(field)
-		if text != null then
-			words.push text
-			break
-		end if
-	end for
-	for field in self.alsoFields
-		text = self.text(field)
-		if text != null then words.push text
-	end for
-	return words.join(", ")
-end function
-
-
-// Three shapes say where an object is: lat and lon as the reply spelled them, latitude and
-// longitude as numbers, or a GeoJSON point as [longitude, latitude], which a lookup result may
-// carry instead of either.
-Place.coordinates = function
-	"Where it is, in whichever of those shapes the reply gave; empty when it gave none."
-	lat = self.value("lat")
-	lon = self.value("lon")
-	if lat != null and lon != null then return str(lat) + ", " + str(lon)
-	lat = self.number("latitude")
-	lon = self.number("longitude")
-	if lat != null and lon != null then return str(lat) + ", " + str(lon)
-	// A lookup result may carry no coordinates of its own, and a point as [longitude, latitude].
-	centroid = self.value("centroid")
-	if centroid isa map then
-		if centroid.hasIndex("coordinates") then
-			if centroid.coordinates isa list then
-				if centroid.coordinates.len >= 2 then
-					return str(centroid.coordinates[1]) + ", " + str(centroid.coordinates[0])
-				end if
-			end if
-		end if
-	end if
-	return ""
-end function
-
-
-Place.latitude = function
-	"The latitude itself, to send as a parameter; null when the reply gave none."
-	number = self.number("latitude")
-	if number != null then return number
-	return self.text("lat")
-end function
-
-
-Place.longitude = function
-	"The longitude itself, to send as a parameter, as latitude reads its own."
-	number = self.number("longitude")
-	if number != null then return number
-	return self.text("lon")
-end function
-
-
-// ══ 4. Arguments ════════════════════════════════════════════════════════════════
-// The command lines are the cli library's: a program declares its own switches, the
-// service's parameters are declared from its own table, and the library reads both,
-// generates --help and --version, and names the mistake. What is left here is the seam -
-// a table as cli declarations, and the split between the options the library parses and the
-// bare words a program reads itself, such as the endpoint to ask or the place to look for.
-//
-// A parameter is declared as the cli type that reads it best: a number as number, a list of
-// values as list so that a repeated --hourly collects them, and everything else - text,
-// dates, enumerations, booleans - as string, because the service's table knows what each one
-// takes and says so before the request is made. A boolean keeps its written forms: --name
-// alone means true, --name false says so, and --no-name means false.
-//
-// A parameter the table does not declare is refused by name rather than sent, which is what
-// a parser is for; one a service adds later becomes available by adding it to the table. Each
-// service's fetch still passes an unknown name through untouched, for callers that do not go
-// through a program's command line.
-
-
-// ── A table as declarations ──────────────────────────────────────────────────
-
-optionType = function(paramSpec)
-	"The cli type that reads this parameter: number, list, or string."
-	// nan is a value these take, and the number type would refuse it before the table does.
-	if paramSpec.hasIndex("allowNan") then return "string"
-	if paramSpec.type == "int" or paramSpec.type == "number" then return "number"
-	if paramSpec.type == "csv" or paramSpec.type == "coordinates" then return "list"
-	return "string"
-end function
-
-
-optionDescription = function(paramSpec, markRequired=1)
-	"The help text for a parameter: what it takes, then what the API says it is for."
-	note = ""
-	if paramSpec.type == "bool" then
-		note = "true or false"
-	else if paramSpec.type == "enum" then
-		note = paramSpec.values.join(", ")
-	end if
-	text = paramSpec.doc
-	if note != "" then text = text + " (" + note + ")"
-	if markRequired then
-		if paramSpec.hasIndex("required") then
-			if paramSpec.required then text = text + " Required."
-		end if
-	end if
-	return text
-end function
-
-
-addParameter = function(cli, cmd, paramSpec, markRequired=1)
-	"Declares one API parameter on a command the cli library made."
-	return cli.add(cmd, {
-		"name": paramSpec.name,
-		"aliases": ["--" + paramSpec.name.replace("_", "-")],
-		"type": optionType(paramSpec),
-		"description": optionDescription(paramSpec, markRequired),
-	})
-end function
-
-
-addParameters = function(cli, cmd, spec, markRequired=1)
-	"Declares every parameter an endpoint's table names, in the table's order."
-	for paramSpec in spec.params
-		addParameter(cli, cmd, paramSpec, markRequired)
-	end for
-	return cmd
-end function
-
+// ── One table from several ──────────────────────────────────────────────────
 
 unionSpec = function(specs)
 	"One parameter list holding every name the given tables name, once, in order."
@@ -613,8 +404,8 @@ end function
 
 
 // ── Options and words ──────────────────────────────────────────────────────
-// The library reads options and refuses anything else, while these programs also take
-// words: the endpoint to ask, the place to search for. The split happens before the library
+// The library reads options and refuses anything else, while a host may also take words: a
+// query, a place, an endpoint. The split happens before the library
 // sees the arguments, so only the sorting is here; the library still rejoins the arguments
 // the shell splits at a quote (normalizeArgs), answers which spelling means which option
 // (aliasTable), and is told apart from a word by the one test below.
