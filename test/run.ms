@@ -59,6 +59,8 @@ import "../src/api/geocode"
 import "../src/api/openmeteo"
 import "../src/api/ipwhois"
 import "../src/dotenv"
+import "../src/uid"
+import "../src/spike/session"
 
 import "harness"
 import "display"
@@ -81,6 +83,8 @@ import "replies"
 import "weather"
 import "ipwhois"
 import "dotenv"
+import "uid"
+import "location"
 
 // shellArgs[0] is this script, so the options start at index 1.
 wanted = {"json": 0, "filters": [], "files": []}
@@ -151,6 +155,13 @@ ipwhoisCases = globals["ipwhois"]
 // src/dotenv.ms puts the .env's settings into env; `dotenv` is this suite's case module.
 dotenvModule = globals["../src/dotenv"]
 dotenvCases = globals["dotenv"]
+// src/uid.ms generates the term an entity is named by; `uid` is this suite's case module for it.
+uidModule = globals["../src/uid"]
+uidCases = globals["uid"]
+// src/spike/session.ms turns a lookup into facts about the session; `location` is this suite's
+// case module for it, named away from the session module the cases must not be confused with.
+locationModule = globals["../src/spike/session"]
+locationCases = globals["location"]
 
 // The library and the session module, both loaded by the block above.
 replLibrary = globals["repl/repl"]
@@ -197,6 +208,14 @@ if ipwhoisModule == null or ipwhoisModule.hasIndex("reply") == 0 then
 end if
 if dotenvModule == null or dotenvModule.hasIndex("load") == 0 then
 	print "error: could not import ../src/dotenv"
+	exit 1
+end if
+if uidModule == null or uidModule.hasIndex("of") == 0 then
+	print "error: could not import ../src/uid"
+	exit 1
+end if
+if locationModule == null or locationModule.hasIndex("generateLocationFacts") == 0 then
+	print "error: could not import ../src/spike/session"
 	exit 1
 end if
 
@@ -247,5 +266,7 @@ replyCases.run(geocode, apiClient, harness)
 weatherCases.run(meteo, apiClient, harness)
 ipwhoisCases.run(ipwhoisModule, apiClient, harness)
 dotenvCases.run(dotenvModule, harness)
+uidCases.run(uidModule, triples, harness)
+locationCases.run(locationModule, uidModule, triples, harness)
 
 harness.summary()

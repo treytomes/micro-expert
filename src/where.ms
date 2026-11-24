@@ -18,11 +18,13 @@
 import "api/client"
 import "api/ipwhois"
 import "triples"
+import "uid"
 import "spike/session"
 
 api = globals["api/client"]
 ipwhois = globals["api/ipwhois"]
 triples = globals["triples"]
+uid = globals["uid"]
 session = globals["spike/session"]
 
 loc = session.getCurrentLocation(api, ipwhois)
@@ -32,6 +34,6 @@ if not loc.ok then
 end if
 
 // Each triple's text is one line of a `.kb` file, so the output reads back as the same facts.
-for fact in session.generateLocationFacts(triples, loc)
+for fact in session.generateLocationFacts(triples, uid, loc)
 	print fact.text
 end for

@@ -148,34 +148,45 @@ transport's own words, and `reply` is `null`.
 is in, and the place holds what the answer says about it.
 
 ```prolog
-has-location(session, fort-worth)
-has-continent(fort-worth, North America)
-has-country(fort-worth, United States)
-has-region(fort-worth, Texas)
-has-city(fort-worth, Fort Worth)
-has-latitude(fort-worth, 32.725413)
-has-longitude(fort-worth, -97.320849)
+has-location(session, place-f1d6b283a52a28dc)
+is-a(place-f1d6b283a52a28dc, location)
+has-continent(place-f1d6b283a52a28dc, North America)
+has-country(place-f1d6b283a52a28dc, United States)
+has-region(place-f1d6b283a52a28dc, Texas)
+has-city(place-f1d6b283a52a28dc, Fort Worth)
+has-latitude(place-f1d6b283a52a28dc, 32.725413)
+has-longitude(place-f1d6b283a52a28dc, -97.320849)
 ```
 
 `session` is the run's own subject, the way `env` is the interpreter's: it is one term from one run
 to the next, so a file of these facts can be added to rather than replaced, and a question about the
 session reads without naming a machine that will be somewhere else tomorrow. The place is a subject
-of its own because it is not the session: `fort-worth` is the city the address resolves to, and a
-geocoder result or a second session that reaches the same city can name the same term, which is
+of its own because it is not the session, and its term is generated rather than chosen: a lookup
+carries no id, so `src/uid.ms` hashes the three fields that say which place is meant - city, region
+and country - into `place-f1d6b283a52a28dc`, the kind, a dash and sixty-four bits of hex. A
+geocoder result or a second session that reaches the same city generates the same term, which is
 what lets their facts meet.
 
-The term is the service's `city` in lower case with its spaces joined by dashes. It is chosen
-rather than derived - a lookup carries no id - which is why the answer's own city is repeated as
-`has-city`. A field the reply did not carry writes no fact, so a `fields=city,country` lookup is
-three lines rather than seven, and a refused lookup writes none at all: the program prints the
-refusal instead.
+Hashing rather than minting is the property that matters: the term is the same one on the next run
+and on another machine with no store to look it up in, so today's facts and next month's land on one
+subject. A minted id - a UUID drawn from randomness - would be unique and useless here, because
+nothing would recognize the same city tomorrow and every run would write a second copy of every
+fact. `is-a` says what the term is, since an id says nothing on its own, and `has-city` keeps the
+words the id was made from.
+
+What the id cannot do is see that two spellings are one place: `Fort Worth, TX` and `Fort Worth,
+Texas` hash differently, which is why the identity is the service's own three fields rather than
+anything built from them. Case and spacing are not spelling, so either way of writing them is one
+term. A field the reply did not carry writes no fact, and a reply with no city or no coordinates
+writes none at all: the region and country alone would name every town in a country, and a refused
+lookup prints its refusal instead of facts.
 
 Four of the spellings are the other two pages' own - `has-city`, `has-country`, `has-latitude`,
 `has-longitude` - written here exactly as they are there, with the same field types, so one schema
-line and one rule cover a place whichever service supplied it. `has-continent`, `has-region` and
-`has-location` are this page's. The coordinates are numbers here, where the geocoder's reply writes
-its two as text: `has-latitude(fort-worth, 32.725413)` compares, `has-latitude(way/5013364,
-"48.8582599")` does not.
+line and one rule cover a place whichever service supplied it. `has-continent`, `has-region`,
+`has-location` and `is-a` are this page's. The coordinates are numbers here, where the geocoder's
+reply writes its two as text: `has-latitude(place-f1d6b283a52a28dc, 32.725413)` compares,
+`has-latitude(way/5013364, "48.8582599")` does not.
 
 Nothing yet writes these lines to a file: they are printed, and pasting them into a domain is a
 person's step rather than a program's.
@@ -215,7 +226,7 @@ ipwhois = globals["api/ipwhois"]
 where = session.getCurrentLocation(api, ipwhois)
 where.city                        Fort Worth
 where.latitude                    32.725413
-session.generateLocationFacts(globals["triples"], where)    the facts above
+session.generateLocationFacts(globals["triples"], globals["uid"], where)   the facts above
 ```
 
 A program doing the lookup itself reads the same layer by hand - `ipwhois.fetch(api, "lookup",

@@ -14,6 +14,7 @@
 //   import "api/client"
 //   import "api/ipwhois"
 //   import "triples"
+//   import "uid"
 //   import "spike/session"
 //   session = globals["spike/session"]
 //   where = session.getCurrentLocation(globals["api/client"], globals["api/ipwhois"])
@@ -26,11 +27,11 @@
 // session reaches the network from, not which room it sits in.
 //
 // generateLocationFacts turns that answer into facts about the session: one line places it,
-// has-location(session, fort-worth), and the rest say what that place is, one S-P-O triple per
-// field. A lookup carries no id, so the place is named by what the service called it - the city in
-// lower case with its spaces joined by dashes - and the session subject stays the same from one
-// run to the next, so a folder of these facts can be added to rather than replaced. Each triple's
-// text is one line of a `.kb` file, which is what src/where.ms prints.
+// has-location(session, place-f1d6b283a52a28dc), one says what the place is, and the rest say what
+// it is like, one S-P-O triple per field. A lookup carries no id of its own, so the place gets one
+// from src/uid.ms: a hash of the city, region and country it answered with, which is the same term
+// on the next run and on another machine, so a folder of these facts can be added to rather than
+// replaced. Each triple's text is one line of a `.kb` file, which is what src/where.ms prints.
 
 
 getCurrentLocation = function(api, ipwhois)
@@ -60,24 +61,47 @@ getCurrentLocation = function(api, ipwhois)
 end function
 
 
-generateLocationFacts = function(triples, location)
-	"The session's location, then one S-P-O triple per name and coordinate about that place; empty when there is no location."
+fieldOf = function(location, name)
+	"The field the answer carried, or null when it carried none: absent, null, empty and blank all read the same here."
+	if not location.hasIndex(name) then return null
+	value = location[name]
+	if value == null then return null
+	// A field sent as text with nothing in it says no more than a field not sent, and written as
+	// a fact it would be an empty term: the answer's blanks are absences.
+	if value isa string and value.replace(" ", "") == "" then return null
+	return value
+end function
+
+
+generateLocationFacts = function(triples, uid, location)
+	"The session's location, what it is, and one S-P-O triple per field of it; empty when there is no location."
 	if not location.ok then return []
-	city = location.city
-	if city == null then return []
-	// The subject is the place itself, named the way a term is spelled: the city in lower case
-	// with its spaces joined by dashes. Anything the form cannot write bare is quoted by the
-	// writer, so the line still reads back as the triple it holds.
-	subject = city.lower.replace(" ", "-")
+	city = fieldOf(location, "city")
+	if city == null or fieldOf(location, "longitude") == null then return []
+	// The subject is the place itself, named by the id its own fields generate: the city, region
+	// and country are what says which place is meant, and the hash is what makes the term the same
+	// one the next time this runs, here or on another machine. The region and country alone would
+	// name a whole country's worth of places, so a lookup with no city gets no term to hang facts
+	// on rather than one every town in a region would share.
+	subject = uid.of("place", [city, fieldOf(location, "region"), fieldOf(location, "country")])
+	if subject == "" then return []
 	// The session is the subject that holds the place, and the place is the subject its own
-	// fields hang off, so a geocoder or another session can name the same city term.
-	facts = [triples.SpoTriple.make("session", "has-location", subject)]
-	for field in ["continent", "country", "region", "city"]
-		if location[field] != null then
-			facts.push triples.SpoTriple.make(subject, "has-" + field, location[field])
-		end if
+	// fields hang off, so a geocoder or another session that reaches the same place generates the
+	// same term and the facts meet.
+	facts = []
+	facts.push triples.SpoTriple.make("session", "has-location", subject)
+	facts.push triples.SpoTriple.make(subject, "is-a", "location")
+	facts.push triples.SpoTriple.make(subject, "has-continent", fieldOf(location, "continent"))
+	facts.push triples.SpoTriple.make(subject, "has-country", fieldOf(location, "country"))
+	facts.push triples.SpoTriple.make(subject, "has-region", fieldOf(location, "region"))
+	facts.push triples.SpoTriple.make(subject, "has-city", fieldOf(location, "city"))
+	facts.push triples.SpoTriple.make(subject, "has-latitude", fieldOf(location, "latitude"))
+	facts.push triples.SpoTriple.make(subject, "has-longitude", fieldOf(location, "longitude"))
+	// A field the reply did not carry is no fact at all: one whose object is null would read back
+	// as the word null, a value the service never sent.
+	kept = []
+	for fact in facts
+		if fact.object != null then kept.push fact
 	end for
-	facts.push triples.SpoTriple.make(subject, "has-latitude", location.latitude)
-	facts.push triples.SpoTriple.make(subject, "has-longitude", location.longitude)
-	return facts
+	return kept
 end function
