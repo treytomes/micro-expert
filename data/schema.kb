@@ -76,6 +76,17 @@ has-wikipedia(text, unique(text))
 has-fee(text, text)
 was-answer-to(text, text)
 
+// ── The readings a forecast answers with ────────────────────────────────────
+// docs/api/open-meteo.md's vocabulary for one hour of a reply. The subject is the place and
+// the hour is the fact's '@', so none of these is unique: two hours of one variable are two
+// facts, told apart by the span they cover.
+
+has-temperature-2m(text, number)
+has-relative-humidity-2m(text, number)
+has-precipitation(text, number)
+has-wind-speed-10m(text, number)
+has-weather-code(text, number)
+
 // ── Derived by rules ─────────────────────────────────────────────────────────
 
 is-child-of(text, text)

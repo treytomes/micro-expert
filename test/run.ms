@@ -67,6 +67,7 @@ import "../src/location"
 import "../src/spike/declared"
 import "../src/spike/ipwhois_map"
 import "../src/spike/geocode_map"
+import "../src/spike/openmeteo_map"
 
 import "harness"
 import "display"
@@ -93,6 +94,7 @@ import "uid"
 import "location"
 import "declared"
 import "geocoder"
+import "openmeteo"
 import "notebook"
 
 // shellArgs[0] is this script, so the options start at index 1.
@@ -180,6 +182,10 @@ declaredCases = globals["declared"]
 // suite's case module for it.
 geocodeMap = globals["../src/spike/geocode_map"]
 geocoderCases = globals["geocoder"]
+// src/spike/openmeteo_map.ms is Open-Meteo's forecast endpoint as the same writer reads it;
+// `openmeteo` is this suite's case module for it.
+openmeteoMap = globals["../src/spike/openmeteo_map"]
+openmeteoCases = globals["openmeteo"]
 
 // The library and the session module, both loaded by the block above.
 replLibrary = globals["repl/repl"]
@@ -254,6 +260,10 @@ if geocodeMap == null or geocodeMap.hasIndex("build") == 0 then
 	print "error: could not import ../src/spike/geocode_map"
 	exit 1
 end if
+if openmeteoMap == null or openmeteoMap.hasIndex("build") == 0 then
+	print "error: could not import ../src/spike/openmeteo_map"
+	exit 1
+end if
 
 if engineModule == null or engineModule.hasIndex("build") == 0 then
 	print "error: could not import ../src/engine"
@@ -315,6 +325,7 @@ uidCases.run(uidModule, triples, harness)
 locationCases.run(locationModule, uidModule, triples, apiClient, ipwhoisModule, harness)
 declaredCases.run(declaredModule, declaredMap, apiClient, ipwhoisModule, triples, uidModule, locationModule, harness)
 geocoderCases.run(declaredModule, geocodeMap, apiClient, geocode, triples, uidModule, schemaLoader, harness)
+openmeteoCases.run(declaredModule, openmeteoMap, apiClient, meteo, triples, uidModule, schemaLoader, harness)
 notebookCases.run(notebookModule, engineModule, sessionModule, triples, rules, cliLibrary, optionsModule, harness)
 
 harness.summary()
