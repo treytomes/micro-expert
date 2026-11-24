@@ -51,9 +51,11 @@ extension; open `data/rules.kb` there to see it highlighted.
 
 ## Tests
 
-From this folder, `node --test` runs the notebook's file format and the session protocol
+From this folder, `node --test` runs the notebook's file format, the session protocol
 against the real engine (it needs `MINISCRIPT_EXE_PATH` in the repo's `.env`, or the
-interpreter in `3rd-party/`).
+interpreter in `3rd-party/`), and the controller against a fake `vscode`: that a save goes
+through the file's writer, that a notebook's runs queue behind each other, and that a
+question is drawn as a box until it is answered or declined.
 
 ## Package it
 
