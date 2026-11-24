@@ -156,6 +156,12 @@ var = function(name)
 	return Var.make(name)
 end function
 
+
+isVar = function(term)
+	"Says whether a term is still a variable rather than a value."
+	return term isa Var
+end function
+
 termText = function(term)
 	"Renders one term: a Var as '?x', a value in quotes when it needs them, and anything else as it is."
 	if term isa Var then return term.text

@@ -113,9 +113,12 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, session
 	h.check("nor is a fact it does not declare",
 		providers.forGoal(registry, triples,
 			triples.SpoTriple.make(triples.var("p"), "has-city", "Fort Worth")) == null)
-	h.check("a ground question about the session is still its to answer",
+	h.check("a need already ground where the reply would answer is not that service's",
 		providers.forGoal(registry, triples,
-			triples.SpoTriple.make("session", "has-location", "Fort Worth")) != null)
+			triples.SpoTriple.make("session", "has-location", "Fort Worth")) == null)
+	h.check("while a need still unknown there is",
+		providers.forGoal(registry, triples,
+			triples.SpoTriple.make("session", "has-location", triples.var("p"))) != null)
 
 	// ── What the service answers ────────────────────────────────────────────
 
@@ -163,6 +166,27 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, session
 		holds(lines, "  added has-location(session, Fort Worth)"))
 	h.check("and the question is answered from it",
 		printed(lines, "  has-location(session, Fort Worth)"))
+
+	// ── A need already ground is not a service's to answer ──────────────────
+
+	// The reply can only fill the parts the declaration leaves a variable, so a need that
+	// names the place itself would make a request whose answer could never prove it. The
+	// service is not asked at all, and the fact goes to the reader as one no service answers.
+	quietStub = stubFor(fortWorth)
+	quietSaid = []
+	grounded = {"triples": triples, "Rule": rules.Rule, "facts": [], "rules": [], "depth": 8,
+		"verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"providers": providers.registry(quietStub, declared, uid, [decl]),
+		"io": {"read": null, "say": function(line)
+			quietSaid.push(line)
+		end function}}
+	groundNeed = triples.SpoTriple.make("session", "has-location", "Fort Worth")
+	changed = sessionModule.provideMissing(grounded,
+		triples.needsFor(groundNeed, [], [], 8))
+	h.check("a need already ground is not asked of the service",
+		quietStub.calls == 0 and not changed)
+	h.check("and nothing is said or added for it",
+		quietSaid.len == 0 and grounded.facts.len == 0)
 
 	// ── A service is asked once, however many passes need it ────────────────
 

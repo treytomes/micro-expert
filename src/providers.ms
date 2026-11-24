@@ -19,8 +19,10 @@
 //   ]
 //
 // "fact" is the shape the endpoint answers, in the same three parts a fact has. A part that is a
-// variable matches anything; a literal part matches only that term, so ipwho.is's lookup answers
-// has-location(session, ?p) and not has-location(tim, ?p). "request" is what the endpoint is
+// variable matches only a fact still unknown there, which is what the reply fills; a literal part
+// matches only that term, so ipwho.is's lookup answers has-location(session, ?p) and not
+// has-location(tim, ?p) or the already-ground has-location(session, Dallas), which no reply can be
+// counted on to prove. "request" is what the endpoint is
 // asked for - the options declared.fetch takes - and "timeout" the seconds it may take; both are
 // optional, the timeout falling back to the one below. One endpoint may declare one capability or
 // a list of them, and an endpoint that says nothing provides none, so a map can describe a whole
@@ -102,18 +104,18 @@ end function
 
 
 fits = function(pattern, triples, triple)
-	"Says whether a declared fact's shape is this fact's: a variable part matches anything, a literal part only itself."
+	"Says whether a declared fact's shape is this fact's: a variable part only while the fact is unknown there, a literal part only itself."
 	if not (pattern isa list) then return false
 	if pattern.len < 3 then return false
 	if pattern[0] != triple.predicate then return false
-	return sameTerm(triples, pattern[1], triple.subject) and
-		sameTerm(triples, pattern[2], triple.object)
+	return answers(triples, pattern[1], triple.subject) and
+		answers(triples, pattern[2], triple.object)
 end function
 
 
-sameTerm = function(triples, part, term)
-	"One declared part against one of a fact's terms: a variable part is anything, a literal part only itself."
-	if part isa string and part[:1] == "?" then return true
+answers = function(triples, part, term)
+	"One declared part against one of a fact's terms: a variable part is a term still unknown, which the reply fills; a literal part only itself."
+	if part isa string and part[:1] == "?" then return triples.isVar(term)
 	return triples.termText(term) == part
 end function
 

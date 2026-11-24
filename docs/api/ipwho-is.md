@@ -215,7 +215,10 @@ lookup's endpoint declares
 `src/providers.ms` collects that declaration into the registry `main.ms` gives the session. A
 question needing `has-location(session, ?p)` - the query itself, or a rule's condition - asks the
 service, adds the facts above, and answers, so the domain's `is-a` rule types the place with
-nothing pasted into a file. A lookup that fails is a warning and the fact falls through to the
+nothing pasted into a file. Only a need still unknown at the place does: a reply can fill
+`?place` and nothing else, so a need that already names its place - `has-location(session, Dallas)`
+bound in a rule body - is left to the prompt rather than asked of a service that could not prove
+it. A lookup that fails is a warning and the fact falls through to the
 prompt, which asks for it as it asks for any other. Nothing is asked at startup, so a run that
 never asks where it is never reaches the network. The request asks for ten seconds rather than
 the client's default minute, since it stands between a question and its answer; `declared.fetch`
