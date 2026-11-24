@@ -147,6 +147,33 @@ run = function(declared, geocodeMap, apiClient, geocode, triples, uid, schemaLoa
 	end for
 	h.check("and every one fits data/schema.kb", unfit == 0)
 
+	// ── The reverse and lookup endpoints ────────────────────────────────
+	// The three endpoints answer with one result shape, so the facts are the same list; only
+	// a search records the question, and a lookup may carry its coordinate as a GeoJSON point.
+
+	reverse = declared.read(triples, uid, decl, "reverse", eiffel, {"lat": 48.8583, "lon": 2.2945})
+	h.check("a declared reverse is ok and writes one result",
+		reverse.ok and reverse.facts.len == 21 and reverse.subject == "way/5013364")
+	h.check("and records no query, since a reverse has none",
+		factAbout(reverse.facts, "was-answer-to") == null)
+
+	tower = {"osm_type": "relation", "osm_id": 253832,
+		"centroid": {"coordinates": [2.2945, 48.8584]}, "name": "Tour Eiffel",
+		"display_name": "Tour Eiffel", "boundingbox": ["48.8574", "48.8590", "2.2933", "2.2956"],
+		"class": "man_made", "type": "tower", "place_rank": 30, "importance": 0.62,
+		"place_id": 1, "address": {"house_number": "5", "road": "Avenue Anatole France",
+			"city": "Paris", "country": "France", "country_code": "fr"},
+		"extratags": {"wikidata": "Q243", "wikipedia": "fr:Tour Eiffel", "fee": "10-25€"},
+		"namedetails": {"name:fr": "Tour Eiffel"}}
+	lookup = declared.read(triples, uid, decl, "lookup", [tower], {"osm_ids": ["R253832"]})
+	h.check("a declared lookup is ok and writes one result",
+		lookup.ok and lookup.facts.len == 21 and lookup.subject == "relation/253832")
+	h.check("a centroid point is read longitude first and written latitude first",
+		factAbout(lookup.facts, "has-latitude").object == 48.8584 and
+			factAbout(lookup.facts, "has-longitude").object == 2.2945)
+	h.check("and a lookup records no query either",
+		factAbout(lookup.facts, "was-answer-to") == null)
+
 	// ── The other shapes a search answers with ──────────────────────────
 
 	two = declared.read(triples, uid, decl, "search", [eiffel, berlin], {"q": "Paris"})

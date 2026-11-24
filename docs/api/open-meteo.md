@@ -2,10 +2,9 @@
 
 Open-Meteo is not one API but a family of them. Each forecast product has its own host, the
 domain APIs - marine, air quality, flood, climate, seasonal, satellite - add more, and the
-geocoder is a separate service that shares the parameter style. `src/api/openmeteo.ms` holds
-the layer's table of them: 23 endpoints, each with its host, path and the complete set of
-query parameters it accepts. The program, `src/spike/openmeteo.ms`, turns that table into a command
-line.
+geocoder is a separate service that shares the parameter style. `src/spike/openmeteo_map.ms`
+holds the writer's map of them: 23 endpoints, each with its host, path and the complete set of
+query parameters it accepts, and the shape of the reply that comes back.
 
 This document writes the table out: the shape of a request, the shape of a reply, every
 endpoint with the parameters it takes, and a reference for what each parameter means. The
@@ -94,15 +93,12 @@ and the rest are given so a result can be looked up again.
 {"elevation": [38.0]}
 ```
 
-`src/api/openmeteo.ms` reads those shapes into classes rather than handing the parsed JSON on,
-and `src/spike/openmeteo.ms` prints from them. A `Series` is one table - hourly, daily, current and
-the rest - with its instants in one list and a list per variable beside them, and the units
-that came under it. A `WeatherReply` is one place's answer: its grid point, elevation and time
-zone, and its tables in the order the reply wrote them. A `MultiReply` holds one of those per
-place when several coordinates were asked for at once, a `Place` is one geocoder result and a
-`GeocodingReply` holds them, and an `ElevationReply` holds the heights. A refusal is one of
-the same classes with `ok: 0` and the reason on it, so a program reports it rather than
-rendering it.
+`src/spike/openmeteo_map.ms` declares those shapes as series rather than reading them into
+classes: a series names one table - hourly, daily, current and the rest - with its instants in
+one list and a list per variable beside them, and the writer turns each row into a fact. The
+geocoder's results and the elevation endpoint's heights are the two shapes that are not
+tables, so those endpoints carry their own reply. A refusal is read as the service's reason,
+so a caller reports it rather than rendering it.
 
 ### Refusals
 
@@ -433,10 +429,10 @@ files' instants are comparable; with `timezone=auto` or a named zone the same in
 differently in two files, so either keep the zone in the subject or ask for `GMT` and let
 `has-timezone` carry the local one as a fact.
 
-Nothing in the layer writes triples: `src/api/openmeteo.ms` reads the reply into classes and
-`src/spike/openmeteo.ms` prints them, exactly as the geocoder's pair do. What is missing on the way from a
-reply to a domain - the writer, a place to record which fetch a file came from, and the sizes
-involved - is collected in [gaps to close before these APIs are
+The map writes triples: `src/spike/openmeteo_map.ms` names the series and the fields, and
+`src/spike/declared.ms` turns a reply into facts, exactly as it does for the geocoder. What is
+missing on the way from a reply to a domain - a place to record which fetch a file came from,
+and the sizes involved - is collected in [gaps to close before these APIs are
 knowledge](gaps.md).
 
 ## Endpoints
@@ -762,37 +758,19 @@ comma-separated list of names, `date` is `yyyy-mm-dd`, `datetime` is `yyyy-mm-dd
 | `countryCode` | text | ISO 3166-1 alpha-2 code to filter geocoding results by. |
 | `id` | int, required | A location id from a geocoding result. |
 
-## How the program maps to all this
+## How the map reads a reply
 
-`src/spike/openmeteo.ms` takes an endpoint name as its first word and every parameter above as a
-`--name`:
+`src/spike/openmeteo_map.ms` is the service as data: each endpoint's host, path and parameters,
+and a reply that names one `series` per table - hourly as an hour-long span, daily as a date,
+current as its one instant, and the seasonal weekly and monthly tables as their own periods.
+`src/spike/declared.ms` reads a series row by row, naming each variable's fact from the
+variable itself (`wave_height` is `has-wave-height`), so a table the map has never listed still
+becomes facts. The documented forecast variables are listed on the series so a reply that left
+one out says which; a caller's own variable list narrows that to what was asked for.
 
-```
-miniscript src/spike/openmeteo.ms forecast --latitude 52.52 --longitude 13.41 --hourly temperature_2m
-miniscript src/spike/openmeteo.ms forecast --place Berlin --daily temperature_2m_max --forecast-days 3
-miniscript src/spike/openmeteo.ms air-quality --latitude 52.52 --longitude 13.41 --hourly pm10
-miniscript src/spike/openmeteo.ms geocoding --name Berlin --count 3
-miniscript src/spike/openmeteo.ms endpoints
-miniscript src/spike/openmeteo.ms help forecast
-```
-
-`--place` resolves a name through the `geocoding` endpoint and sends the coordinates it
-answers with, so a city works wherever a coordinate pair does; it is resolved before the
-request and never sent as a parameter. Underscores and dashes are the same in a name, a
-parameter given twice becomes a comma-separated list, and a boolean is `--name`,
-`--name false` or `--no-name`.
-
-The reply is printed from the layer's classes: the grid point the answer came from with its
-elevation and zone, then one table per series - the instant in the first column, then each
-variable's value under its name and unit, right-aligned, with a dash where the series has a
-gap. The geocoder prints a place per result and the elevation endpoint a height per point.
-`--json` prints the service's own JSON instead, `--compact` prints that on one line, and
-`--url` also prints the request that was made, with any key replaced. CSV, XLSX and protobuf
-replies are not JSON, so their body is printed as it came.
-
-The command line is declared with the repo's cli library, one declaration per endpoint taken
-from the same table this page describes. `--help` after the endpoint is therefore that
-endpoint's parameter list, with what each one takes and what it is for, and `--help` before
-it lists the endpoints; `--version` prints the version line. A parameter the endpoint does
-not take is refused by name, and a value outside the table's range, or not among the values
-it gives, is reported before the request is made.
+The place is not in the reply, so it comes from the request as the subject; an hourly fact
+spans the hour its instant starts, the last hour keeps the moment alone, and
+`precipitation_probability` is the confidence on the precipitation fact. The geocoder answers
+with a list of places and the elevation endpoint with its heights, so those two endpoints carry
+their own reply shape. A refusal is read as the service's reason and returns `ok: 0` rather
+than facts.

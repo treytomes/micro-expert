@@ -147,7 +147,16 @@ end function
 
 
 termValue = function(raw, term, bindings)
-	"One side of a declared fact: a bound name, a path into the reply, or a literal."
+	"One side of a declared fact: a bound name, a path into the reply, a list of paths to try in turn, or a literal."
+	// A list is a fallback: the first alternative the reply carries a value for, so a service
+	// that spells one field two ways needs no second fact line.
+	if term isa list then
+		for alternative in term
+			value = termValue(raw, alternative, bindings)
+			if value != null then return value
+		end for
+		return null
+	end if
 	if not (term isa string) then return term
 	if term[:1] == "?" then
 		name = term[1:]
@@ -166,7 +175,7 @@ termValue = function(raw, term, bindings)
 		value = fieldOf(raw, path[2:], bindings)
 		if value == null then return null
 		if kind == "number" then
-			text = str(value).trim
+			text = trimText(value)
 			if not numberText(text) then return null
 			return val(text)
 		end if
@@ -174,7 +183,7 @@ termValue = function(raw, term, bindings)
 		if kind == "moment" then
 			// A service writes an instant its own way - ISO 8601's 'T' is not the grammar's
 			// datetime, which is a date and a time with a space between them.
-			return str(value).trim.replace("T", " ")
+			return trimText(value).replace("T", " ")
 		end if
 		return value
 	end if
@@ -207,15 +216,16 @@ joined = function(parts, separator)
 	words = []
 	for part in parts
 		if part == null then continue
-		text = str(part).trim
+		text = trimText(part)
 		if text != "" then words.push text
 	end for
 	return words.join(separator)
 end function
 
 
-readOne = function(triples, uid, reply, scope, asked, extra, facts, skipped, strict)
+readOne = function(triples, uid, reply, scope, asked, extra, facts, skipped, strict, factsSpec=null)
 	"One object, or one index of a series, as its facts: ok 0 only when strict and it has no subject."
+	if factsSpec == null then factsSpec = reply.facts
 	bindings = extra + {}
 	if reply.hasIndex("request") then
 		for name in reply.request
@@ -260,7 +270,7 @@ readOne = function(triples, uid, reply, scope, asked, extra, facts, skipped, str
 
 	bindings[reply.subject.name] = subject
 
-	for spec in reply.facts
+	for spec in factsSpec
 		predicate = spec[0]
 		subjectTerm = termValue(scope, spec[1], bindings)
 		objectTerm = termValue(scope, spec[2], bindings)
@@ -294,6 +304,171 @@ readOne = function(triples, uid, reply, scope, asked, extra, facts, skipped, str
 end function
 
 
+// ── Several series in one reply ─────────────────────────────────────────────
+// A weather reply holds one table per period - hourly, daily, current, minutely_15, weekly,
+// monthly - and each table is a list of instants beside one list per variable. A series spec
+// names the table and the shape of its instants; the variables come from the table itself, or
+// from the spec's own list when it has one, which is how a reply that left a documented
+// variable out can still name it.
+
+trimText = function(value)
+	"The value as text without the space around it; the interpreter's strings carry no trim."
+	text = str(value)
+	while text.len > 0 and (text[0] == " " or text[0] == char(9) or text[0] == char(10) or text[0] == char(13))
+		text = text[1:]
+	end while
+	while text.len > 0
+		last = text[text.len - 1]
+		if last != " " and last != char(9) and last != char(10) and last != char(13) then break
+		text = text[:text.len - 1]
+	end while
+	return text
+end function
+
+
+momentText = function(value)
+	"An instant as the fact grammar spells it: a date and a time with a space between them."
+	return trimText(value).replace("T", " ")
+end function
+
+
+seriesMoment = function(times, index, kind)
+	"The '@' of one row: the hour or quarter it covers, the date of a day, or the instant itself."
+	if kind == "hour" or kind == "minutely" then
+		if times isa list and index < times.len then
+			start = momentText(times[index])
+			if index + 1 < times.len then return "[" + start + ", " + momentText(times[index + 1]) + "]"
+			return start
+		end if
+		return null
+	end if
+	if kind == "day" or kind == "week" or kind == "month" then
+		if times isa list and index < times.len then return momentText(times[index])
+		return null
+	end if
+	// A current reading carries its one instant as a field rather than a list.
+	if times isa string then return momentText(times)
+	return null
+end function
+
+
+probabilityOf = function(series, index)
+	"The service's chance of precipitation at one row, as a confidence, or 100 when it sent none."
+	if not series.hasIndex("precipitation_probability") then return 100
+	values = series.precipitation_probability
+	if not (values isa list) then return 100
+	if index >= values.len then return 100
+	value = present(values[index])
+	if not (value isa number) then return 100
+	if value < 0 or value > 100 then return 100
+	return value
+end function
+
+
+appendSeries = function(triples, scope, spec, subject, facts, skipped, wanted={})
+	"One table's facts, row by row: each row's variables in order, annotated by the row."
+	series = at(scope, spec.path[2:])
+	// A table the reply did not carry is simply no facts: a request that did not ask for it is
+	// not a gap to report.
+	if not (series isa map) then return null
+	times = null
+	if series.hasIndex("time") then times = series.time
+	kind = "instant"
+	if spec.hasIndex("kind") then kind = spec.kind
+	// A table of rows without its instants cannot be read as rows; a current reading keeps its
+	// one instant as a field and has no list to check.
+	if kind != "instant" and not (times isa list) then return "the service did not answer with a list"
+	names = []
+	// What the caller asked this table for comes first: a request for two variables should not
+	// be told about the three it did not ask for. Without that list, the documented ones name
+	// what a reply left out.
+	key = spec.path[2:]
+	if wanted.hasIndex(key) then
+		names = wanted[key]
+	else if spec.hasIndex("variables") then
+		names = spec.variables
+	else
+		for field in series.indexes
+			if field == "time" or field == "interval" then continue
+			if field == "precipitation_probability" then continue
+			if series[field] isa map then continue
+			names.push field
+		end for
+	end if
+	// A current reading has no row list: its variables hold one value each.
+	rows = [0]
+	if times isa list then rows = times.indexes
+	for i in rows
+		for field in names
+			values = null
+			if series.hasIndex(field) then values = series[field]
+			value = null
+			if values isa list then
+				if i < values.len then value = present(values[i])
+			else
+				value = present(values)
+			end if
+			if value == null then
+				// A field the table never carried, or a null where a value belongs, is named once
+				// per row: the reading says which of the variables it asked for it did not get.
+				skipped.push "has-" + field.replace("_", "-") + ": " + spec.path + "." +
+					field + " was absent"
+				continue
+			end if
+			confidence = 100
+			if field == "precipitation" then confidence = probabilityOf(series, i)
+			facts.push triples.SpoTriple.make(subject, "has-" + field.replace("_", "-"), value,
+				seriesMoment(times, i, kind), confidence)
+		end for
+	end for
+	return null
+end function
+
+
+readSeries = function(triples, uid, reply, json, asked)
+	"A reply of several tables, or of several places each holding them, as its facts."
+	facts = []
+	skipped = []
+	subjects = []
+	wanted = {}
+	if asked.hasIndex("variables") then wanted = asked.variables
+	items = [json]
+	if reply.hasIndex("each") then
+		if not (json isa list) then
+			return {"ok": 0, "error": "the service did not answer with a list", "subject": "",
+				"subjects": [], "facts": [], "skipped": []}
+		end if
+		items = json
+	end if
+	for item in items
+		if not (item isa map) then
+			skipped.push "an entry that is not an object"
+			continue
+		end if
+		// The subject is the reply's, read once; the tables hang their facts off it.
+		one = readOne(triples, uid, reply, item, asked, {}, facts, skipped,
+			not reply.hasIndex("each"), [])
+		if not one.ok then
+			return {"ok": 0, "error": one.error, "subject": "", "subjects": subjects,
+				"facts": facts, "skipped": skipped}
+		end if
+		if one.subject == "" then continue
+		subjects.push one.subject
+		for spec in reply.series
+			problem = appendSeries(triples, item, spec, one.subject, facts, skipped, wanted)
+			if problem != null then
+				return {"ok": 0, "error": problem, "subject": "", "subjects": subjects,
+					"facts": facts, "skipped": skipped}
+			end if
+		end for
+	end for
+	subject = ""
+	if subjects.len > 0 then subject = subjects[0]
+	return {"ok": 1, "error": null, "subject": subject, "subjects": subjects,
+		"facts": facts, "skipped": skipped}
+end function
+
+
 read = function(triples, uid, decl, endpointName, json, asked={})
 	"Every object the reply carries, as the facts its endpoint maps; ok 0 only when a single object has no subject."
 	endpoint = endpointOf(decl, endpointName)
@@ -321,6 +496,10 @@ read = function(triples, uid, decl, endpointName, json, asked={})
 				"subject": "", "subjects": [], "facts": [], "skipped": []}
 		end if
 	end if
+
+	// A reply of several tables is read a table at a time; a reply of one list of objects or one
+	// object is read as before.
+	if reply.hasIndex("series") then return readSeries(triples, uid, reply, json, asked)
 
 	each = reply.hasIndex("each")
 	if not each and not (json isa map) then
@@ -352,6 +531,9 @@ read = function(triples, uid, decl, endpointName, json, asked={})
 				"subjects": [], "facts": [], "skipped": []}
 		end if
 	end if
+	// An endpoint may say that its list is of values rather than of objects, as the elevation
+	// reply's heights are.
+	if reply.hasIndex("eachMode") then mode = reply.eachMode
 
 	facts = []
 	skipped = []
@@ -413,7 +595,10 @@ fetch = function(api, decl, endpointName, options={}, timeout=null)
 		if key != null then params[endpoint.key] = key
 	end if
 
-	url = api.urlFor(decl.base + endpoint.path, params)
+	// A service can answer on more than one host, so an endpoint may name its own base.
+	base = decl.base
+	if endpoint.hasIndex("base") then base = endpoint.base
+	url = api.urlFor(base + endpoint.path, params)
 	result = api.get(url, timeout)
 	if endpoint.hasIndex("redact") then result.url = api.redactUrl(url, endpoint.redact)
 	return result

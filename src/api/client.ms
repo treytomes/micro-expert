@@ -6,8 +6,8 @@
 //   3. Replied objects  one object of a reply as the service sent it, and a place among them
 //   4. Arguments        the cli library's declarations, and the split into options and words
 //
-// The two services live beside this file, one each: geocode.ms holds geocode.maps.co's three
-// endpoints and openmeteo.ms holds Open-Meteo's twenty-three. Neither can import this file -
+// geocode.ms lives beside this file with geocode.maps.co's three endpoints; Open-Meteo's
+// twenty-three are a map in src/spike/openmeteo_map.ms. Neither can import this file -
 // this interpreter discards the imports of an imported module - so a program imports both and
 // hands them this module's map, which they call through: api.validate, api.get. The endpoint
 // tables are still the whole surface of each service; validate passes a name a table does not

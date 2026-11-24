@@ -1,13 +1,13 @@
-// Cases for src/spike/openmeteo_map.ms, Open-Meteo's forecast endpoint as the writer reads it:
+// Cases for src/spike/openmeteo_map.ms, Open-Meteo's endpoints as the writer reads them:
 // one canned forecast written as docs/api/open-meteo.md's vocabulary with the hour and the
 // probability on each fact, the other shapes a reply can answer with, and the request half
-// beside openmeteo.fetch's own.
+// beside the map's own request half.
 //
 // No request leaves the program: a client stand-in answers get with the JSON below, and the
 // expected lines are the reference page's vocabulary with the two annotations the map adds -
 // '@' the hour a reading covers, and '~' the service's chance of precipitation.
 
-run = function(declared, openmeteoMap, apiClient, meteo, triples, uid, schemaLoader, h)
+run = function(declared, openmeteoMap, apiClient, triples, uid, schemaLoader, h)
 	decl = openmeteoMap.build()
 
 	// Three hours, five variables, and the missing temperature at the third.
@@ -106,8 +106,8 @@ run = function(declared, openmeteoMap, apiClient, meteo, triples, uid, schemaLoa
 	h.check("a declared forecast is ok", reading.ok)
 	h.check("and writes the fourteen lines the page names",
 		reading.facts.len == 14 and linesOf(reading.facts) == expected)
-	h.check("the subject is the place the caller named, once per reading",
-		reading.subject == "berlin" and reading.subjects.join(",") == "berlin,berlin,berlin")
+	h.check("the subject is the place the caller named, once per place",
+		reading.subject == "berlin" and reading.subjects.join(",") == "berlin")
 	unread = 0
 	for fact in reading.facts
 		back = triples.SpoTriple.parse(fact.text)
@@ -183,27 +183,98 @@ run = function(declared, openmeteoMap, apiClient, meteo, triples, uid, schemaLoa
 
 	// ── The request half ────────────────────────────────────────────────
 
-	spec = meteo.specFor("forecast")
+	spec = decl.endpoints.forecast
 	h.check("the map names the service's own host and path",
-		decl.base == "https://" + spec.host and decl.endpoints.forecast.path == spec.path)
-	missing = []
-	for paramSpec in decl.endpoints.forecast.params
-		found = false
-		for known in spec.params
-			if known.name == paramSpec.name then found = true
-		end for
-		if not found then missing.push paramSpec.name
+		spec.base == "https://api.open-meteo.com" and spec.path == "/v1/forecast")
+	names = []
+	for paramSpec in spec.params
+		names.push paramSpec.name
 	end for
-	h.check("and every parameter it declares is one the service's table has", missing.len == 0)
+	h.check("and declares the coordinate pair every reading needs",
+		names.indexOf("latitude") != null and names.indexOf("longitude") != null and
+			names.indexOf("hourly") != null and names.indexOf("daily") != null)
+	hosted = 0
+	for name in decl.endpoints.indexes
+		if decl.endpoints[name].hasIndex("base") and decl.endpoints[name].hasIndex("path") then
+			hosted = hosted + 1
+		end if
+	end for
+	h.check("every endpoint names its own host and path", hosted == decl.endpoints.len)
 
 	options = {"latitude": 52.52, "longitude": 13.41,
 		"hourly": ["temperature_2m", "relative_humidity_2m"], "timezone": "auto",
 		"apikey": "test-key"}
-	oldResult = meteo.fetch(stubFor(forecast), "forecast", options)
 	newResult = declared.fetch(stubFor(forecast), decl, "forecast", options, 10)
-	h.check("the declared fetch builds the url openmeteo.fetch builds",
-		newResult.url == oldResult.url)
+	h.check("the declared fetch puts every option in the url",
+		newResult.url.indexOf("https://api.open-meteo.com/v1/forecast?") == 0 and
+			newResult.url.indexOf("latitude=52.52") != null and
+			newResult.url.indexOf("timezone=auto") != null and
+			newResult.url.indexOf("temperature_2m") != null)
 	h.check("and hides the key",
 		newResult.url.indexOf("test-key") == null and
 			newResult.url.indexOf("apikey=REDACTED") != null)
+
+	// ── The other hosts and reply shapes ────────────────────────────────
+
+	// The archive answers with an hourly and a daily table in one reply.
+	history = {"latitude": 52.5, "longitude": 13.4,
+		"hourly": {"time": ["2026-11-20T00:00", "2026-11-20T01:00"],
+			"temperature_2m": [4.1, 3.9]},
+		"daily": {"time": ["2026-11-20"], "temperature_2m_max": [8.2],
+			"sunrise": ["2026-11-20T07:20"]}}
+	historyRead = declared.read(triples, uid, decl, "historical", history,
+		{"place": "berlin", "variables": {"hourly": ["temperature_2m"],
+			"daily": ["temperature_2m_max", "sunrise"]}})
+	h.check("the archive reads both its tables",
+		historyRead.ok and historyRead.facts.len == 4)
+	h.check("and a daily fact takes the date rather than an hour",
+		factAbout(historyRead.facts, "has-temperature-2m-max").at == "2026-11-20")
+
+	// A table the map has no documented list for still reads every variable it carries.
+	sea = {"latitude": 56.0, "longitude": 3.0,
+		"hourly": {"time": ["2026-11-24T00:00", "2026-11-24T01:00"],
+			"wave_height": [1.12, 1.1]}}
+	seaRead = declared.read(triples, uid, decl, "marine", sea,
+		{"place": "north-sea", "variables": {"hourly": ["wave_height"]}})
+	h.check("a table with no documented list reads its own variables",
+		seaRead.ok and seaRead.facts.len == 2 and
+			seaRead.facts[0].predicate == "has-wave-height")
+
+	climate = {"latitude": 52.5, "longitude": 13.4,
+		"daily": {"time": ["2026-01-01"], "temperature_2m_max": [7.3]}}
+	climateRead = declared.read(triples, uid, decl, "climate", climate,
+		{"place": "berlin", "variables": {"daily": ["temperature_2m_max"]}})
+	h.check("a daily-only host reads its one table",
+		climateRead.ok and climateRead.facts.len == 1 and
+			climateRead.facts[0].text == "has-temperature-2m-max(berlin, 7.3) @ 2026-01-01")
+
+	// The geocoder answers with places, and the lookup with one place.
+	places = {"results": [
+		{"id": 1, "name": "Berlin", "latitude": 52.52, "longitude": 13.41,
+			"country": "Germany", "country_code": "DE", "timezone": "Europe/Berlin"},
+		{"id": 2, "name": "Berlin", "latitude": 44.0, "longitude": -71.0}]}
+	geocoded = declared.read(triples, uid, decl, "geocoding", places, {"name": "Berlin"})
+	h.check("the geocoder writes one place per result",
+		geocoded.ok and geocoded.subjects.join(",") == "Berlin,Berlin" and
+			factAbout(geocoded.facts, "has-country").object == "Germany")
+	h.check("and records the name that asked",
+		factAbout(geocoded.facts, "was-answer-to").object == "Berlin")
+
+	looked = declared.read(triples, uid, decl, "geocoding-lookup", places.results[0], {"id": 1})
+	h.check("the lookup reads the one place it answers with",
+		looked.ok and looked.facts.len == 6 and looked.subject == "Berlin")
+
+	heights = {"elevation": [38.0]}
+	elevated = declared.read(triples, uid, decl, "elevation", heights, {"place": "berlin"})
+	h.check("elevation reads its heights as values, not objects",
+		elevated.ok and elevated.facts.len == 1 and
+			elevated.facts[0].text == "has-elevation(berlin, 38)")
+
+	h.check("each endpoint names its own host",
+		decl.endpoints.marine.base == "https://marine-api.open-meteo.com" and
+			decl.endpoints.geocoding.base == "https://geocoding-api.open-meteo.com")
+
+	refusedSea = declared.read(triples, uid, decl, "marine", refused, {"place": "north-sea"})
+	h.check("a refusal on another host is the service's own reason",
+		not refusedSea.ok and refusedSea.error.indexOf("Latitude must be in range") != null)
 end function

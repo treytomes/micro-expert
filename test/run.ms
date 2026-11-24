@@ -54,11 +54,10 @@ import "../src/mermaid"
 env["MS_IMPORT_PATH"] = savedImportPath
 
 // The API layer's client reaches the bundled json and stringUtil libraries, which a src/-only
-// import path hides, so it loads here, with the .env reader beside it. Neither service's module
-// imports anything, and both are here for the cases about the replies they read JSON into.
+// import path hides, so it loads here, with the .env reader beside it. geocode's module imports
+// nothing, and it is here for the cases about the replies it reads JSON into.
 import "../src/api/client"
 import "../src/api/geocode"
-import "../src/api/openmeteo"
 import "../src/api/ipwhois"
 import "../src/dotenv"
 import "../src/uid"
@@ -87,7 +86,6 @@ import "options"
 import "arguments"
 import "parameters"
 import "replies"
-import "weather"
 import "ipwhois"
 import "dotenv"
 import "uid"
@@ -153,12 +151,10 @@ optionsModule = globals["../src/options"]
 apiClient = globals["../src/api/client"]
 argumentCases = globals["arguments"]
 parameterCases = globals["parameters"]
-// geocode.ms and openmeteo.ms are each service's surface and the classes its replies come back
-// as; `replies` and `weather` are this suite's case modules for those classes.
+// geocode.ms is geocode.maps.co's surface and the classes its replies come back as; `replies`
+// is this suite's case module for those classes.
 geocode = globals["../src/api/geocode"]
 replyCases = globals["replies"]
-meteo = globals["../src/api/openmeteo"]
-weatherCases = globals["weather"]
 // ipwhois.ms is ipwho.is's surface and the classes its reply comes back as; `ipwhois` is this
 // suite's case module for those classes and for the request they are read from.
 ipwhoisModule = globals["../src/api/ipwhois"]
@@ -182,7 +178,7 @@ declaredCases = globals["declared"]
 // suite's case module for it.
 geocodeMap = globals["../src/spike/geocode_map"]
 geocoderCases = globals["geocoder"]
-// src/spike/openmeteo_map.ms is Open-Meteo's forecast endpoint as the same writer reads it;
+// src/spike/openmeteo_map.ms is Open-Meteo's endpoints as the same writer reads them;
 // `openmeteo` is this suite's case module for it.
 openmeteoMap = globals["../src/spike/openmeteo_map"]
 openmeteoCases = globals["openmeteo"]
@@ -226,10 +222,6 @@ if apiClient == null or apiClient.hasIndex("splitArguments") == 0 then
 end if
 if geocode == null or geocode.hasIndex("reply") == 0 then
 	print "error: could not import ../src/api/geocode"
-	exit 1
-end if
-if meteo == null or meteo.hasIndex("reply") == 0 then
-	print "error: could not import ../src/api/openmeteo"
 	exit 1
 end if
 if ipwhoisModule == null or ipwhoisModule.hasIndex("reply") == 0 then
@@ -318,14 +310,13 @@ globals["options"].run(cliLibrary, optionsModule, harness)
 argumentCases.run(cliLibrary, apiClient, harness)
 parameterCases.run(apiClient, harness)
 replyCases.run(geocode, apiClient, harness)
-weatherCases.run(meteo, apiClient, harness)
 ipwhoisCases.run(ipwhoisModule, apiClient, harness)
 dotenvCases.run(dotenvModule, harness)
 uidCases.run(uidModule, triples, harness)
 locationCases.run(locationModule, uidModule, triples, apiClient, ipwhoisModule, harness)
 declaredCases.run(declaredModule, declaredMap, apiClient, ipwhoisModule, triples, uidModule, locationModule, harness)
 geocoderCases.run(declaredModule, geocodeMap, apiClient, geocode, triples, uidModule, schemaLoader, harness)
-openmeteoCases.run(declaredModule, openmeteoMap, apiClient, meteo, triples, uidModule, schemaLoader, harness)
+openmeteoCases.run(declaredModule, openmeteoMap, apiClient, triples, uidModule, schemaLoader, harness)
 notebookCases.run(notebookModule, engineModule, sessionModule, triples, rules, cliLibrary, optionsModule, harness)
 
 harness.summary()
