@@ -17,10 +17,12 @@ import "session"
 import "rule"
 import "engine"
 import "options"
-// The API layer and the location module are here for --where: the option asks ipwho.is where this
-// session is, and location.ms turns that answer into facts about the session subject.
+// The API layer, the declared writer and the location module are here for --where: the option
+// asks ipwho.is where this session is, and location.ms turns that answer into facts about the
+// session subject through src/spike/ipwhois_map.ms.
 import "api/client"
-import "api/ipwhois"
+import "spike/declared"
+import "spike/ipwhois_map"
 import "uid"
 import "location"
 
@@ -155,7 +157,8 @@ end if
 // is a warning, and the facts are simply not there.
 
 engine.includePlace(engineSession, globals["location"], globals["uid"],
-	globals["api/client"], globals["api/ipwhois"], log)
+	globals["api/client"], globals["spike/declared"],
+	globals["spike/ipwhois_map"].build(), log)
 
 // 'known', not 'fact': a top-level loop variable is a global here, so naming it
 // fact would overwrite the fact() shorthand with a triple as soon as the loop ran.

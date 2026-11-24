@@ -2,12 +2,12 @@
 
 ipwho.is reads an IP address to where it is: the country, region and city that address is
 registered to, the coordinates of that city, and the network, clock and flag that go with it.
-`src/api/ipwhois.ms` holds the one endpoint the layer models - the lookup of the session's own
-address - with the two parameters it takes. There is no program of its own for this service;
-`src/location.ms` is the caller, asking it where the session is.
+`src/spike/ipwhois_map.ms` holds the one endpoint the writer models - the lookup of the session's
+own address - with the two parameters it takes and the facts a reply becomes. There is no program
+of its own for this service; `src/location.ms` is the caller, asking it where the session is.
 
 This document is the remote surface written out: what a request looks like, what comes back, the
-classes that reply is read into, the facts written from them, and the endpoint with its parameters.
+facts the map writes from it, and the endpoint with its parameters.
 What is missing between those facts and a usable domain is collected with the other services' in
 [gaps to close before these APIs are knowledge](gaps.md).
 
@@ -87,25 +87,17 @@ change to the layer.
 class then answers for what was sent and for nothing else - a coordinate that was not asked for is
 `null`, not zero, and a part that was not sent is absent rather than empty.
 
-## The reply as classes
+## The reply as facts
 
-`fetch` hands the parsed JSON through untouched and puts a second field beside it: `reply`, the
-same answer read as classes. `src/api/ipwhois.ms` defines only what holds them together; the
-objects themselves are the API layer's, from `src/api/client.ms`.
-
-**`Place`: the shared class.** The answer as a whole is a place, so it is the layer's shared
-`Place`, built with `["city"]` as the name and `["region", "country"]` after it. That is what
-gives a lookup its label - `Fort Worth, Texas, United States` - and a place with no region is
-named without one (`Berlin, Germany`), while a place with nothing to say has no label at all, which
-is the empty text the program turns into `(no name)`. Coordinates come from the reply's
-`latitude` and `longitude` numbers; `latitude` and `longitude` return those numbers, ready to send
-as parameters. Every other field is read by the name the service gave it - `place.text("type")` for
-`IPv6`, `place.text("borders")` for `CA,MX`, `place.number("is_eu")` for `0` - so no field needs an
-accessor of its own. `place.describe` prints every field one to a line, with a nested object's
-fields indented under its name, and `place.raw` is the map exactly as it arrived.
+`src/spike/declared.ms` reads the parsed JSON through the map: the reply says when the service
+refused (`success` false), which fields identify the place (`city`, `region`, `country` hashed to
+`place-...`), and one fact per line. The label is `city, region, country`; the coordinates stay
+the numbers the reply sent. Every other field is read by the name the service gave it, so no field
+needs an accessor of its own.
 
 **`Fields`: the three objects inside.** The flag, the network and the clock are objects of the
-service's own fields and nothing more, so each is a plain `Fields` rather than a class per shape:
+service's own fields and nothing more; the map reads a field by its path when it wants one, and
+the facts above need none of them.
 `fields.text("isp")`, `fields.number("asn")`, `fields.text("utc")`, `fields.number("offset")`,
 `fields.text("img")`, `fields.text("emoji")`. A part the reply does not carry is `null`.
 
@@ -220,18 +212,17 @@ read whatever came back.
 ## How a program calls it
 
 There is no command-line program for this service: `src/where.ms` runs `src/location.ms`, which asks
-for the session's location and prints it as the facts above. The module imports nothing and reads
-no globals - an imported module's imports belong to the entry script, and so does its globals - so
-the host in `src/` loads the maps and hands them in:
+for the session's location and prints it as the facts above. `location.ms` imports nothing and
+reads no globals - an imported module's imports belong to the entry script, and so does its
+globals - so the host in `src/` loads the maps and hands them in:
 
 ```
 api = globals["api/client"]
-ipwhois = globals["api/ipwhois"]
+declared = globals["spike/declared"]
+decl = globals["spike/ipwhois_map"].build()
 location = globals["location"]
-where = location.getCurrentLocation(api, ipwhois)
-where.city                        Fort Worth
-where.latitude                    32.725413
-location.generateLocationFacts(globals["triples"], globals["uid"], where)   the facts above
+where = location.sessionFacts(globals["triples"], globals["uid"], api, declared, decl)
+where.facts[0].text               has-location(session, place-f1d6b283a52a28dc)
 ```
 
 The session at the prompt takes them by the same route: every run calls `location.sessionFacts`

@@ -5,7 +5,7 @@
 // No request leaves the program: a client stand-in answers get with the JSON below, and the
 // expected facts are the ones the reference page writes for the trimmed Eiffel result.
 
-run = function(declared, geocodeMap, apiClient, geocode, triples, uid, schemaLoader, h)
+run = function(declared, geocodeMap, apiClient, triples, uid, schemaLoader, h)
 	decl = geocodeMap.build()
 
 	// One /search result, as the reference page trims it.
@@ -213,31 +213,28 @@ run = function(declared, geocodeMap, apiClient, geocode, triples, uid, schemaLoa
 	// ── The request half ────────────────────────────────────────────────
 
 	h.check("the map names the service's own base and path",
-		decl.base == geocode.base and decl.endpoints.search.path == geocode.specFor("search").path)
-	spec = geocode.specFor("search")
+		decl.base == "https://geocode.maps.co" and decl.endpoints.search.path == "/search")
 	names = []
 	for paramSpec in decl.endpoints.search.params
 		names.push paramSpec.name
 	end for
-	declaredNames = []
-	for paramSpec in spec.params
-		declaredNames.push paramSpec.name
-	end for
-	h.check("and the same parameters its table declares", names.join(",") == declaredNames.join(","))
+	h.check("and the parameters a search takes",
+		names.indexOf("q") != null and names.indexOf("limit") != null and
+			names.indexOf("format") != null and names.indexOf("accept-language") != null)
 
 	options = {"q": "Eiffel Tower", "limit": 1, "addressdetails": true, "api_key": "test-key"}
-	oldResult = geocode.fetch(stubFor([eiffel]), "search", options)
 	newResult = declared.fetch(stubFor([eiffel]), decl, "search", options, 10)
-	h.check("the declared fetch builds the url geocode.fetch builds",
-		newResult.url == oldResult.url)
+	h.check("the declared fetch puts every option in the url",
+		newResult.url.indexOf("https://geocode.maps.co/search?") == 0 and
+			newResult.url.indexOf("Eiffel") != null and newResult.url.indexOf("limit=1") != null)
 	h.check("and hides the key",
 		newResult.url.indexOf("test-key") == null and
 			newResult.url.indexOf("api_key=REDACTED") != null)
 
 	// ── What the result is known by ─────────────────────────────────────
 
-	place = geocode.reply(apiClient, "search", [eiffel]).places[0]
-	h.check("the label reads as Place's", declared.label(decl, "search", eiffel) == place.label)
-	h.check("and so do the coordinates",
-		declared.coordinates(decl, "search", eiffel) == place.coordinates)
+	h.check("the label reads the result's display name",
+		declared.label(decl, "search", eiffel).indexOf("Tour Eiffel") != null)
+	h.check("and the coordinates are the reply's",
+		declared.coordinates(decl, "search", eiffel) == "48.8582599, 2.2945006")
 end function

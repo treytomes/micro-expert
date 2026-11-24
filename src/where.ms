@@ -1,10 +1,10 @@
 // where.ms — prints where this session is, as `.kb` facts.
 //
-// src/location.ms answers the place and turns that answer into facts; it imports nothing and reads
-// no globals, so the maps it works from are loaded here and passed in. This script sits in src/ so
-// that every import resolves the same way: an import is resolved against the entry script's
-// folder, and triples.ms imports "temporal" itself, so run from anywhere else that import would
-// look in the wrong folder and fail.
+// src/location.ms answers the place through src/spike/ipwhois_map.ms and the declared writer; it
+// imports nothing and reads no globals, so the maps it works from are loaded here and passed in.
+// This script sits in src/ so that every import resolves the same way: an import is resolved
+// against the entry script's folder, and triples.ms imports "temporal" itself, so run from
+// anywhere else that import would look in the wrong folder and fail.
 //
 //   ./3rd-party/miniscript-linux/miniscript src/where.ms
 //
@@ -16,18 +16,20 @@
 
 
 import "api/client"
-import "api/ipwhois"
+import "spike/declared"
+import "spike/ipwhois_map"
 import "triples"
 import "uid"
 import "location"
 
 api = globals["api/client"]
-ipwhois = globals["api/ipwhois"]
+declared = globals["spike/declared"]
+decl = globals["spike/ipwhois_map"].build()
 triples = globals["triples"]
 uid = globals["uid"]
 location = globals["location"]
 
-here = location.sessionFacts(triples, uid, api, ipwhois)
+here = location.sessionFacts(triples, uid, api, declared, decl)
 if not here.ok then
 	print here.error
 	exit 1

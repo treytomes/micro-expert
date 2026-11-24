@@ -1,9 +1,8 @@
 # The geocode.maps.co API surface
 
 geocode.maps.co is a small geocoder over OpenStreetMap data: an address in, coordinates and a
-display name out, and the reverse. It has three GET endpoints, and `src/api/geocode.ms` holds
-all three with every parameter each one takes. `src/spike/geocode.ms` is the program built on that
-table.
+display name out, and the reverse. It has three GET endpoints, and `src/spike/geocode_map.ms`
+holds all three with every parameter each one takes and the facts a result becomes.
 
 This document is the remote surface written out: what a request looks like, what comes back,
 and every parameter of every endpoint. Anything here that the layer checks - a range, a
@@ -78,11 +77,9 @@ A result looks like this (one entry of a `/search` reply, trimmed):
 
 `lat` and `lon` are strings, not numbers, which is worth knowing before doing arithmetic on
 them. The layer hands the parsed JSON through as the service sent it, so they stay strings.
-Beside it, `fetch` puts the reply read into classes: a `Place` per result, held by a
-`SearchReply`, a `ReverseReply` or a `LookupReply` that knows the endpoint's shape and what
-the whole answer says about itself. The `Place` itself is the API layer's shared one, in
-`src/api/client.ms`, built with the three names an OSM result may carry. `src/spike/geocode.ms` renders from those objects rather than
-picking fields out of the map, and `--json` is what still prints the service's own JSON.
+`src/spike/declared.ms` reads each result through the map instead: the three endpoints share one
+facts list, the subject is the OSM object (`way/5013364`), and a search adds the query that asked
+for it.
 
 `format=xml`, `format=geojson` and `format=geocodejson` answer in those formats instead.
 `geojson` and `geocodejson` are still JSON, so the layer's `json` field is filled;
@@ -305,18 +302,14 @@ parenthesis, and no `//`. That rules out some of the reply outright:
 
 ### From a reply to a facts file
 
-Nothing in the layer writes triples: `src/api/geocode.ms` reads the reply into the API layer's
-`Place` objects and `src/spike/geocode.ms` prints them. The conversion is a loop over the results - subject
-from `osm_type` and `osm_id`, one fact per property, `val` on the two coordinates because the
-reply writes them as strings, and no fact at all for a field that is absent - and the writer
-in `src/knowledge.ms` turns the facts back into `.kb` text. `--facts` or `/load-facts` then reads that file with the same
-reader the shipped domain uses, so a fetched place can be asked about beside hand-written facts in
-one query. Keeping `was-answer-to` makes that join reversible: the file says which query produced
+The map writes triples: `src/spike/geocode_map.ms` says one fact per property, subject from
+`osm_type` and `osm_id`, `val` on the two coordinates because the reply writes them as strings,
+and no fact at all for a field that is absent; `src/spike/declared.ms` turns those facts into
+`.kb` text. Keeping `was-answer-to` makes a file's join reversible: it says which query produced
 it, and a second run of the same query can be compared rather than merged.
 
-That loop does not exist yet: neither program writes facts, so every triple on this page was
-written by hand. The seams that leaves - and the ones the weather service and the engine leave
-beside them - are collected in [gaps to close before these APIs are knowledge](gaps.md).
+The seams that remain - a place to record which fetch a file came from, and the engine's own -
+are collected in [gaps to close before these APIs are knowledge](gaps.md).
 
 ## Endpoints
 
@@ -424,26 +417,14 @@ A missing or wrong key answers `401`, which is the reason the layer does not sen
 `Authorization` header the service's documentation mentions. The parameter is the working
 path.
 
-## How the program maps to all this
+## How the map reads a result
 
-`src/spike/geocode.ms` takes the endpoint as a word - `search`, `reverse`, `lookup` - or as nothing
-for a bare query, and every parameter above as a `--name`:
+`src/spike/geocode_map.ms` declares the three endpoints and one facts list: a result's name,
+coordinates and bounding box, its OSM class and type, its address and its extra tags. The subject
+is `osm_type`/`osm_id` joined with `/`, so the same OSM object is the same term whichever endpoint
+sent it; a lookup result that carries a GeoJSON centroid instead of `lat` and `lon` names both
+paths, longitude first. Only a search records `was-answer-to`, because only a search has a query.
 
-```
-miniscript src/spike/geocode.ms "Eiffel Tower" --limit 1
-miniscript src/spike/geocode.ms reverse --lat 48.8583 --lon 2.2945 --zoom 18
-miniscript src/spike/geocode.ms lookup --osm-ids R253832,W175905 --polygon-geojson
-miniscript src/spike/geocode.ms search --q Berlin --format geojson --json
-```
-
-Underscores and dashes are the same in a name, `--name value` and `--name=value` are the same
-form, and a boolean is `--name`, `--name false` or `--no-name` - which the service receives
-as `1` or `0`, since it ignores the word `false`. `--json` prints the parsed JSON indented;
-without it, and with `--format xml`, the body is printed as it came.
-
-The command line is declared with the repo's cli library, so `--help` is generated from the
-same table this page's parameter lists come from and the request is checked against: it
-names every parameter with what it takes, and `--version` prints the version line. A name
-that is not a parameter is refused by the parser, and a value the table cannot use - a
-`limit` of 100, a `format` that is not one of the five - is reported before anything is
-sent, rather than as a service refusal afterward.
+`src/spike/declared.ms` reads a list reply (`/search`, `/lookup`) one result at a time and a
+single-object reply (`/reverse`) as one, and leaves out a field the reply did not carry rather
+than writing an empty term.

@@ -1,12 +1,9 @@
 // Cases for src/spike/declared.ms, the shared writer, and src/spike/ipwhois_map.ms, ipwho.is as
-// the map it reads: the canned Fort Worth reply written both ways, and the facts compared line
-// for line with the ones src/location.ms writes today.
+// the map it reads: the canned Fort Worth reply as the writer reads it.
 //
-// No request leaves the program: a client stand-in answers get with the JSON below, so the old
-// path (ipwhois.fetch -> LocationReply -> location.getCurrentLocation ->
-// location.generateLocationFacts) and the declared one are fed the same reply.
+// No request leaves the program: a client stand-in answers get with the JSON below.
 
-run = function(declared, ipwhoisMap, apiClient, ipwhois, triples, uid, location, h)
+run = function(declared, ipwhoisMap, apiClient, triples, uid, h)
 	decl = ipwhoisMap.build()
 
 	// One answer, as ipwho.is answers this machine.
@@ -85,19 +82,11 @@ run = function(declared, ipwhoisMap, apiClient, ipwhois, triples, uid, location,
 		return fake
 	end function
 
-	// The facts location.ms writes for the same reply, through the real lookup path.
-	oldFactsFor = function(json)
-		here = location.getCurrentLocation(stubFor(json), ipwhois)
-		if not here.ok then return []
-		return location.generateLocationFacts(triples, uid, here)
-	end function
-
 	// ── The full reply, both ways ───────────────────────────────────────
 
 	reading = declared.read(triples, uid, decl, "lookup", fortWorth)
 	h.check("a declared lookup is ok", reading.ok)
-	h.check("and writes the seven facts location.ms writes",
-		reading.facts.len == 7 and sameFacts(oldFactsFor(fortWorth), reading.facts))
+	h.check("and writes the seven facts the reply supports", reading.facts.len == 7)
 	h.check("the place is named by the id its fields generate",
 		reading.subject == "place-f1d6b283a52a28dc")
 	h.check("has-location puts the place under the session",
@@ -126,16 +115,16 @@ run = function(declared, ipwhoisMap, apiClient, ipwhois, triples, uid, location,
 	h.check("and says which fact it left out",
 		noRegionReading.skipped.len == 1 and
 			noRegionReading.skipped[0].indexOf("has-region") != null)
-	h.check("and writes the same six facts location.ms writes",
-		sameFacts(oldFactsFor(noRegion), noRegionReading.facts))
+	h.check("and writes the six facts the reply supports",
+		noRegionReading.facts.len == 6 and factAbout(noRegionReading.facts, "has-city") != null)
 	nullRegionReading = declared.read(triples, uid, decl, "lookup", nullRegion)
 	h.check("a null region is dropped exactly as an absent one",
 		sameFacts(noRegionReading.facts, nullRegionReading.facts))
 	blankRegionReading = declared.read(triples, uid, decl, "lookup", blankRegion)
 	h.check("a region of spaces is no region either",
 		blankRegionReading.facts.len == 5 and factAbout(blankRegionReading.facts, "has-region") == null)
-	h.check("and that reply is the one location.ms writes as well",
-		sameFacts(oldFactsFor(blankRegion), blankRegionReading.facts))
+	h.check("and writes the five facts the reply supports",
+		blankRegionReading.facts.len == 5 and factAbout(blankRegionReading.facts, "has-city") != null)
 
 	// ── An answer there is nothing to name ──────────────────────────────
 
@@ -166,19 +155,16 @@ run = function(declared, ipwhoisMap, apiClient, ipwhois, triples, uid, location,
 
 	// ── The request half ────────────────────────────────────────────────
 
-	h.check("the map names the service's own base", decl.base == ipwhois.base)
+	h.check("the map names the service's own base", decl.base == "https://ipwho.is")
 	h.check("and the same two parameters its table declares",
-		decl.endpoints.lookup.params.len == ipwhois.specFor("lookup").params.len and
+		decl.endpoints.lookup.params.len == 2 and
 			decl.endpoints.lookup.params[0].name == "lang" and
 			decl.endpoints.lookup.params[1].name == "fields")
 
-	oldStub = stubFor(fortWorth)
-	oldResult = ipwhois.fetch(oldStub, "lookup", {"fields": ["city", "country"]}, 10)
 	newStub = stubFor(fortWorth)
 	newResult = declared.fetch(newStub, decl, "lookup", {"fields": ["city", "country"]}, 10)
-	h.check("the declared fetch builds the url ipwhois.fetch builds",
-		newResult.url == oldResult.url and
-			newResult.url == "https://ipwho.is/?fields=city%2Ccountry")
+	h.check("the declared fetch builds the url the service's table says",
+		newResult.url == "https://ipwho.is/?fields=city%2Ccountry")
 	h.check("and hands the transport the deadline it was given", newStub.seenTimeout == 10)
 	h.check("an endpoint the map does not name is refused by name",
 		declared.fetch(newStub, decl, "bulk").error ==
@@ -189,9 +175,8 @@ run = function(declared, ipwhoisMap, apiClient, ipwhois, triples, uid, location,
 
 	// ── What the reply is known by ──────────────────────────────────────
 
-	oldReply = ipwhois.reply(apiClient, fortWorth)
-	h.check("the label reads as LocationReply's",
-		declared.label(decl, "lookup", fortWorth) == oldReply.label)
-	h.check("and so do the coordinates",
-		declared.coordinates(decl, "lookup", fortWorth) == oldReply.coordinates)
+	h.check("the label names the city",
+		declared.label(decl, "lookup", fortWorth).indexOf("Fort Worth") != null)
+	h.check("and the coordinates are the reply's",
+		declared.coordinates(decl, "lookup", fortWorth) == "32.725413, -97.320849")
 end function

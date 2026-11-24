@@ -6,7 +6,7 @@
 //   import "engine"
 //
 //   session = engine.build(triples, Rule, options, style)
-//   engine.includePlace(session, location, uid, client, ipwhois, log)
+//   engine.includePlace(session, location, uid, client, declared, decl, log)
 //   replSession.run(session)
 //
 // build reads the domain's three files and answers the session they make, or the error
@@ -21,8 +21,8 @@
 // includePlace stands apart because it is a network lookup with a wait: a run at the prompt
 // says where it is and holds the place's facts, while a notebook starts from the domain's
 // files with no request at all. It is handed the pieces that lookup reads - the location
-// module, the id generator, the client and the service - so this module stays clear of the
-// API layer and of the bundled libraries behind it.
+// module, the id generator, the client, the declared writer and ipwho.is's map - so this
+// module stays clear of the API layer and of the bundled libraries behind it.
 
 import "domain"
 import "facts"
@@ -74,9 +74,9 @@ build = function(triples, Rule, options, style)
 	}
 end function
 
-includePlace = function(session, location, uid, client, ipwhois, log=null)
+includePlace = function(session, location, uid, client, declared, decl, log=null)
 	"Adds the place the lookup answers with, or says through log why it is not there."
-	here = location.sessionFacts(session.triples, uid, client, ipwhois)
+	here = location.sessionFacts(session.triples, uid, client, declared, decl)
 	if not here.ok then
 		if log != null then log.warning "{Warning}", {"Warning": here.error}
 		return here

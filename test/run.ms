@@ -54,11 +54,8 @@ import "../src/mermaid"
 env["MS_IMPORT_PATH"] = savedImportPath
 
 // The API layer's client reaches the bundled json and stringUtil libraries, which a src/-only
-// import path hides, so it loads here, with the .env reader beside it. geocode's module imports
-// nothing, and it is here for the cases about the replies it reads JSON into.
+// import path hides, so it loads here, with the .env reader beside it.
 import "../src/api/client"
-import "../src/api/geocode"
-import "../src/api/ipwhois"
 import "../src/dotenv"
 import "../src/uid"
 import "../src/location"
@@ -85,8 +82,6 @@ import "domain"
 import "options"
 import "arguments"
 import "parameters"
-import "replies"
-import "ipwhois"
 import "dotenv"
 import "uid"
 import "location"
@@ -151,14 +146,6 @@ optionsModule = globals["../src/options"]
 apiClient = globals["../src/api/client"]
 argumentCases = globals["arguments"]
 parameterCases = globals["parameters"]
-// geocode.ms is geocode.maps.co's surface and the classes its replies come back as; `replies`
-// is this suite's case module for those classes.
-geocode = globals["../src/api/geocode"]
-replyCases = globals["replies"]
-// ipwhois.ms is ipwho.is's surface and the classes its reply comes back as; `ipwhois` is this
-// suite's case module for those classes and for the request they are read from.
-ipwhoisModule = globals["../src/api/ipwhois"]
-ipwhoisCases = globals["ipwhois"]
 // src/dotenv.ms puts the .env's settings into env; `dotenv` is this suite's case module.
 dotenvModule = globals["../src/dotenv"]
 dotenvCases = globals["dotenv"]
@@ -220,14 +207,6 @@ if apiClient == null or apiClient.hasIndex("splitArguments") == 0 then
 	print "error: could not import ../src/api/client"
 	exit 1
 end if
-if geocode == null or geocode.hasIndex("reply") == 0 then
-	print "error: could not import ../src/api/geocode"
-	exit 1
-end if
-if ipwhoisModule == null or ipwhoisModule.hasIndex("reply") == 0 then
-	print "error: could not import ../src/api/ipwhois"
-	exit 1
-end if
 if dotenvModule == null or dotenvModule.hasIndex("load") == 0 then
 	print "error: could not import ../src/dotenv"
 	exit 1
@@ -236,7 +215,7 @@ if uidModule == null or uidModule.hasIndex("of") == 0 then
 	print "error: could not import ../src/uid"
 	exit 1
 end if
-if locationModule == null or locationModule.hasIndex("generateLocationFacts") == 0 then
+if locationModule == null or locationModule.hasIndex("sessionFacts") == 0 then
 	print "error: could not import ../src/location"
 	exit 1
 end if
@@ -309,13 +288,11 @@ globals["domain"].run(domainModule, harness)
 globals["options"].run(cliLibrary, optionsModule, harness)
 argumentCases.run(cliLibrary, apiClient, harness)
 parameterCases.run(apiClient, harness)
-replyCases.run(geocode, apiClient, harness)
-ipwhoisCases.run(ipwhoisModule, apiClient, harness)
 dotenvCases.run(dotenvModule, harness)
 uidCases.run(uidModule, triples, harness)
-locationCases.run(locationModule, uidModule, triples, apiClient, ipwhoisModule, harness)
-declaredCases.run(declaredModule, declaredMap, apiClient, ipwhoisModule, triples, uidModule, locationModule, harness)
-geocoderCases.run(declaredModule, geocodeMap, apiClient, geocode, triples, uidModule, schemaLoader, harness)
+locationCases.run(locationModule, uidModule, triples, apiClient, declaredModule, declaredMap, harness)
+declaredCases.run(declaredModule, declaredMap, apiClient, triples, uidModule, harness)
+geocoderCases.run(declaredModule, geocodeMap, apiClient, triples, uidModule, schemaLoader, harness)
 openmeteoCases.run(declaredModule, openmeteoMap, apiClient, triples, uidModule, schemaLoader, harness)
 notebookCases.run(notebookModule, engineModule, sessionModule, triples, rules, cliLibrary, optionsModule, harness)
 
