@@ -37,6 +37,14 @@ prints the diagram as a fence and draws the picture beside it.
 A cell with a line the engine refuses is marked failed, and the session carries on into the cell
 after it. What was refused is in the cell's own text.
 
+A cell reads its lines the way a `.kb` file does, so `//` starts a comment: a note beside a fact is
+a note, a line that is only a note is skipped, and neither marks the cell failed.
+
+One cell runs at a time. Every cell of a notebook goes to the same process and reads its answer off
+the same pipe, so a cell started while another is running waits its turn instead of taking the
+running cell's text for its own — VS Code shows it queued behind the one executing. Stopping a cell
+that is still queued ends it without running.
+
 ## The protocol
 
 The extension starts one `src/notebook.ms` per notebook and talks to it over stdin and stdout, one

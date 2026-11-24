@@ -29,7 +29,8 @@ with a line saying what a value there stands for (`the parent of ?p, needed to a
 is-uncle-of(oliver, ?p)`) so the box still explains itself once the report has scrolled
 away. The answer - or Skip, which leaves the question without a value - goes back to the
 engine and the cell finishes. A cell that says a warning is marked failed; its own text
-says what was refused.
+says what was refused. A `//` note is a comment, as in a `.kb` file. Cells run one at a time,
+each waiting for the one before it, since they share the one session.
 
 - **Restart Knowledge Session** in the notebook toolbar starts a fresh session.
 - **Stop** kills the session, so the facts added since it started are gone.

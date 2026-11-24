@@ -223,6 +223,22 @@ run = function(notebook, engine, sessionModule, triples, rules, cli, options, h)
 		cells.len == 1 and cells[0].indexOf(notebook.FAILED) != null and
 			silent[silent.len - 1] == notebook.DONE)
 
+	// ── A // note is a comment, as in the file a cell mirrors ──────────────
+
+	// A cell's line is read the way a .kb file reads it, so notes can be written beside the
+	// knowledge they explain and a line that is only a note is skipped rather than read as a
+	// command that does not exist - which is what marked the first cell of a new notebook
+	// failed, and why the starter hint moved above the cell.
+	session = startSession()
+	noted = transcript(session, [["// the family", "is-parent-of(casey, sam) // a note"],
+		["is-parent-of(?p, sam)"]])
+	cells = cellsOf(noted)
+	h.check("a note-only line is skipped, not refused",
+		cells.len == 2 and cells[0].indexOf(notebook.FAILED) == null)
+	h.check("and a note after a fact is not part of the fact",
+		countOf(session.facts, "is-parent-of(casey, sam)") == 1)
+	h.check("so the cell after it is answered", holds(textOf(cells[1]), "casey"))
+
 	// A cell with nothing in it is still a cell: the front end gets an empty answer, not a
 	// missing one, so a row it adds and runs does not wait for a mark that never comes.
 	empty = cellsOf(transcript(startSession(), [[""]]))

@@ -14,9 +14,8 @@ const NOTEBOOK_TYPE = "micro-expert-notebook";
 // what the message it posts comes back through.
 const RENDERER_ID = "kbnb-ask";
 const ASK_MIME = "application/kbnb-ask+json";
-// A new notebook's one cell is a question, and the hint above it is markdown: a line starting
-// with // is not a line the engine reads, so the same words in a code cell were refused as a
-// command and the cell was marked failed.
+// A new notebook's one cell is a question, and the hint above it is markdown rather than a //
+// note in the cell: a hint is not knowledge, and a code cell is where knowledge goes.
 const STARTER = "is-parent-of(?p, tim)";
 const STARTER_NOTE =
 	"Shift+Enter runs a cell: a fact, a rule as `head => conditions`, or a question.";
@@ -64,7 +63,8 @@ function register(context, { resolveInterpreter, projectDirFor, domainFor }) {
 		"microExpert-notebook",
 		NOTEBOOK_TYPE,
 		"Micro-Expert",
-		(cells, notebook, control) => execute(cells, notebook, control)
+		(cells, notebook, control) =>
+			queued(notebook.uri.toString(), () => execute(cells, notebook, control))
 	);
 	controller.supportedLanguages = [LANGUAGE];
 	controller.supportsExecutionOrder = true;
@@ -83,6 +83,32 @@ function register(context, { resolveInterpreter, projectDirFor, domainFor }) {
 	// `${notebook uri}\0${ask}` -> what the box's answer resolves.
 	const waiting = new Map();
 	let order = 0;
+
+	// One engine process per notebook means one cell at a time: a run writes its cell to that
+	// process's stdin and reads the answer off its stdout until the cell's done mark, so two
+	// runs at once would take each other's lines - a cell's text, or the value an ask waits
+	// for, landing in the wrong cell. A run that arrives while one is going waits its turn,
+	// which VS Code draws as a cell queued behind the one running. Not the `serialize` of this
+	// module, which writes the .kbnb file: a function of that name here would hide it.
+	const queues = new Map();
+
+	function queued(key, work) {
+		const previous = queues.get(key) || Promise.resolve();
+		// A run that follows a failed one still runs: the failure was that cell's, and the
+		// session it left behind is the one the next cell starts from.
+		const started = previous.then(work, work);
+		// The chain is the queue, so this turn is what the next one waits for. It is let go
+		// once no turn is behind it, so a notebook that has run nothing since holds nothing.
+		const tail = started.then(
+			() => {},
+			() => {}
+		);
+		queues.set(key, tail);
+		tail.then(() => {
+			if (queues.get(key) === tail) queues.delete(key);
+		});
+		return started;
+	}
 
 	// The renderer posts back what was typed into a box, and the cell that asked goes on
 	// from there. A message with no box waiting - answered twice, or after the cell was
@@ -141,6 +167,14 @@ function register(context, { resolveInterpreter, projectDirFor, domainFor }) {
 
 			const execution = control.createNotebookCellExecution(cell);
 			execution.executionOrder = ++order;
+			// A cell that waited its turn may have been stopped while it waited, and a
+			// stopped cell does not run: it ends here instead of reading a session that was
+			// asked for something else.
+			if (execution.token.isCancellationRequested) {
+				execution.start(Date.now());
+				execution.end(false, Date.now());
+				continue;
+			}
 			execution.start(Date.now());
 
 			if (interpreter.problem) {

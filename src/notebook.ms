@@ -33,10 +33,12 @@
 //
 // A cell is several lines, run in order, so a cell can add a fact and ask about it. It is one
 // session the cells share, as the prompt is one session the lines share, so what one cell
-// learns the next holds. A line that starts with / is a command, as at the prompt, except
-// /exit: a notebook is restarted by its own toolbar, so no cell can leave the session. A cell
-// of just /mermaid draws the diagram instead of printing it - the fence a Markdown renderer
-// draws, then the picture mermaid.svg answers, which every VS Code shows.
+// learns the next holds. A line is a line of a .kb file: a // note to its end is a comment, so
+// the same note in a cell is a note rather than a line the engine refuses, and a line that is
+// only a note is skipped. A line that starts with / is a command, as at the prompt, except
+// /exit: a notebook is restarted by its own toolbar, so no cell can leave the session. A cell of
+// /mermaid draws the diagram instead of printing it - the fence a Markdown renderer draws, then
+// the picture mermaid.svg answers, which every VS Code shows.
 //
 // Nothing is printed but the marks above, and nothing reaches the network or the log: no
 // lookup asks where the session is and no log file is opened, so a notebook starts from the
@@ -135,7 +137,7 @@ serveCell = function(session, lines, write)
 	"One cell's answer: what it printed, the mark if it said a warning, and the picture it drew."
 	session.cellFailed = 0
 	session.paint = @notebookPaint
-	diagram = diagramCell(lines)
+	diagram = diagramCell(lines, session.knowledge)
 	write(OUT_START)
 	if diagram then
 		drawMermaid(session, @write)
@@ -186,9 +188,17 @@ readAnswer = function(id, read)
 	end while
 end function
 
+// A cell's line as knowledge rather than protocol: the file reader's own comment removal, so
+// a // note beside a fact is a note and not a line that will not read, then trimmed. A cell
+// therefore reads its lines the way a .kb file does, which is the file it is the notebook form
+// of - a command included, since /mermaid FILE still names the file after it.
+cellLine = function(session, line)
+	return repl.trimSpace(session.knowledge.stripComment(line))
+end function
+
 serveLine = function(session, line)
-	"One line of a cell, read the way the prompt reads it: a command, or knowledge."
-	line = repl.trimSpace(line)
+	"One line of a cell, read the way a .kb file reads it: its // comment dropped, then a command or knowledge."
+	line = cellLine(session, line)
 	if line == "" then return
 	if line == "/exit" then
 		repl.say(session, "warning", "  /exit would end the session; restart it from the notebook instead")
@@ -213,11 +223,11 @@ end function
 // to the command: the same mermaid.build and mermaid.svg the command calls, in the two forms
 // a notebook can show.
 
-diagramCell = function(lines)
+diagramCell = function(lines, sessionKnowledge)
 	"Whether the cell asks for the diagram under it: /mermaid alone, so /mermaid FILE still writes files."
 	asked = 0
 	for line in lines
-		trimmed = repl.trimSpace(line)
+		trimmed = repl.trimSpace(sessionKnowledge.stripComment(line))
 		if trimmed == "" then continue
 		if trimmed.lower != "/mermaid" then return false
 		asked = asked + 1

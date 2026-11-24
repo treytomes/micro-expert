@@ -204,7 +204,7 @@ The suite needs the same interpreter your `.env` points at:
 
 ```text
 "%MINISCRIPT_EXE_PATH%" test\run.ms
-1069 passed, 0 failed
+1072 passed, 0 failed
 ```
 
 On Linux, `"$MINISCRIPT_EXE_PATH"` — but a plain shell does not read `.env`, so export it or paste
