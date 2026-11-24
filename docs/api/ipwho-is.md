@@ -20,13 +20,13 @@ GET https://ipwho.is/?lang=en&fields=city,region,country
 - The path is the host's root: there is one lookup, and no endpoint name to choose. It answers
   for the address the request came from, so nothing in the URL says which address is asked about.
 - There is no key. The free service counts requests by address rather than by key, which is why
-  the layer has no credential to read, no `.env` to load and no key to keep out of a printed URL.
+  the layer has no credential to read, no `.env` to load and no key to keep out of a request's URL.
 - The keyed parts of the service are left out rather than half-answered: `/bulk` and the
   `security` fields belong to a paid account, so the table holds neither.
 - `lang` and `fields` are the only two query parameters, and both are optional. The layer
   URL-encodes values, drops empty ones, and joins a repeated `--name` with commas, so
   `--fields city --fields country` becomes `fields=city%2Ccountry`.
-- A value the table cannot use never leaves the program: an empty `fields` is refused as
+- A value the table cannot use never reaches a request: an empty `fields` is refused as
   `fields must not contain an empty value`, and a name the table does not hold is refused by that
   name, both before a request is made.
 
@@ -79,13 +79,12 @@ envelope with a status in it. Trimmed to the fields this layer reads, it looks l
 | `connection` | An object: `asn` the autonomous system number, `org` the owning organization, `isp` the provider as the service names it, `domain` its domain. |
 | `timezone` | An object: `id` the IANA zone, `abbr` its abbreviation, `is_dst` daylight saving, `offset` seconds from UTC, `utc` that offset as text. |
 
-Anything else the service sends stays in the reply as it came and is printed by `describe`;
-nothing is dropped on the way in, so a field added between releases is readable by name without a
-change to the layer.
+Anything else the service sends stays in the reply as it came; nothing is dropped on the way in,
+so a field added between releases is readable by path without a change to the map.
 
-`fields` is how a reply is made narrower: `fields=city,country` sends only those two, and every
-class then answers for what was sent and for nothing else - a coordinate that was not asked for is
-`null`, not zero, and a part that was not sent is absent rather than empty.
+`fields` is how a reply is made narrower: `fields=city,country` sends only those two, and the map
+then writes facts for what was sent and nothing else - a coordinate that was not asked for is
+absent rather than zero, and a part that was not sent is absent rather than empty.
 
 ## The reply as facts
 
@@ -95,24 +94,9 @@ refused (`success` false), which fields identify the place (`city`, `region`, `c
 the numbers the reply sent. Every other field is read by the name the service gave it, so no field
 needs an accessor of its own.
 
-**`Fields`: the three objects inside.** The flag, the network and the clock are objects of the
-service's own fields and nothing more; the map reads a field by its path when it wants one, and
-the facts above need none of them.
-`fields.text("isp")`, `fields.number("asn")`, `fields.text("utc")`, `fields.number("offset")`,
-`fields.text("img")`, `fields.text("emoji")`. A part the reply does not carry is `null`.
-
-**`LocationReply`: the answer.** It holds the place and the three parts - `place`, `connection`,
-`timezone`, `flag` - and answers the questions a caller asks of the whole thing:
-
-| Member | Meaning |
-| --- | --- |
-| `ok`, `error` | Whether the lookup was answered, and why not when it was refused. |
-| `place`, `connection`, `timezone`, `flag` | The shared `Place` and the three `Fields`, or `null` where the reply had none. |
-| `ip` | The address the answer is about; empty when the reply named none. |
-| `label` | What the address is known by, as its place names it. |
-| `coordinates` | The latitude and longitude, one line; empty when the reply gave none. |
-| `isEmpty` | True when there is no address to describe - a refusal, or an empty reply. |
-| `describe` | The whole answer as lines: label, coordinates, a blank line, then every field. |
+**The three objects inside.** The flag, the network and the clock are objects of the service's
+own fields and nothing more; the map reads a field by its path when it wants one, and the facts
+above need none of them. A part the reply does not carry is absent.
 
 ### Refusals
 
@@ -127,8 +111,7 @@ The layer reads that into `ok: 0` and an `error` of `The API refused the lookup:
 with the service's message trimmed of surrounding spaces. A refusal with no message says
 `no message given.`; a body that is not an object at all is `The API returned an unexpected
 reply.`; and no JSON to read is no reply at all, `reply` being `null`. All of them are values a
-program reports rather than renders - `describe` on a refusal is empty, because there is no
-address to lay out.
+caller reports rather than renders; a refusal has no address to lay out.
 
 A request that never went out is a different thing: a host that will not resolve, or curl timing
 out, fails the transport instead, and then `ok` is `0` on the result, `error` carries the
@@ -171,7 +154,7 @@ Texas` hash differently, which is why the identity is the service's own three fi
 anything built from them. Case and spacing are not spelling, so either way of writing them is one
 term. A field the reply did not carry writes no fact, and a reply with no city or no coordinates
 writes none at all: the region and country alone would name every town in a country, and a refused
-lookup prints its refusal instead of facts.
+lookup writes no facts and reports its refusal.
 
 Four of the spellings are the other two pages' own - `has-city`, `has-country`, `has-latitude`,
 `has-longitude` - written here exactly as they are there, with the same field types, so one schema
@@ -204,12 +187,12 @@ in.
 | `lang` | text | Language the words come back in, such as `en` or `de`. |
 | `fields` | csv | Only these fields, comma-separated. An empty value is refused before the request. |
 
-The reply is the one object described above - not a list, and not wrapped in anything. The layer
+The reply is the one object described above - not a list, and not wrapped in anything. The client
 knows the two parameter names and their types, not the service's field names, so `fields` is
-passed through as given: a name the service does not know is its own to answer, and the classes
-read whatever came back.
+passed through as given: a name the service does not know is its own to answer, and the map
+reads whatever came back.
 
-## How a program calls it
+## How a host calls it
 
 There is no command-line program for this service: `src/where.ms` runs `src/location.ms`, which asks
 for the session's location and prints it as the facts above. `location.ms` imports nothing and
@@ -225,23 +208,20 @@ where = location.sessionFacts(globals["triples"], globals["uid"], api, declared,
 where.facts[0].text               has-location(session, place-f1d6b283a52a28dc)
 ```
 
-The session at the prompt takes them by the same route: every run calls `location.sessionFacts`
-before the first question, so `? has-location(session, ?p)` answers and the domain's `is-a` rule
+The session at the prompt takes them by the same route: every run calls `engine.includePlace`,
+which calls `location.sessionFacts`, before the first question, so `? has-location(session, ?p)`
+answers and the domain's `is-a` rule
 types the place, with nothing pasted into a file. A lookup that fails is a warning rather than a
 failed run: the session starts without the place's facts. The startup call asks for ten seconds
 rather than the client's default minute, since it stands between a run and its first question;
-`fetch` takes that deadline as its last argument and gives it to the transport.
+`declared.fetch` takes that deadline as its last argument and gives it to the transport.
 
-A program doing the lookup itself reads the same layer by hand - `ipwhois.fetch(api, "lookup",
-{"fields": "city,country"})` - and finds the shared `Place` at `result.reply.place`, the request
-at `result.url` and the service's own answer at `result.json`.
+A host doing the lookup itself reads the same map by hand - `declared.fetch(api, decl, "lookup",
+{"fields": ["city", "country"]})` - and finds the request at `result.url` and the service's own
+answer at `result.json`; `declared.read(triples, uid, decl, "lookup", result.json)` turns that
+answer into the facts above.
 
-`result` is the transport's map - `ok`, `status`, `body`, `json`, `url`, `error` - with `reply`
-beside them, so a program that wants the service's own JSON still has it. `fetch` takes the
-endpoint name first and refuses one the table does not name by that name
-(`Unknown endpoint "bulk".`), so a misspelling is reported rather than requested.
-
-A program with a command line of its own declares this endpoint's parameters from the same table
-the request is checked against - `api.addParameters(cli, cmd, ipwhois.specFor("lookup"))` - so
-`--help` lists `lang` and `fields` with what each takes, and a parameter the table does not hold is
-refused before anything is sent.
+`result` is the transport's map - `ok`, `status`, `body`, `json`, `url`, `error` - so a host that
+wants the service's own JSON still has it. `fetch` takes the endpoint name first and refuses one
+the map does not name by that name (`Unknown endpoint "bulk".`), so a misspelling is reported
+rather than requested.

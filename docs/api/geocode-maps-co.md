@@ -18,9 +18,9 @@ GET https://geocode.maps.co/search?q=Eiffel+Tower&limit=1&api_key=...
 - Every parameter is a query parameter. The layer URL-encodes names and values, drops empty
   ones, and joins a repeated `--name` with commas, so `--countrycodes de --countrycodes fr`
   becomes `countrycodes=de%2Cfr`.
-- The key is the `api_key` parameter, added to every request. The program reads
-  `GEOCODE_MAPS_API_KEY` from the environment or the nearest `.env` and hands it to the layer,
-  which sends it and keeps it out of any URL it prints. The service's documentation also names
+- The key is the `api_key` parameter, added to every request. A host reads
+  `GEOCODE_MAPS_API_KEY` from the environment or the nearest `.env` and passes it as an option;
+  the map sends it and keeps it out of any URL it builds. The service's documentation also names
   an `Authorization: Bearer` header; that path answers `401`, so the parameter is the only one
   used.
 - A name the table does not list is passed through untouched. The service adds optional
@@ -83,7 +83,7 @@ for it.
 
 `format=xml`, `format=geojson` and `format=geocodejson` answer in those formats instead.
 `geojson` and `geocodejson` are still JSON, so the layer's `json` field is filled;
-`xml` is not, so `json` is `null` and the program prints the body as it came. The result
+`xml` is not, so `json` is `null` and the body is the caller's to print as it came. The result
 fields above are the `json`/`jsonv2` shape; `geocodejson` moves them under
 `features[].properties.geocoding`.
 
@@ -276,7 +276,7 @@ parenthesis, and no `//`. That rules out some of the reply outright:
   form that fits, which is the reason to keep it.
 - `licence` holds both commas and `http://`, and `//` starts a comment wherever it stands, so the
   attribution cannot sit in any field at all. It belongs with the data file - a line in the
-  program that wrote it, or beside the folder - rather than inside the facts.
+  host that wrote it, or beside the folder - rather than inside the facts.
 - `boundingbox` is a list of four numbers. Four predicates keep it comparable, as above; one text
   field such as `48.8574 48.8590 2.2933 2.2956` reads back but never compares, since a comparison
   needs numbers.
@@ -410,7 +410,7 @@ ERROR 400: Parameter 'format' must be one of: xml, geojson, geocodejson, json, j
 
 The layer turns either into `ok: 0` with an `error` such as `HTTP 400: …`. Because the JSON
 error's message is nested under `error` rather than beside it, the status and the body are
-what that message carries; the program prints the body it was given, not a field pulled out of
+what that message carries; the error carries the body it was given, not a field pulled out of
 it.
 
 A missing or wrong key answers `401`, which is the reason the layer does not send the
