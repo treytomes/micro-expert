@@ -45,6 +45,8 @@ import "../src/temporal"
 import "../src/domain"
 import "../src/options"
 import "../src/session"
+import "../src/engine"
+import "../src/notebook"
 import "../src/rules"
 import "../src/facts"
 import "../src/schema"
@@ -85,6 +87,7 @@ import "ipwhois"
 import "dotenv"
 import "uid"
 import "location"
+import "notebook"
 
 // shellArgs[0] is this script, so the options start at index 1.
 wanted = {"json": 0, "filters": [], "files": []}
@@ -168,6 +171,12 @@ replLibrary = globals["repl/repl"]
 // The argument parser, for the checks that read the program's option table back.
 cliLibrary = globals["cli/cli"]
 sessionModule = globals["../src/session"]
+// engine.ms builds the session a run is made of, and notebook.ms serves that session to a
+// notebook; `notebook` is this suite's case module for the protocol, so the module itself is
+// aliased away the same way.
+engineModule = globals["../src/engine"]
+notebookModule = globals["../src/notebook"]
+notebookCases = globals["notebook"]
 
 // The loaders themselves, so the cases can read the data files the program ships.
 rulesLoader = globals["../src/rules"]
@@ -216,6 +225,15 @@ if uidModule == null or uidModule.hasIndex("of") == 0 then
 end if
 if locationModule == null or locationModule.hasIndex("generateLocationFacts") == 0 then
 	print "error: could not import ../src/location"
+	exit 1
+end if
+
+if engineModule == null or engineModule.hasIndex("build") == 0 then
+	print "error: could not import ../src/engine"
+	exit 1
+end if
+if notebookModule == null or notebookModule.hasIndex("serve") == 0 then
+	print "error: could not import ../src/notebook"
 	exit 1
 end if
 
@@ -268,5 +286,6 @@ ipwhoisCases.run(ipwhoisModule, apiClient, harness)
 dotenvCases.run(dotenvModule, harness)
 uidCases.run(uidModule, triples, harness)
 locationCases.run(locationModule, uidModule, triples, apiClient, ipwhoisModule, harness)
+notebookCases.run(notebookModule, engineModule, sessionModule, triples, rules, cliLibrary, optionsModule, harness)
 
 harness.summary()

@@ -79,10 +79,12 @@ files in `data/` and the same engine answers questions about a different world.
 | `src/triples.ms` | The solver: terms, unification, search, proofs |
 | `src/knowledge.ms` | The reader and writer for `.kb` data |
 | `src/session.ms` | The session's knowledge side: facts, rules, questions |
+| `src/engine.ms` | The domain's three files read into that session |
+| `src/notebook.ms` | That session served to a notebook's cells |
 | `data/facts.kb` | The 54 facts, as text |
 | `data/rules.kb` | The sixteen rules, as text |
 | `data/schema.kb` | The field types, as text |
-| `test/` | The 1040 checks and their runner |
+| `test/` | The 1057 checks and their runner |
 | `docs/` | This wiki, the long-form articles, and the format references |
 | `vscode-knowledge/` | Syntax highlighting for `.kb` files |
 | `bootstrap.bat`, `bootstrap.sh` | Submodules, interpreter, `.env` |

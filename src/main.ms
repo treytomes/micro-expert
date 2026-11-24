@@ -15,8 +15,7 @@ import "vt"
 import "repl/repl"
 import "session"
 import "rule"
-import "domain"
-import "knowledge"
+import "engine"
 import "options"
 // The API layer and the location module are here for --where: the option asks ipwho.is where this
 // session is, and location.ms turns that answer into facts about the session subject.
@@ -134,69 +133,19 @@ reportStyle = function
 	}
 end function
 
-// ── The domain ───────────────────────────────────────────────────────────────
-
-// A domain is its schema, its rules and its facts. --domain names the folder holding the
-// three files, and --facts, --rules and --schema each name one file in place of the
-// folder's piece; with nothing given the folder is data/. domain.ms answers with the
-// three paths, and the session keeps them so /save-* can write each component back.
-
-domainPaths = globals["domain"].pathsFor(options.values)
-
-// ── Facts and rules ──────────────────────────────────────────────────────────
-
-// The family tree lives in the domain's facts file and the reasoning in its rules file,
-// loaded by facts.ms and rules.ms. Both build their arrays on request instead of at load time,
-// because the triples have to come from this file's copy of triples.ms: a module that
-// imports it gets a copy of its own, and the solver does not recognize another copy's
-// classes. So both are handed this file's copy.
-
-// The schema is read first, because a unique(...) field is a property of the whole facts
-// file rather than of one line: two facts that each fit can still be one too many for a
-// pair, so the loader has to know the types to say so.
-import "schema"
-types = globals["schema"].build(domainPaths.schema)
-if types isa error then
-	print "error: " + types.message
-	finish 1
-end if
-
-// The schema names predicates, so its names are held to the shape a result can say: a line
-// naming one another way is refused rather than loaded and never matched to a fact.
-misnamed = globals["schema"].misnamed(triples, types)
-if misnamed isa error then
-	print "error: " + misnamed.message
-	finish 1
-end if
-
-import "facts"
-import "rules"
-
-// The arrays themselves, not the module maps that hold them. The facts loader is handed
-// the types, so a file that stores one pair twice is refused as the prompt would refuse it.
-facts = globals["facts"].build(triples, domainPaths.facts, types)
-if facts isa error then
-	print "error: " + facts.message
-	finish 1
-end if
-rules = globals["rules"].build(triples, domainPaths.rules)
-if rules isa error then
-	print "error: " + rules.message
-	finish 1
-end if
-
-// A unique(...) field is enforced where a fact is added, and a predicate a rule concludes
-// is never added: it is derived. So a unique(...) on one is a promise the program has no
-// place to keep, and the schema is refused rather than loaded and left unenforced.
-unenforceable = globals["knowledge"].derivedUniques(types, rules)
-if unenforceable isa error then
-	print "error: " + unenforceable.message
-	finish 1
-end if
+// ── The session ──────────────────────────────────────────────────────────────
+// engine.ms reads the domain's schema, facts and rules and answers the session they make;
+// what is left here is the terminal a session talks through and the log it writes to.
 
 // The Rule class, so a rule typed at the prompt joins the search like the ones
 // rules.ms loads: the same class, the same .text, the same solver.
 Rule = globals["rule"].Rule
+
+engineSession = engine.build(triples, Rule, options, reportStyle())
+if engineSession isa error then
+	print "error: " + engineSession.message
+	finish 1
+end if
 
 // ── Where the session is ─────────────────────────────────────────────────────
 // A run asks ipwho.is where this session reaches the network from and adds the place's facts
@@ -204,70 +153,38 @@ Rule = globals["rule"].Rule
 // is-a rule types the place. A machine with no network still gets a session: the lookup's failure
 // is a warning, and the facts are simply not there.
 
-here = globals["location"].sessionFacts(triples, globals["uid"],
-	globals["api/client"], globals["api/ipwhois"])
-if not here.ok then
-	log.warning "{Warning}", {"Warning": here.error}
-else
-	// A domain that already holds the place's facts is not given them twice.
-	held = {}
-	for known in facts
-		held[known.text] = 1
-	end for
-	for placeFact in here.facts
-		if not held.hasIndex(placeFact.text) then
-			facts.push(placeFact)
-			held[placeFact.text] = 1
-		end if
-	end for
-end if
+engine.includePlace(engineSession, globals["location"], globals["uid"],
+	globals["api/client"], globals["api/ipwhois"], log)
 
 // 'known', not 'fact': a top-level loop variable is a global here, so naming it
 // fact would overwrite the fact() shorthand with a triple as soon as the loop ran.
 // Facts are debug detail: they are logged, not printed, so a normal run shows the
 // answers and --log-level debug shows what they were drawn from.
-for known in facts
+for known in engineSession.facts
 	log.debug "(fact) {Fact}", {"Fact": known.text}
 end for
 
 // Rules are debug detail too, so they are logged in the order search tries them.
-for r in rules
+for r in engineSession.rules
 	log.debug "(rule) {Rule}", {"Rule": r.text}
 end for
 
 // ── A session at the prompt ──────────────────────────────────────────────────
 // The program is this session: it takes facts, rules and questions. It starts from
-// the arrays above and adds to them in memory, so what the prompt learns lasts for
+// the arrays engine.ms built and adds to them in memory, so what the prompt learns lasts for
 // the run and no source file is touched. --depth bounds its search, --verbose prints the
 // proof tree before each answer, and --nlp says each answer as a sentence instead of a fact -
 // the tree above it too, so a run reads as one account rather than two forms.
 
-replSession = function()
-	"The session, drawn from the facts and rules already loaded."
-	return {
-		"triples": triples,
-		"Rule": Rule,
-		"facts": facts,
-		"rules": rules,
-		"depth": options.values.depth,
-		"verbose": options.values.verbose,
-		"nlp": options.values.nlp,
-		"style": reportStyle(),
-		"schema": globals["schema"],
-		"types": types,
-		"paths": domainPaths,
-		"knowledge": globals["knowledge"],
-		"io": {
-			"read": function(question)
-				return input(question)
-			end function,
-			"say": function(line)
-				print line
-			end function,
-		},
-	}
-end function
+engineSession.io = {
+	"read": function(question)
+		return input(question)
+	end function,
+	"say": function(line)
+		print line
+	end function,
+}
 
-session.run(replSession())
+session.run(engineSession)
 
 finish 0

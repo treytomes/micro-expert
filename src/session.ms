@@ -410,8 +410,8 @@ end function
 
 // ── The session loop ─────────────────────────────────────────────────────────
 
-run = function(session)
-	"Reads lines until the user leaves, adding facts and rules and answering questions."
+prepare = function(session)
+	"Fits the session out with what the prompt library asks for: how a line is read, its commands and components, and the paint it says them in."
 	// Only changes the session makes can be taken back, never the knowledge base it
 	// started from: /undo reads the list this starts empty.
 	session.changes = []
@@ -429,6 +429,14 @@ run = function(session)
 	// the other commands that only read what the session holds.
 	registered = repl.addCommand(session, {"name": "/depth",
 		"note": "say how deep the search goes", "run": @depthCommand})
+	return session
+end function
+
+run = function(session)
+	"Reads lines until the user leaves, adding facts and rules and answering questions."
+	// A host that reads its own lines - a notebook's cells - prepares the session and then
+	// hands each line to its fallback, which is what this loop does once it has a line.
+	prepare(session)
 	repl.say(session, "note",
 		"Type a fact, a question or a rule as 'head <- conditions', or a value to see how it reads. /help lists the commands; /exit leaves.")
 	repl.run(session)
