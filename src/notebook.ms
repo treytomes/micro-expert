@@ -18,6 +18,18 @@
 //   <<kbnb:end-draw>>
 //   <<kbnb:done>>                 and this one whatever the cell did.
 //
+// A question with no answer runs the prompt's own ask-for-a-value loop, so the cell asks
+// rather than going quiet: the ask is written where the prompt happened, inside the cell's
+// output, and the cell waits for the answer. An answer line carries the value; a decline,
+// or an input that ends, leaves the question where the report put it, says so in the cell,
+// and lets the next cell run rather than taking the session down with it.
+//
+//   <<kbnb:ask:1>>                 the ask's number, then the prompt it is waiting at
+//     ?p =
+//   <<kbnb:end-ask>>
+//   <<kbnb:answer:1>> walter       what the front end writes back, or
+//   <<kbnb:decline:1>>             this, to leave the question unanswered
+//
 // A cell is several lines, run in order, so a cell can add a fact and ask about it. It is one
 // session the cells share, as the prompt is one session the lines share, so what one cell
 // learns the next holds. A line that starts with / is a command, as at the prompt, except
@@ -60,13 +72,29 @@ DRAW_START = "<<kbnb:draw:"
 DRAW_END = "<<kbnb:end-draw>>"
 FAILED = "<<kbnb:failed>>"
 DONE = "<<kbnb:done>>"
+// A question that needs a value, and the two lines a front end answers it with. The ask's
+// number is what keeps an answer to one prompt from being taken for another's.
+ASK_START = "<<kbnb:ask:"
+ASK_END = "<<kbnb:end-ask>>"
+ANSWER_START = "<<kbnb:answer:"
+DECLINE_START = "<<kbnb:decline:"
 
 // ── Serving ──────────────────────────────────────────────────────────────────
 
 serve = function(session, read, write)
 	"Serves one notebook: each cell read from read and answered into write, until the input ends."
-	// The session's own text goes to the notebook, not to a terminal.
-	session.io = {"read": @read, "say": @write}
+	// The session's own text goes to the notebook, not to a terminal, and a value the prompt
+	// asks for goes there too: what the session reads is this ask, never a cell's lines, so a
+	// question waiting for a value cannot eat the protocol that follows it. The number it
+	// counts is one per serving, so an answer names the prompt it belongs to.
+	tasks = {"next": 0}
+	// A function defined inside another cannot see this module's own functions - only the
+	// one it sits in - so the asker is fetched into a local the ask below can call.
+	valueAsker = @askForValue
+	ask = function(question)
+		return valueAsker(session, question, tasks, @read, @write)
+	end function
+	session.io = {"read": @ask, "say": @write}
 	// What the prompt's loop does before it reads anything - the commands, the components,
 	// the fallback and the paint - is done here once, and the cells are dispatched the way
 	// that loop dispatches a line.
@@ -119,6 +147,39 @@ serveCell = function(session, lines, write)
 	write(DONE)
 end function
 
+askForValue = function(session, question, tasks, read, write)
+	"Asks the notebook for one value: the question in its own block, then the value answered or null."
+	tasks.next = tasks.next + 1
+	id = str(tasks.next)
+	write(ASK_START + id + ">>")
+	write(question)
+	write(ASK_END)
+	value = readAnswer(id, @read)
+	if value == null then
+		// A decline and an input that ended mean the same thing to the question: nothing came
+		// back, so it stops where the report left it. Saying so marks the cell failed and
+		// leaves the session standing for the cell after it.
+		repl.say(session, "warning", "  the question needs a value and none was given")
+	end if
+	return value
+end function
+
+readAnswer = function(id, read)
+	"The value the front end answered this ask with, or null for a decline or an input that ended."
+	answered = ANSWER_START + id + ">>"
+	declined = DECLINE_START + id + ">>"
+	while true
+		line = read()
+		if line == null then return null
+		line = repl.trimSpace(line)
+		if line == declined then return null
+		if line.indexOf(answered) == 0 then return repl.trimSpace(line[answered.len:])
+		// Anything else is not this ask's: an answer meant for a prompt already gone, or a
+		// line from a front end that is out of step, is passed over rather than taken as the
+		// value this question is waiting for.
+	end while
+end function
+
 serveLine = function(session, line)
 	"One line of a cell, read the way the prompt reads it: a command, or knowledge."
 	line = repl.trimSpace(line)
@@ -135,7 +196,7 @@ serveLine = function(session, line)
 end function
 
 notebookPaint = function(session, role, text)
-	"A warning is what a notebook marks: the cell it was said from is the cell that failed."
+	"A warning is what a notebook marks: the cell it was said from is the cell that failed. The report of what would answer a question is said in its own role, so it does not mark the cell that goes on to ask."
 	if role == "warning" then session.cellFailed = 1
 	return session.triples.paint(session.style, role, text)
 end function

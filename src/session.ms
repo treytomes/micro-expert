@@ -661,7 +661,11 @@ askGoal = function(session, goal)
 		// The report changes as facts are added and as values are given, so it is
 		// repeated only when it has something new to say.
 		if report.join("\n") != printed then
-			repl.say(session, "warning", "  no solution found at depth " + session.depth)
+			// A report is not a refusal, and a host that marks a cell failed on a warning - a
+			// notebook does - has to tell the two apart: what would answer the question is
+			// said in its own role, which the palette colours like a warning and a host
+			// with no entry for it prints plain.
+			repl.say(session, "missing", "  no solution found at depth " + session.depth)
 			for line in report
 				session.io.say(line)
 			end for

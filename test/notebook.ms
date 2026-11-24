@@ -25,17 +25,10 @@ run = function(notebook, engine, sessionModule, triples, rules, cli, options, h)
 		return engine.build(triples, rules.Rule, parsed(["--domain", "data"]), null)
 	end function
 
-	// One serving of these cells, written out as the lines a front end would read: the
-	// markers around each cell, and this file's answers after it.
-	transcript = function(session, cells)
-		script = []
-		for cell in cells
-			script.push(notebook.CELL_START)
-			for line in cell
-				script.push(line)
-			end for
-			script.push(notebook.CELL_END)
-		end for
+	// One serving of these protocol lines, its answers collected as the front end would read
+	// them. A script is what the front end writes: cells, and the answers it gives a cell
+	// that is waiting for a value.
+	serveScript = function(session, script)
 		tally = {"at": 0, "out": []}
 		read = function
 			if tally.at >= script.len then return null
@@ -47,6 +40,25 @@ run = function(notebook, engine, sessionModule, triples, rules, cli, options, h)
 		end function
 		notebook.serve(session, @read, @write)
 		return tally.out
+	end function
+
+	// A cell's source as the front end writes it, framed by the two markers.
+	cellLines = function(cell)
+		lines = [notebook.CELL_START]
+		for line in cell
+			lines.push(line)
+		end for
+		lines.push(notebook.CELL_END)
+		return lines
+	end function
+
+	// One serving of these cells, and nothing else in the script.
+	transcript = function(session, cells)
+		script = []
+		for cell in cells
+			script = script + cellLines(cell)
+		end for
+		return serveScript(session, script)
 	end function
 
 	cellsOf = function(out)
@@ -158,6 +170,50 @@ run = function(notebook, engine, sessionModule, triples, rules, cli, options, h)
 		pictureIn(cell, "image/svg+xml") and holds(cell, "<svg xmlns") and
 			cell.indexOf(notebook.DRAW_END) > cell.indexOf(notebook.DRAW_START + "image/svg+xml>>"))
 	h.check("with the drawing no failure", cell.indexOf(notebook.FAILED) == null)
+
+	// ── A question that needs a value asks the front end for one ────────────
+	// The prompt's own ask-for-a-value loop runs inside the cell, so the notebook hands that
+	// prompt the front end instead of reading the protocol as if it were a typed value.
+
+	session = startSession()
+	asked = serveScript(session, cellLines(["is-parent-of(?p, susan)"]) +
+		[notebook.ANSWER_START + "1>> walter"])
+	cells = cellsOf(asked)
+	h.check("a question with no answer asks for a value", cells.len == 1 and
+		cells[0].indexOf(notebook.ASK_START + "1>>") != null and
+		cells[0].indexOf(notebook.ASK_END) != null)
+	h.check("the ask carries the prompt it is waiting at", holds(cells[0], "  ?p = "))
+	h.check("and it stands where the prompt happened, after the report",
+		cells[0].indexOf(notebook.ASK_START + "1>>") > cells[0].indexOf("  no solution found at depth 8"))
+	h.check("the answer completes the proof",
+		cells[0].indexOf("  is-parent-of(walter, susan)") > cells[0].indexOf(notebook.ASK_END) and
+			countOf(session.facts, "is-parent-of(walter, susan)") == 1)
+	h.check("and the cell that asked is not a failed one", cells[0].indexOf(notebook.FAILED) == null)
+
+	// An answer numbers the prompt it belongs to, so one meant for a prompt already gone is
+	// not taken for this value.
+	stale = serveScript(startSession(), cellLines(["is-parent-of(?p, susan)"]) +
+		[notebook.ANSWER_START + "7>> greg", notebook.ANSWER_START + "1>> walter"])
+	h.check("an answer for another ask is passed over",
+		holds(textOf(cellsOf(stale)[0]), "is-parent-of(walter, susan)"))
+
+	// ── A declined ask leaves the question and the session standing ────────
+
+	session = startSession()
+	declined = serveScript(session, cellLines(["is-parent-of(?p, susan)"]) +
+		[notebook.DECLINE_START + "1>>"] + cellLines(["is-parent-of(?p, tim)"]))
+	cells = cellsOf(declined)
+	h.check("a declined ask ends the cell and says why", cells.len == 2 and
+		cells[0].indexOf(notebook.FAILED) != null and holds(cells[0], "needs a value"))
+	h.check("and the cell after it is answered", holds(textOf(cells[1]), "bill"))
+
+	// An input that ends while a question waits is the same decline: the cell closes with
+	// its markers instead of the session dying inside the prompt.
+	silent = serveScript(startSession(), cellLines(["is-parent-of(?p, susan)"]))
+	cells = cellsOf(silent)
+	h.check("an ask with nothing to answer it ends the cell rather than the process",
+		cells.len == 1 and cells[0].indexOf(notebook.FAILED) != null and
+			silent[silent.len - 1] == notebook.DONE)
 
 	// A cell with nothing in it is still a cell: the front end gets an empty answer, not a
 	// missing one, so a row it adds and runs does not wait for a mark that never comes.

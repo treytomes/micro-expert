@@ -508,11 +508,14 @@ run = function(t, rules, host, h, schema, knowledge, library)
 
 	// ── Painting is the same style table, so it is opt-in the same way ──────
 
-	mark = {"prompt": "<p>", "added": "<a>", "answer": "<n>", "warning": "<w>", "normal": "</>"}
+	mark = {"prompt": "<p>", "added": "<a>", "answer": "<n>", "warning": "<w>",
+		"missing": "<m>", "normal": "</>"}
 	painted = saying(family + [], [], ["is-parent-of(?p, susan)", "walter", "quit"], mark)
 	h.check("a painted prompt opens and closes", painted.answers.asked[0] == "<p>? </>")
-	h.check("a painted gap warning closes its line",
-		printed(painted.answers.lines, "<w>  no solution found at depth 8</>"))
+	// The report of what would answer a question has its own role, so a host that marks a
+	// warning - a notebook marks a failed cell - can tell a report from a refusal.
+	h.check("a painted gap report closes its line, in the report's role rather than a warning's",
+		printed(painted.answers.lines, "<m>  no solution found at depth 8</>"))
 	h.check("a painted added fact is marked as such",
 		printed(painted.answers.lines, "<a>  added is-parent-of(walter, susan)</>"))
 	h.check("a painted answer wraps the whole line",

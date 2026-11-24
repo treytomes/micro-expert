@@ -121,6 +121,7 @@ reportStyle = function
 	return {
 		"header": vt.bold,
 		"warning": vt.textColor(vt.color.red),
+		"missing": vt.textColor(vt.color.red),
 		"fact": vt.textColor(vt.color.aqua),
 		"rule": vt.textColor(vt.color.olive),
 		"var": vt.dim,
