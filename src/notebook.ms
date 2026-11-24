@@ -24,9 +24,10 @@
 // or an input that ends, leaves the question where the report put it, says so in the cell,
 // and lets the next cell run rather than taking the session down with it.
 //
-//   <<kbnb:ask:1>>                 the ask's number, then the prompt it is waiting at
-//     ?p =
-//   <<kbnb:end-ask>>
+//   <<kbnb:ask:1>>                 the ask's number, then the prompt it is waiting at and
+//     ?p =                          what a value there stands for, so the box can say why
+//   the parent of ?p, needed to answer is-uncle-of(oliver, ?p)
+//   <<kbnb:end-ask>>               even when the report above it has scrolled away
 //   <<kbnb:answer:1>> walter       what the front end writes back, or
 //   <<kbnb:decline:1>>             this, to leave the question unanswered
 //
@@ -91,8 +92,10 @@ serve = function(session, read, write)
 	// A function defined inside another cannot see this module's own functions - only the
 	// one it sits in - so the asker is fetched into a local the ask below can call.
 	valueAsker = @askForValue
+	// The prompt names the variable and nothing else; what a value there stands for is the
+	// session's askWhy, since the box can be all a reader sees once the cell has scrolled.
 	ask = function(question)
-		return valueAsker(session, question, tasks, @read, @write)
+		return valueAsker(session, question, session.askWhy, tasks, @read, @write)
 	end function
 	session.io = {"read": @ask, "say": @write}
 	// What the prompt's loop does before it reads anything - the commands, the components,
@@ -147,12 +150,15 @@ serveCell = function(session, lines, write)
 	write(DONE)
 end function
 
-askForValue = function(session, question, tasks, read, write)
+askForValue = function(session, question, why, tasks, read, write)
 	"Asks the notebook for one value: the question in its own block, then the value answered or null."
 	tasks.next = tasks.next + 1
 	id = str(tasks.next)
 	write(ASK_START + id + ">>")
 	write(question)
+	// What the value stands for goes in the block with the prompt, not only in the report
+	// above it: the box can outlive that report, so it has to explain itself.
+	if why != null and why != "" then write(why)
 	write(ASK_END)
 	value = readAnswer(id, @read)
 	if value == null then

@@ -226,7 +226,7 @@ run = function(t, h)
 	// A rule is not a fact: its head and its conditions are written bare, so an annotation on
 	// either is refused where the rule is read rather than kept as something it is not.
 	h.check("an annotation on a rule's head is refused",
-		t.parseRule("wakes-up(anna, early) @ 2019-04-05 <- is-parent-of(anna, ?y)") isa error)
+		t.parseRule("wakes-up(anna, early) @ 2019-04-05 => is-parent-of(anna, ?y)") isa error)
 	h.check("an annotation on a condition is refused",
-		t.parseRule("wakes-up(?x, early) <- is-parent-of(?x, ?y) @ 2019-04-05") isa error)
+		t.parseRule("wakes-up(?x, early) => is-parent-of(?x, ?y) @ 2019-04-05") isa error)
 end function

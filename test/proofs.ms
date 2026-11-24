@@ -39,18 +39,18 @@ run = function(t, rules, h)
 
 	lines = t.proofLines(answers[0], "")
 	h.check("tree renders every derivation", lines.len == 4)
-	h.check("tree line one", lines[0] == "child(susan, bill)  <- rule child(?x, ?y) <- parent(?y, ?x)")
-	h.check("tree line two", lines[1] == "  parent(bill, susan)  <- fact")
-	h.check("tree line three", lines[2] == "child(susan, bill)  <- rule child(?x, ?y) <- guardian(?y, ?x)")
-	h.check("tree line four", lines[3] == "  guardian(bill, susan)  <- fact")
+	h.check("tree line one", lines[0] == "child(susan, bill)  => rule child(?x, ?y) => parent(?y, ?x)")
+	h.check("tree line two", lines[1] == "  parent(bill, susan)  => fact")
+	h.check("tree line three", lines[2] == "child(susan, bill)  => rule child(?x, ?y) => guardian(?y, ?x)")
+	h.check("tree line four", lines[3] == "  guardian(bill, susan)  => fact")
 
 	// The same tree said as sentences: --nlp asks proofLines for the words, so the fact and
 	// the rule behind it are both read in the form an answer is said in.
 	said = t.proofLines(answers[0], "", 1)
 	h.check("a said tree turns a fact into its sentence",
-		said[1] == "  bill parent susan  <- fact")
+		said[1] == "  bill parent susan  => fact")
 	h.check("and says the rule it came from the same way",
-		said[0] == "susan child bill  <- rule ?x child ?y <- ?y parent ?x")
+		said[0] == "susan child bill  => rule ?x child ?y => ?y parent ?x")
 
 	// The same fact listed twice is still one answer, with both derivations.
 	twice = [spo("bill", "parent", "susan"), spo("bill", "parent", "susan")]
@@ -75,10 +75,10 @@ run = function(t, rules, h)
 	nested = t.proofLines(deep[0], "")
 	h.check("nested tree depth", nested.len == 4)
 	h.check("nested root uses the recursive rule",
-		nested[0] == "ancestor(bill, tim)  <- rule ancestor(?x, ?z) <- parent(?x, ?y), ancestor(?y, ?z)")
+		nested[0] == "ancestor(bill, tim)  => rule ancestor(?x, ?z) => parent(?x, ?y), ancestor(?y, ?z)")
 	h.check("nested step uses the base rule",
-		nested[2] == "  ancestor(susan, tim)  <- rule ancestor(?x, ?y) <- parent(?x, ?y)")
-	h.check("nested leaf is a fact", nested[3] == "    parent(susan, tim)  <- fact")
+		nested[2] == "  ancestor(susan, tim)  => rule ancestor(?x, ?y) => parent(?x, ?y)")
+	h.check("nested leaf is a fact", nested[3] == "    parent(susan, tim)  => fact")
 
 	// ── A goal with a variable predicate ────────────────────────────────────
 	// Regression: the top level of a query derefs the goal's predicate with no bindings yet

@@ -4,23 +4,23 @@ Facts say what is true. Rules say what follows. This chapter covers the shape of
 variables join conditions, the three groupings, the seven constraints, and where to put a rule so it
 is still there next run.
 
-## Two arrows
+## One arrow
 
-The same rule has two spellings, and the arrow tells you where you are:
+A rule is written the same way at the prompt and in a `.kb` file:
 
-| Where | Written | Example |
-| --- | --- | --- |
-| At the prompt, and in `/rules` and proof trees | `head <- conditions` | `is-child-of(?x, ?y) <- is-parent-of(?y, ?x)` |
-| In a `.kb` file | `head => conditions` | `is-child-of(?x, ?y) => is-parent-of(?y, ?x)` |
+```prolog
+is-child-of(?x, ?y) => is-parent-of(?y, ?x)
+```
 
-A line typed at the prompt with `<-` in it is a rule. A line in `rules.kb` with `=>` is the same
-thing. `Rule.text` prints the `<-` form, which is why the prompt and the proof trees use it. The
-prompt's parser expects `<-`; do not type `=>` at the prompt.
+The head comes first and the arrow points at the conditions: `?x` is the child of `?y` when `?y` is
+a parent of `?x`. A line typed at the prompt with `=>` in it is a rule, `/rules` and the proof trees
+print rules in that same form, and a line in `rules.kb` is the same thing - so a rule can be typed
+at the prompt, pasted into the file, and read back unchanged.
 
 ## Anatomy of a rule
 
 ```prolog
-is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)
+is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)
 ```
 
 - The **head** is the one triple the rule can prove: `is-grandparent-of(?x, ?y)`.
@@ -113,8 +113,8 @@ Type the rule at the prompt. It joins the search immediately:
 
 ```text
 > micro-expert --nlp
-? is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)
-  added rule is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)
+? is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)
+  added rule is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)
 ? is-grandparent-of(?p, tim)
   walter is grandparent of tim
   doris is grandparent of tim
@@ -134,8 +134,8 @@ A rule can join three conditions and two derived relations:
 
 ```text
 > micro-expert --nlp
-? is-cousin-of(?x, ?y) <- is-parent-of(?p, ?x), is-sibling-of(?p, ?q), is-parent-of(?q, ?y)
-  added rule is-cousin-of(?x, ?y) <- is-parent-of(?p, ?x), is-sibling-of(?p, ?q), is-parent-of(?q, ?y)
+? is-cousin-of(?x, ?y) => is-parent-of(?p, ?x), is-sibling-of(?p, ?q), is-parent-of(?q, ?y)
+  added rule is-cousin-of(?x, ?y) => is-parent-of(?p, ?x), is-sibling-of(?p, ?q), is-parent-of(?q, ?y)
 ? is-cousin-of(tim, ?y)
   tim is cousin of anna
   tim is cousin of mark
@@ -206,7 +206,7 @@ typed rule on one line.
 1. Add a nephew rule at the prompt:
 
    ```text
-   ? is-nephew-of(?x, ?y) <- is-parent-of(?p, ?x), is-sibling-of(?p, ?y), has-gender(?x, male)
+   ? is-nephew-of(?x, ?y) => is-parent-of(?p, ?x), is-sibling-of(?p, ?y), has-gender(?x, male)
    ```
 
    Then ask `is-nephew-of(?n, bill)`. It should answer Mark, Jack, and Oliver: the male children of

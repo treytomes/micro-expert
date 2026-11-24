@@ -113,14 +113,14 @@ shares-age-group-with(?x, ?y) => and(belongs-to-age-group(?x, ?g), equal(?g, ?h)
     a fact like is-uncle(oliver, ?p)
   ?p = clara
   added is-uncle(oliver, clara)
-  oliver is uncle clara  <- fact
+  oliver is uncle clara  => fact
   oliver is uncle clara
 ? is-parent-of(walter, ?p)
-  walter is parent of bill  <- fact
+  walter is parent of bill  => fact
   walter is parent of bill
-  walter is parent of george  <- fact
+  walter is parent of george  => fact
   walter is parent of george
-  walter is parent of henry  <- fact
+  walter is parent of henry  => fact
   walter is parent of henry
 ```
 
@@ -168,9 +168,9 @@ Asked `will-need-umbrella(2026-11-26, ?p)`, it answers 40, and the tree says whi
 
 ```
 ? will-need-umbrella(2026-11-26, ?p)
-  will-need-umbrella(2026-11-26, 40)  <- rule will-need-umbrella(?date, ?percent) <- will-rain(?date, ?percent)
-    will-rain(2026-11-26, 40)  <- rule will-rain(?date, ?percent) <- rain-chance(?date, ?percent), greater-than-or-equal(?percent, 30)
-      rain-chance(2026-11-26, 40)  <- fact
+  will-need-umbrella(2026-11-26, 40)  => rule will-need-umbrella(?date, ?percent) => will-rain(?date, ?percent)
+    will-rain(2026-11-26, 40)  => rule will-rain(?date, ?percent) => rain-chance(?date, ?percent), greater-than-or-equal(?percent, 30)
+      rain-chance(2026-11-26, 40)  => fact
   will-need-umbrella(2026-11-26, 40)
 ```
 
@@ -191,8 +191,8 @@ User: Will I need a coat next Thursday?
 Assistant:
 *BEGIN THINKING*
 Thursday is 2026-11-26; will-need-coat(2026-11-26, ?t)
-  2026-11-26 will need coat 7  <- rule will-need-coat(?date, ?temperature) <- high-temperature(?date, ?temperature), less-than(?temperature, 10)
-    high-temperature(2026-11-26, 7)  <- fact
+  2026-11-26 will need coat 7  => rule will-need-coat(?date, ?temperature) => high-temperature(?date, ?temperature), less-than(?temperature, 10)
+    high-temperature(2026-11-26, 7)  => fact
 *END THINKING*
 
 Yes, you will want a coat next Thursday: 7 degrees, and the rule asks for one under 10.

@@ -1,8 +1,8 @@
 {
   "name": "micro-expert-knowledge",
   "displayName": "Micro-Expert Knowledge",
-  "description": "Syntax highlighting for micro-expert knowledge files (.kb): the facts and rules the engine reasons over.",
-  "version": "0.1.2",
+  "description": "Syntax highlighting for the knowledge files the engine reasons over (.kb), and notebooks (.kbnb) that ask the engine their questions.",
+  "version": "0.2.0",
   "publisher": "micro-expert",
   "private": true,
   "license": "MIT",
@@ -10,17 +10,26 @@
     "type": "git",
     "url": "https://github.com/treytomes/micro-expert.git"
   },
+  "main": "./extension.js",
+  "scripts": {
+    "test": "node --test"
+  },
   "engines": {
     "vscode": "^1.75.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Notebooks"
   ],
   "keywords": [
     "knowledge",
     "facts",
     "rules",
-    "kb"
+    "kb",
+    "notebook"
+  ],
+  "activationEvents": [
+    "onNotebookSerializer:micro-expert-notebook"
   ],
   "contributes": {
     "languages": [
@@ -42,6 +51,68 @@
         "scopeName": "source.micro-expert-kb",
         "path": "./syntaxes/knowledge.tmLanguage.json"
       }
-    ]
+    ],
+    "notebooks": [
+      {
+        "type": "micro-expert-notebook",
+        "displayName": "Micro-Expert Notebook",
+        "selector": [
+          {
+            "filenamePattern": "*.kbnb"
+          }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "microExpert.newNotebook",
+        "title": "New Micro-Expert Notebook"
+      },
+      {
+        "command": "microExpert.restartNotebook",
+        "title": "Restart Knowledge Session",
+        "icon": "$(debug-restart)"
+      }
+    ],
+    "menus": {
+      "notebook/toolbar": [
+        {
+          "command": "microExpert.restartNotebook",
+          "when": "notebookType == micro-expert-notebook",
+          "group": "navigation@1"
+        }
+      ]
+    },
+    "notebookRenderer": [
+      {
+        "id": "kbnb-ask",
+        "displayName": "Micro-Expert question",
+        "entrypoint": "./renderer/ask.js",
+        "mimeTypes": [
+          "application/kbnb-ask+json"
+        ],
+        "requiresMessaging": "optional"
+      }
+    ],
+    "configuration": {
+      "title": "Micro-Expert",
+      "properties": {
+        "microExpert.projectDir": {
+          "type": "string",
+          "default": "",
+          "description": "The micro-expert folder a notebook's cells run in, absolute or relative to the workspace folder. Empty uses the workspace folder the notebook is in, and then the notebook's own folder."
+        },
+        "microExpert.domain": {
+          "type": "string",
+          "default": "data",
+          "description": "The domain folder the engine serves, relative to the project: the --domain a run would pass."
+        },
+        "microExpert.interpreterPath": {
+          "type": "string",
+          "default": "",
+          "description": "The MiniScript interpreter that runs src/notebook.ms. Empty reads MINISCRIPT_EXE_PATH from the project's .env, and then takes the interpreter on PATH."
+        }
+      }
+    }
   }
 }

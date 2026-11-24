@@ -27,7 +27,7 @@ still need. Running chapter 2's uncle question at `--depth 1` gives:
   no solution found at depth 1
   A solution would need one of these:
     a fact like is-uncle-of(bill, ?p)
-    through rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+    through rule is-uncle-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
       is-sibling-of(bill, ?p')
     (a name ending in ' is the rule's own variable, not one you asked about)
 ```
@@ -103,7 +103,7 @@ rest of the run:
   no solution found at depth 8
   A solution would need one of these:
     a fact like has-age(tim, ?n)
-    through rule has-age(?x, ?n) <- has-birthdate(?x, ?b), years-since(?b, ?n)
+    through rule has-age(?x, ?n) => has-birthdate(?x, ?b), years-since(?b, ?n)
       has-birthdate(tim, ?b)
   has-birthdate(tim, ?b)
   ?b = /undo

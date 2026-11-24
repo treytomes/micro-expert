@@ -15,7 +15,7 @@ Run the wrapper with no options:
 [INF] micro-expert: verbose:    0
 [INF] micro-expert: nlp:        0
 [INF] micro-expert: log-level:  information
-Type a fact, a question or a rule as 'head <- conditions', or a value to see how it reads. /help lists the commands; /exit leaves.
+Type a fact, a question or a rule as 'head => conditions', or a value to see how it reads. /help lists the commands; /exit leaves.
 ?
 ```
 
@@ -35,7 +35,7 @@ The session decides what a line is from its shape.
 | --- | --- |
 | `is-parent-of(walter, bill)` | A ground fact. It is added to the session. |
 | `is-grandpa-of(?who, tim)` | A question, because it holds a variable. |
-| `is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)` | A rule, because it holds `<-`. |
+| `is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)` | A rule, because it holds `=>`. |
 | `oliver` | A value, said back the way a fact would write it. Nothing is stored. |
 | `less-than(5, 3)` | A constraint with a value in both fields: it is checked and said `true` or `false`. |
 | `/help` | A command for the session itself. |
@@ -173,7 +173,7 @@ A line that starts with `/` is a session command. The ones worth knowing now:
 | --- | --- |
 | `/help [NAME]` | Lists every command, or prints one command's line |
 | `/facts` | Lists the facts the session holds, in writing form |
-| `/rules` | Lists the rules the session holds, as `head <- conditions` |
+| `/rules` | Lists the rules the session holds, as `head => conditions` |
 | `/depth` | Says how deep the search goes |
 | `/exit` | Leaves the session |
 

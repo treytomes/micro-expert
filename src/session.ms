@@ -17,7 +17,7 @@
 //   session = {"triples": triples, "Rule": Rule, "facts": facts, "rules": rules,
 //       "depth": 8, "verbose": 0, "nlp": 0, "style": style, "schema": schema,
 //       "types": types, "paths": paths, "knowledge": knowledge,
-//       "io": {"read": reader, "say": writer}}
+//       "io": {"read": reader, "say": writer}, "askWhy": reason}
 //
 // verbose prints the proof tree before each answer, and nlp says an answer - and the tree
 // above it - as sentences instead of facts. Both are off unless the run asked for them.
@@ -37,9 +37,14 @@
 // io is how a session talks, and the reason its checks need no terminal: read takes
 // the prompt and returns a line (null ends the session), say takes a finished line.
 //
+// askWhy is set while a question waits for a value: what a value there stands for, and the
+// question the fact is needed for when it is a rule's. A host that reads at a terminal has
+// the report right above the prompt and ignores it; a notebook draws the question in a box
+// under its own cell, and the box can outlive that report.
+//
 // A line starting with / is a command for the session itself (see commandList); any
 // other line is knowledge or a question, and the report already draws the difference:
-// a line with <- is a rule, a line with a variable in it is a question, and a ground
+// a line with => is a rule, a line with a variable in it is a question, and a ground
 // line is a fact.
 //
 // The loop, the talk with the reader, the slash commands and the saving and loading of the
@@ -415,6 +420,9 @@ prepare = function(session)
 	// Only changes the session makes can be taken back, never the knowledge base it
 	// started from: /undo reads the list this starts empty.
 	session.changes = []
+	// A question sets the reason it asks while it waits and puts this back after; a host that
+	// draws the question away from the report above it reads it there.
+	session.askWhy = ""
 	// What the library needs from this module: how to read a line that is not a command,
 	// and the commands the session answers itself. The loop is the repl library's.
 	session.fallback = @handleLine
@@ -438,13 +446,13 @@ run = function(session)
 	// hands each line to its fallback, which is what this loop does once it has a line.
 	prepare(session)
 	repl.say(session, "note",
-		"Type a fact, a question or a rule as 'head <- conditions', or a value to see how it reads. /help lists the commands; /exit leaves.")
+		"Type a fact, a question or a rule as 'head => conditions', or a value to see how it reads. /help lists the commands; /exit leaves.")
 	repl.run(session)
 end function
 
 handleLine = function(session, line)
 	"Does what one line asks: adds a fact, asks a question, adds a rule, or says how a value or a constraint reads."
-	if line.indexOf("<-") != null then
+	if line.indexOf("=>") != null then
 		addRule(session, line)
 		return
 	end if
@@ -788,7 +796,7 @@ fillMissing = function(session, options, goal, given)
 				{"triple": triple, "settled": need.settled}, labels, style))
 		end if
 		for variable in askedVars(session, triple, goal)
-			value = askValue(session, triple, variable, labels)
+			value = askValue(session, triple, variable, labels, goal)
 			if value == null then return "stopped"
 			if value == changedMark then return "changed"
 			binds[variable.name] = value
@@ -942,13 +950,23 @@ fieldValue = function(session, value, type)
 	return value
 end function
 
-askValue = function(session, triple, variable, labels)
+askValue = function(session, triple, variable, labels, goal)
 	"Asks for one value, from a numbered list when its field is a boolean or a list; null when the user leaves it, changedMark when they change the knowledge base instead."
+	// What a value here stands for, and the question the fact is needed for when it is a
+	// rule's. It is set on the session rather than passed through the prompt, so the repl
+	// library keeps its one-argument read, and a host that asks in a box of its own reads it
+	// there while the question waits.
+	meaning = session.triples.valueMeaning(triple, variable)
+	if goal != null and goal.text != triple.text then
+		meaning = meaning + ", needed to answer " + goal.text
+	end if
 	while true
 		type = fieldType(session, triple, variable)
 		choices = choiceValues(type)
 		showChoices(session, choices)
+		session.askWhy = meaning
 		value = repl.ask(session, "  ?" + labels[variable.name] + " = ")
+		session.askWhy = ""
 		if value == null then return null
 		value = session.triples.trimSpace(value)
 		if value == "" then return null

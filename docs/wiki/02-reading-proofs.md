@@ -10,32 +10,32 @@ can carry two derivations, and use `--depth` to bound the search.
 ```text
 > micro-expert --verbose
 ? is-uncle-of(bill, ?p)
-  is-uncle-of(bill, anna)  <- rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
-    is-parent-of(george, anna)  <- fact
-    is-sibling-of(bill, george)  <- rule is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
-      is-parent-of(walter, bill)  <- fact
-      is-parent-of(walter, george)  <- fact
-    is-sibling-of(bill, george)  <- rule is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
-      is-parent-of(doris, bill)  <- fact
-      is-parent-of(doris, george)  <- fact
-    has-gender(bill, male)  <- fact
+  is-uncle-of(bill, anna)  => rule is-uncle-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+    is-parent-of(george, anna)  => fact
+    is-sibling-of(bill, george)  => rule is-sibling-of(?x, ?y) => is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
+      is-parent-of(walter, bill)  => fact
+      is-parent-of(walter, george)  => fact
+    is-sibling-of(bill, george)  => rule is-sibling-of(?x, ?y) => is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
+      is-parent-of(doris, bill)  => fact
+      is-parent-of(doris, george)  => fact
+    has-gender(bill, male)  => fact
   is-uncle-of(bill, anna)
-  is-uncle-of(bill, mark)  <- rule ...
+  is-uncle-of(bill, mark)  => rule ...
   ...
 ```
 
 Here is how to read it.
 
-- **The top line** is the answer being derived. The part before `<-` is the goal with its variables
-  filled in; the part after is the reason it holds. `<- rule` names the rule and repeats its body.
+- **The top line** is the answer being derived. The part before `=>` is the goal with its variables
+  filled in; the part after is the reason it holds. `=> rule` names the rule and repeats its body.
 - **The lines under it** are the conditions of that rule, in the order the body wrote them: a parent
   of Anna, a sibling of that parent, and that sibling's gender. The tree is indented one level per
   body.
-- **A leaf** ends in `<- fact`. It is a stored triple and there is nothing below it. Every branch
+- **A leaf** ends in `=> fact`. It is a stored triple and there is nothing below it. Every branch
   ends in facts; nothing in the tree has to be taken on trust.
 - **The last line** of each block repeats the answer alone. That is the result the tree justifies.
 
-The same fact form is used in the tree, in `/facts`, and in the default answer. The `<-` arrow is the
+The same fact form is used in the tree, in `/facts`, and in the default answer. The `=>` arrow is the
 one `Rule.text` prints and the one you type at the prompt; the `.kb` files write `=>` instead.
 
 Remember from chapter 1 that a ground line adds a fact rather than asking a question — a line whose
@@ -83,7 +83,7 @@ is `8`.
   no solution found at depth 1
   A solution would need one of these:
     a fact like is-uncle-of(bill, ?p)
-    through rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+    through rule is-uncle-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
       is-sibling-of(bill, ?p')
     (a name ending in ' is the rule's own variable, not one you asked about)
 ```
@@ -125,11 +125,11 @@ that seems to need an unreasonable depth is usually a sign that a rule is writte
 ```text
 > micro-expert --verbose --nlp
 ? is-uncle-of(bill, ?p)
-  bill is uncle of anna  <- rule ?x is uncle of ?y <- ?p is parent of ?y, ?x is sibling of ?p, ?x has gender male
-    george is parent of anna  <- fact
-    bill is sibling of george  <- rule ?x is sibling of ?y <- ?p is parent of ?x, ?p is parent of ?y, not-equal(?x, ?y)
-      walter is parent of bill  <- fact
-      walter is parent of george  <- fact
+  bill is uncle of anna  => rule ?x is uncle of ?y => ?p is parent of ?y, ?x is sibling of ?p, ?x has gender male
+    george is parent of anna  => fact
+    bill is sibling of george  => rule ?x is sibling of ?y => ?p is parent of ?x, ?p is parent of ?y, not-equal(?x, ?y)
+      walter is parent of bill  => fact
+      walter is parent of george  => fact
     ...
   bill is uncle of anna
 ```

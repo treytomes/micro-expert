@@ -1,0 +1,85 @@
+{
+	"version": 1,
+	"cells": [
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "# The family, one cell at a time\n\nA `.kbnb` notebook's cells share one knowledge session, so what one cell learns the next one holds. Run a cell with **Shift+Enter**, or the ▶ beside it.\n\nEach cell goes to the same engine the prompt speaks to: a fact, a rule as `head => conditions`, or a question, where `?x` is the part you want to know."
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "is-grandma-of(?x, tim)"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "That answer is not stored anywhere: `data/rules.kb` says a grandma is a female parent of one of your parents, and the engine followed it back through the facts."
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "is-child-of(tim, ?p)"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "A question the knowledge cannot answer asks for a value, the way the prompt does: the box under the cell is one value, the cell waits for it, and then goes on.\n\nThe question below is one answer short. Type `bill` in the box and press **Answer** — or **Skip** it, and the cell ends saying the value was not given, with the cell after it still free to run."
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "is-parent-of(?p, eli)"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "The fact that answer added belongs to the session, so the next cell can ask about eli without being asked anything."
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "is-parent-of(?p, eli)"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "A cell adds a rule the same way it adds a fact, and the cell after it can use the rule."
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "is-grandparent-of(?g, ?c) => and(is-parent-of(?g, ?p), is-parent-of(?p, ?c))"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "is-grandparent-of(?g, tim)"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "`/mermaid` on its own draws the facts and rules under the cell: the fence a Markdown renderer draws, then the picture, so it shows whatever VS Code you run in. The fact an answer added is in the picture too."
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "/mermaid"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "Nothing in this notebook is written to disk, so `data/facts.kb` and `data/rules.kb` are as they were; **Restart Knowledge Session** in the toolbar starts again from them."
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "is-uncle-of(oliver, ?p)"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": ""
+		}
+	]
+}

@@ -97,7 +97,7 @@ run = function(t, rules, h)
 	// sibling, and a constraint adds nothing to the proof tree.
 	h.check("someone is not their own sibling", siblingsOf("bill", "bill").len == 0)
 	h.check("the rule prints its constraint",
-		siblingRule.text == "is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)")
+		siblingRule.text == "is-sibling-of(?x, ?y) => is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)")
 	h.check("a two-parent sibling still has both derivations",
 		siblingsOf("bill", "george")[0].reasons.len == 2)
 	openSiblings = t.proveGoals(spo(v("a"), "is-sibling-of", v("b")), family, [siblingRule], 2)
@@ -146,7 +146,7 @@ run = function(t, rules, h)
 	h.check("both rules are needed for an answer",
 		t.proveGoals(spo("bill", "is-brother-of", "george"), house, kinRules, 1).len == 0)
 	h.check("the brother rule prints its conditions",
-		brotherRule.text == "is-brother-of(?x, ?y) <- is-sibling-of(?x, ?y), has-gender(?x, male)")
+		brotherRule.text == "is-brother-of(?x, ?y) => is-sibling-of(?x, ?y), has-gender(?x, male)")
 
 	// ── Uncles, aunts and grandparents ─────────────────────────────────────
 
@@ -204,7 +204,7 @@ run = function(t, rules, h)
 	h.check("a grandmother is not a grandfather", ask("is-grandpa-of", "doris", "tim").len == 0)
 	h.check("a parent is not a grandparent", ask("is-grandpa-of", "bill", "tim").len == 0)
 	h.check("the uncle rule prints its conditions",
-		uncleRule.text == "is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)")
+		uncleRule.text == "is-uncle-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)")
 
 	// ── A body that offers a choice ─────────────────────────────────────────
 
@@ -236,7 +236,7 @@ run = function(t, rules, h)
 	h.check("the proof names what the alternative that held proved",
 		proof.indexOf("married-to(george, diane)") != null)
 	h.check("the rule prints its alternatives",
-		inLawRule.text == "is-in-law-of(?x, ?y) <- or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(is-sibling-of(?x, ?p), married-to(?p, ?y)))")
+		inLawRule.text == "is-in-law-of(?x, ?y) => or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(is-sibling-of(?x, ?p), married-to(?p, ?y)))")
 
 	// An or(...) among other conditions: the parent condition is shared, and either
 	// one of these completes the answer.
@@ -302,7 +302,7 @@ run = function(t, rules, h)
 	h.check("and fails when they do", singleParent("bill", "tim").len == 0)
 	h.check("a single parent is still a parent", singleParent("nobody", "zed").len == 0)
 	h.check("the rule prints its negation",
-		onlyChildRule.text == "is-only-child-of(?x, ?y) <- is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))")
+		onlyChildRule.text == "is-only-child-of(?x, ?y) => is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))")
 
 	// ── A body that asks two terms to be equal ──────────────────────────────
 
@@ -332,9 +332,9 @@ run = function(t, rules, h)
 	sameAgeProof = t.proofLines(sameAgeOf("amy", v("y"))[0], "")
 	h.check("equal adds no step to the proof",
 		sameAgeProof.len == 3 and
-			sameAgeProof.join("|").indexOf("has-age(bob, 9)  <- fact") != null)
+			sameAgeProof.join("|").indexOf("has-age(bob, 9)  => fact") != null)
 	h.check("the rule prints its equal",
-		sameAge.text == "same-age-as(?x, ?y) <- has-age(?x, ?n), equal(?n, ?m), has-age(?y, ?m), not-equal(?x, ?y)")
+		sameAge.text == "same-age-as(?x, ?y) => has-age(?x, ?n), equal(?n, ?m), has-age(?y, ?m), not-equal(?x, ?y)")
 	renamedEqual = t.standardizeApart(sameAge).body[1].text
 	h.check("standardizeApart renames equal's variables",
 		renamedEqual.indexOf("equal(?n_") == 0 and renamedEqual.indexOf(", ?m_") != null)
@@ -472,7 +472,7 @@ run = function(t, rules, h)
 	h.check("a comparison adds no step to the proof", childProof.split("\n").len == 2)
 	h.check("the proof names the age it read", childProof.indexOf("has-age(mark, 18)") != null)
 	h.check("the child rule prints its comparison",
-		childRule.text == "belongs-to-age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)")
+		childRule.text == "belongs-to-age-group(?x, child) => has-age(?x, ?n), less-than-or-equal(?n, 18)")
 	renamed = t.standardizeApart(childRule).body[1].text
 	h.check("standardizeApart renames the comparison's variables",
 		renamed.indexOf("less-than-or-equal(?n_") == 0 and renamed.indexOf(", 18)") != null)

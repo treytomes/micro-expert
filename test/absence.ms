@@ -47,7 +47,7 @@ run = function(t, rules, h)
 	viaRule = t.neededFactLines(spo(v("x"), "is-grandparent-of", "nobody"), lineage, [grandparent], 8)
 	h.check("the rule path is reported", viaRule.len == 4)
 	h.check("the rule itself is named",
-		viaRule[2] == "    through rule is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)")
+		viaRule[2] == "    through rule is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)")
 	h.check("the body condition that is missing is named",
 		viaRule[3] == "      is-parent-of(?p, nobody)")
 
@@ -139,7 +139,7 @@ run = function(t, rules, h)
 	h.check("the fact the body still needs is the one before it",
 		unmet[3] == "      is-parent-of(nobody, tim)")
 	h.check("the rule line prints the negation it checks",
-		unmet[2] == "    through rule is-only-child-of(?x, ?y) <- is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))")
+		unmet[2] == "    through rule is-only-child-of(?x, ?y) => is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))")
 
 	// Bill has a brother, so no fact would make him an only child: the rule is not
 	// offered at all, and the query's own shape is all that is left.
@@ -172,7 +172,7 @@ run = function(t, rules, h)
 		[grandparent], 8, mark)
 	h.check("a painted rule path opens with its rule",
 		paintedRule[2] ==
-			"<r>    through rule is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)</>")
+			"<r>    through rule is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)</>")
 	h.check("a painted rule path paints the facts under it",
 		paintedRule[3] == "      <f>is-parent-of(<v>?p</><f>, nobody)</>")
 end function

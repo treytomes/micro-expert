@@ -208,7 +208,7 @@ inside a quoted value is that value's, not the call's: `not-equal(?x, "a, b")` i
 and reads back without the space.
 
 A malformed constraint refuses the whole entry. The rule reader reports it as a malformed
-rule — `malformed rule: expected 'head <- condition, condition': ...` — and the `.kb` reader
+rule — `malformed rule: expected 'head => condition, condition': ...` — and the `.kb` reader
 puts the line number in front, the same way it reports any other broken entry. In particular:
 
 | Written | Why it is refused |

@@ -130,8 +130,7 @@ needsQuotes = function(text)
 		if c == "," or c == "(" or c == ")" or c == "|" or c == quoteChar then return true
 	end for
 	// '//' opens a comment in a data file, and an arrow has its own meaning in a rule.
-	return text.indexOf("//") != null or text.indexOf("=>") != null or
-		text.indexOf("<-") != null
+	return text.indexOf("//") != null or text.indexOf("=>") != null
 end function
 
 // ── Var: a logic variable, written ?x ────────────────────────────────────────
@@ -1085,8 +1084,8 @@ nlRuleText = function(rule)
 			conditions.push(condition.text)
 		end if
 	end for
-	if conditions.len == 0 then return rule.head.sentence + " <- (no conditions)"
-	return rule.head.sentence + " <- " + conditions.join(", ")
+	if conditions.len == 0 then return rule.head.sentence + " => (no conditions)"
+	return rule.head.sentence + " => " + conditions.join(", ")
 end function
 
 proofLines = function(answer, indent="", nlp=0)
@@ -1099,7 +1098,7 @@ end function
 appendDerivations = function(goal, binds, reasons, indent, lines, nlp=0)
 	"Appends each derivation's line, then the block behind each of its conditions."
 	for reason in reasons
-		lines.push(indent + speak(substitute(goal, binds), nlp) + "  <- " + reasonText(reason, nlp))
+		lines.push(indent + speak(substitute(goal, binds), nlp) + "  => " + reasonText(reason, nlp))
 		appendConditions(reason.conditions, indent + "  ", lines, nlp)
 	end for
 end function
@@ -1466,6 +1465,44 @@ shownTerm = function(term, labels, style)
 	return shown + style.fact
 end function
 
+// ── What a value asked for means ────────────────────────────────────────────
+// A question's box names the value by the label of its variable, and a label like ?p' says
+// nothing on its own. The fact being filled says the rest: in is-parent-of(?p', ?p) the first
+// field is the parent of the second, so a value there is "the parent of ?p". The word comes
+// from the predicate's own name, which is a domain's own vocabulary for the field - nothing
+// has to be declared twice - and a name of another shape falls back to the fact as a sentence,
+// where the value's place in it is the explanation.
+
+relationWord = function(name)
+	"The word an is-...-of name gives its first field, as 'parent' from is-parent-of; null when the name says no such thing."
+	if not (name isa string) then return null
+	parts = name.split("-")
+	if parts.len < 3 then return null
+	if parts[0] != "is" then return null
+	if parts[parts.len - 1] != "of" then return null
+	// A name's sections are the sentence's words, so is-grand-parent-of gives "grand parent".
+	middle = []
+	for at in range(1, parts.len - 2)
+		middle.push(parts[at])
+	end for
+	if middle.len == 0 then return null
+	return middle.join(" ")
+end function
+
+valueMeaning = function(triple, variable)
+	"What a value asked for stands for: 'the parent of ?p', 'the one ?p is the parent of', or the fact as a sentence when its name gives no such word."
+	word = relationWord(triple.predicate)
+	if word != null then
+		if triple.subject isa Var and triple.subject.name == variable.name then
+			return "the " + word + " of " + termText(triple.object)
+		end if
+		if triple.object isa Var and triple.object.name == variable.name then
+			return "the one " + termText(triple.subject) + " is the " + word + " of"
+		end if
+	end if
+	return speak(triple, 1)
+end function
+
 plainName = function(name)
 	"The variable's name without the numeric suffix standardizeApart added, so ?x_3 reads ?x."
 	pieces = name.split("_")
@@ -1586,15 +1623,15 @@ unclosedQuote = function(line)
 end function
 
 // ── Rules as text ─────────────────────────────────────────────────────────────
-// Rule.text prints a rule as 'head <- condition, condition', and the functions here
+// Rule.text prints a rule as 'head => condition, condition', and the functions here
 // read that line back. They return the pieces Rule.make takes rather than a rule, so
 // this module never has to hold the Rule class: a caller wraps them in whichever copy
 // of it built the rest of its knowledge base.
 
 parseRule = function(line)
-	"Reads 'head <- condition, condition' into {head, body}, or an error."
+	"Reads 'head => condition, condition' into {head, body}, or an error."
 	// The arrow is looked for outside quotes, so a value holding one is not the rule's.
-	arrowAt = indexOfOutside(line, "<-", false)
+	arrowAt = indexOfOutside(line, "=>", false)
 	if arrowAt == null then return err(badRule(line))
 	// A head that does not parse keeps its own error: it names the piece that is wrong,
 	// where the rule's one message would only repeat the line, and a predicate name it
@@ -1699,7 +1736,7 @@ end function
 
 badRule = function(line)
 	"One message for every malformed rule line."
-	return "malformed rule: expected 'head <- condition, condition': " + line
+	return "malformed rule: expected 'head => condition, condition': " + line
 end function
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

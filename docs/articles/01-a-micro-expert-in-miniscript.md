@@ -6,11 +6,11 @@ A little expert system for MiniScript 2: 54 facts about one imaginary family, fo
 
 ```prolog
 ? is-uncle-of(bill, ?p)
-  bill is uncle of anna  <- rule ?x is uncle of ?y <- ?p is parent of ?y, ?x is sibling of ?p, ?x has gender male
-    george is parent of anna  <- fact
-    bill is sibling of george  <- rule ?x is sibling of ?y <- ?p is parent of ?x, ?p is parent of ?y, not-equal(?x, ?y)
-      walter is parent of bill  <- fact
-      walter is parent of george  <- fact
+  bill is uncle of anna  => rule ?x is uncle of ?y => ?p is parent of ?y, ?x is sibling of ?p, ?x has gender male
+    george is parent of anna  => fact
+    bill is sibling of george  => rule ?x is sibling of ?y => ?p is parent of ?x, ?p is parent of ?y, not-equal(?x, ?y)
+      walter is parent of bill  => fact
+      walter is parent of george  => fact
     ...
   bill is uncle of anna
   ...
@@ -82,7 +82,7 @@ is-parent-of(walter, bill)
 A triple may hold **variables** in any position, written `?x`. `is-parent-of(?p, ?x)` is the pattern "someone is the parent of ?x". The parser accepts that call form and the old pipe form (`walter | is-parent-of | bill`), and rejects malformed calls rather than guessing.
 
 - A **fact** is a triple with no variables. Facts are the leaves of every answer: `54` of them live in `data/facts.kb`, one `predicate(subject, object)` line each.
-- A **rule** has a head — one triple it can prove — and a body: the conditions that must all hold first. Rules are data, one per line in `data/rules.kb`, and print as `head <- conditions`:
+- A **rule** has a head — one triple it can prove — and a body: the conditions that must all hold first. Rules are data, one per line in `data/rules.kb`, and print as `head => conditions`:
 
 ```prolog
 is-uncle-of(?x, ?y) => and(is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male))
@@ -129,7 +129,7 @@ Three details in that loop are where a toy implementation turns into a solver:
 **Depth.** `--depth` bounds how many rule levels the search may go down. `0` means facts only. `is-uncle-of` needs two levels (`is-uncle-of` → `is-sibling-of` → facts), so `--depth 1` answers nothing — and says which
 fact would change that.
 
-**Cycles.** A rule like `married-to(?y, ?x) <- married-to(?x, ?y)` can cheerfully call itself forever. The search therefore keeps the chain of goals on the current branch and refuses to re-enter a goal it is already inside, comparing goals with variables renamed away so that `?x` and `?x_7` are recognized as the same goal.
+**Cycles.** A rule like `married-to(?y, ?x) => married-to(?x, ?y)` can cheerfully call itself forever. The search therefore keeps the chain of goals on the current branch and refuses to re-enter a goal it is already inside, comparing goals with variables renamed away so that `?x` and `?x_7` are recognized as the same goal.
 
 **Every derivation is kept.** Ask `is-sibling-of(bill, george)` and one answer comes back carrying two derivations — one through Walter, one through Doris — because both are true and a reasoner that silently drops one is hiding information. `--verbose --nlp` shows them, the tree said first, and the sentence it ends on:
 
@@ -137,19 +137,19 @@ fact would change that.
 $ micro-expert --verbose --nlp
 Verbose run: depth 8
 ? is-uncle-of(bill, ?p)
-  bill is uncle of anna  <- rule ?x is uncle of ?y <- ?p is parent of ?y, ?x is sibling of ?p, ?x has gender male
-    george is parent of anna  <- fact
-    bill is sibling of george  <- rule ?x is sibling of ?y <- ?p is parent of ?x, ?p is parent of ?y, not-equal(?x, ?y)
-      walter is parent of bill  <- fact
-      walter is parent of george  <- fact
-    bill is sibling of george  <- rule ?x is sibling of ?y <- ?p is parent of ?x, ?p is parent of ?y, not-equal(?x, ?y)
-      doris is parent of bill  <- fact
-      doris is parent of george  <- fact
-    bill has gender male  <- fact
+  bill is uncle of anna  => rule ?x is uncle of ?y => ?p is parent of ?y, ?x is sibling of ?p, ?x has gender male
+    george is parent of anna  => fact
+    bill is sibling of george  => rule ?x is sibling of ?y => ?p is parent of ?x, ?p is parent of ?y, not-equal(?x, ?y)
+      walter is parent of bill  => fact
+      walter is parent of george  => fact
+    bill is sibling of george  => rule ?x is sibling of ?y => ?p is parent of ?x, ?p is parent of ?y, not-equal(?x, ?y)
+      doris is parent of bill  => fact
+      doris is parent of george  => fact
+    bill has gender male  => fact
   bill is uncle of anna
 ```
 
-Each line is either `<- fact` or `<- rule ...`; nothing else is allowed to be a reason.
+Each line is either `=> fact` or `=> rule ...`; nothing else is allowed to be a reason.
 
 ## How to build an expert system in MiniScript
 
@@ -209,7 +209,7 @@ ENTRY_POINT=./src/main.ms
 [INF] micro-expert: micro-expert 0.2.0 starting
 [INF] micro-expert: Command-line arguments (0): (none)
 ...
-Type a fact, a question or a rule as 'head <- conditions', or a value to see how it reads. /help lists the commands; /exit leaves.
+Type a fact, a question or a rule as 'head => conditions', or a value to see how it reads. /help lists the commands; /exit leaves.
 ? is-uncle-of(bill, ?p)
   bill is uncle of anna
   bill is uncle of mark
@@ -241,17 +241,17 @@ Type a fact, a question or a rule as 'head <- conditions', or a value to see how
 ```prolog
 [DBG] micro-expert: (fact) is-parent-of(walter, bill)
 ...
-[DBG] micro-expert: (rule) is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
-[DBG] micro-expert: (rule) is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+[DBG] micro-expert: (rule) is-sibling-of(?x, ?y) => is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)
+[DBG] micro-expert: (rule) is-uncle-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
 ```
 
 **Change the question** by typing another one at the prompt: `is-grandma-of(?x, ?y)` asks for every grandmother/grandchild pair (seven of them), and `is-grandpa-of(?who, tim)` asks for Tim's grandfather, the predicate reading "?who is the grandpa of tim", so the variable goes in the subject.
 
-**Type a fact or a rule** at the same prompt and it joins the search. One line has one meaning: a ground line adds a fact, a line with a variable asks a question, a line with `<-` adds a rule, and a line starting with `/` is a command for the session (`/help`, `/facts`, `/rules`, `/undo`, `/exit`, and the six `/save-*` and `/load-*` commands that write a component back where it came from or read one in its place).
+**Type a fact or a rule** at the same prompt and it joins the search. One line has one meaning: a ground line adds a fact, a line with a variable asks a question, a line with `=>` adds a rule, and a line starting with `/` is a command for the session (`/help`, `/facts`, `/rules`, `/undo`, `/exit`, and the six `/save-*` and `/load-*` commands that write a component back where it came from or read one in its place).
 
 ```plaintext
 > micro-expert --nlp
-Type a fact, a question or a rule as 'head <- conditions', or a value to see how it reads. /help lists the commands; /exit leaves.
+Type a fact, a question or a rule as 'head => conditions', or a value to see how it reads. /help lists the commands; /exit leaves.
 ? is-parent-of(?p, susan)
   no solution found at depth 8
   A solution would need one of these:
@@ -259,8 +259,8 @@ Type a fact, a question or a rule as 'head <- conditions', or a value to see how
   ?p = walter
   added is-parent-of(walter, susan)
   walter is parent of susan
-? is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)
-  added rule is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)
+? is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)
+  added rule is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)
 ? is-grandparent-of(?p, tim)
   walter is grandparent of tim
   doris is grandparent of tim
@@ -270,7 +270,7 @@ A question with no answer reads the report above, asks for the fact that would l
 
 Adding `--verbose` prints the proof tree before each answer here too, exactly as in the example above, and `--nlp` says the answers and those trees in words - the prompt above was run with it.
 
-A rule typed at the prompt is read from the line `Rule.text` prints, which is why that parser lives in `triples.ms` and returns the pieces `Rule.make` takes rather than a rule: the engine stays free of the Rule class. The data files have their own parser, `src/knowledge.ms`, built the same way, with a fact as a bare `predicate(subject, object)` and a rule's `=>` in place of `<-`.
+A rule typed at the prompt is read from the line `Rule.text` prints, which is why that parser lives in `triples.ms` and returns the pieces `Rule.make` takes rather than a rule: the engine stays free of the Rule class. The data files have their own parser, `src/knowledge.ms`, built the same way, with a fact as a bare `predicate(subject, object)` and a rule's `=>` in place of `=>`.
 
 The session paints from the same style table as the report, so `NO_COLOR` turns the whole run plain, prompt included.
 

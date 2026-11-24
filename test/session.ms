@@ -26,7 +26,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 
 	// ── A rule line is the line Rule.text prints ─────────────────────────────
 
-	line = "is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)"
+	line = "is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)"
 	parsed = t.parseRule(line)
 	h.check("a rule line parses", readable(parsed))
 	h.check("the head is the triple before the arrow",
@@ -37,17 +37,17 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("Rule.text gets its own line back",
 		rules.Rule.make(parsed.head, parsed.body).text == line)
 
-	constrained = t.parseRule("is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), not-equal(?x, ?y)")
+	constrained = t.parseRule("is-sibling-of(?x, ?y) => is-parent-of(?p, ?x), not-equal(?x, ?y)")
 	h.check("a constraint in a body is read as a constraint",
 		readable(constrained) and constrained.body[1].text == "not-equal(?x, ?y)")
 	h.check("a line without an arrow is refused", t.parseRule("is-parent-of(?x, susan)") isa error)
-	h.check("a rule with no conditions is refused", t.parseRule("is-parent-of(?x, ?y) <- ") isa error)
+	h.check("a rule with no conditions is refused", t.parseRule("is-parent-of(?x, ?y) => ") isa error)
 	h.check("a broken condition refuses the whole line",
-		t.parseRule("is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p") isa error)
+		t.parseRule("is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p") isa error)
 
 	// The line data/rules.kb prints for is-in-law-of, so a rule the session shows can be
 	// typed back in: or(...) around two and(...) alternatives.
-	choice = "is-in-law-of(?x, ?y) <- or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(is-sibling-of(?x, ?p), married-to(?p, ?y)))"
+	choice = "is-in-law-of(?x, ?y) => or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(is-sibling-of(?x, ?p), married-to(?p, ?y)))"
 	chosen = t.parseRule(choice)
 	h.check("a rule line with or(...) parses", readable(chosen))
 	h.check("or(...) is one condition holding two and(...) alternatives",
@@ -57,7 +57,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		readable(chosen) and rules.Rule.make(chosen.head, chosen.body).text == choice)
 
 	// The line data/rules.kb prints for is-only-child-of, so a negation can be typed back in.
-	single = "is-only-child-of(?x, ?y) <- is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))"
+	single = "is-only-child-of(?x, ?y) => is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))"
 	negated = t.parseRule(single)
 	h.check("a rule line with not(...) parses", readable(negated) and negated.body.len == 2)
 	h.check("not(...) is one condition holding the body it negates",
@@ -70,9 +70,11 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// A session over a script of typed lines, recording what it printed and asked.
 	startSession = function(facts, ruleList, script, style=null, verbose=0, types=null, paths=null, nlp=0)
 		if paths == null then paths = {}
-		answers = {"lines": [], "asked": [], "at": 0}
+		answers = {"lines": [], "asked": [], "whys": [], "at": 0}
 		reader = function(question)
 			answers.asked.push(question)
+			// The reason a value is wanted is the session's, set while the question waits.
+			answers.whys.push(answers.session.askWhy)
 			if answers.at >= script.len then return null
 			answers.at = answers.at + 1
 			return script[answers.at - 1]
@@ -84,6 +86,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 			"depth": 8, "verbose": verbose, "nlp": nlp, "style": style, "schema": schema, "types": types,
 			"paths": paths, "knowledge": knowledge,
 			"io": {"read": @reader, "say": @writer}}
+		answers.session = session
 		host.run(session)
 		return {"session": session, "answers": answers}
 	end function
@@ -107,6 +110,8 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		printed(lines, "    a fact like is-parent-of(?p, susan)"))
 	h.check("the session asks for the variable the report left open",
 		asked.answers.asked[1] == "  ?p = ")
+	h.check("and says what a value there stands for",
+		asked.answers.whys[1] == "the parent of susan")
 	h.check("the value it is given becomes a fact",
 		printed(lines, "  added is-parent-of(walter, susan)"))
 	h.check("the query's own fact is not repeated above the prompt",
@@ -125,7 +130,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		printed(pair.answers.lines, "  doris is aunt of nina"))
 
 	// A rule typed at the prompt joins the search.
-	ruleLine = "is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)"
+	ruleLine = "is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)"
 	ruled = saying(family + [], [], [ruleLine, "is-grandparent-of(?p, ?y)"])
 	h.check("a rule typed at the prompt is added",
 		printed(ruled.answers.lines, "  added rule " + ruleLine))
@@ -181,7 +186,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// A rule is a line too, and it is the door most likely to be typed: its head and every
 	// condition are asked the same question, and the answer says why rather than falling back
 	// to the malformed-line message the rest of a rule gets.
-	badHead = startSession(family + [], [], ["Parent-Of(?x, ?y) <- is-parent-of(?x, ?y)"])
+	badHead = startSession(family + [], [], ["Parent-Of(?x, ?y) => is-parent-of(?x, ?y)"])
 	h.check("a typed rule whose predicate is not a name is refused, and says why",
 		holds(badHead.answers.lines, "a predicate is lower-case letters and digits, joined by '-'") and
 			not holds(badHead.answers.lines, "malformed rule"))
@@ -210,6 +215,8 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	uncleAsked = uncle.answers.asked
 	h.check("a rule's fact is asked for before the query's own shape",
 		uncleAsked[1] == "  ?p' = ")
+	h.check("the question says what the value is and which question needs it",
+		uncle.answers.whys[1] == "the parent of susan, needed to answer is-uncle-of(?p, susan)")
 	h.check("the fact being filled is shown above its question",
 		printed(uncleLines, "  is-parent-of(?p', susan)"))
 	h.check("that answer is added as a fact",
@@ -335,15 +342,15 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("a plain session says an answer as the fact it is",
 		printed(verbose.answers.lines, "  is-parent-of(walter, susan)"))
 	h.check("and prints the proof tree first",
-		printed(verbose.answers.lines, "  is-parent-of(walter, susan)  <- fact"))
+		printed(verbose.answers.lines, "  is-parent-of(walter, susan)  => fact"))
 	// The tree is the derivation, so it comes before the result it reaches: the answer is the
 	// last line of the block, not the first.
 	h.check("with the answer on a line under its tree",
-		verbose.answers.lines.indexOf("  is-parent-of(walter, susan)  <- fact") <
+		verbose.answers.lines.indexOf("  is-parent-of(walter, susan)  => fact") <
 			verbose.answers.lines.indexOf("  is-parent-of(walter, susan)"))
 	verboseRule = startSession(family + [], [], [ruleLine, "is-grandparent-of(bill, ?y)"], null, 1)
 	h.check("a verbose answer names the rule behind it",
-		holds(verboseRule.answers.lines, "  <- rule is-grandparent-of(?x, ?y)"))
+		holds(verboseRule.answers.lines, "  => rule is-grandparent-of(?x, ?y)"))
 
 	// With --nlp the answer is a sentence and so is every line of the tree: the facts keep
 	// their dashes opened, and the rule behind them is said the same way, from its head to
@@ -352,11 +359,11 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("--nlp says the answer in words",
 		printed(saidVerbose.answers.lines, "  walter is parent of susan"))
 	h.check("and says the tree before it too",
-		printed(saidVerbose.answers.lines, "  walter is parent of susan  <- fact"))
+		printed(saidVerbose.answers.lines, "  walter is parent of susan  => fact"))
 	saidRule = saying(family + [], [], [ruleLine, "is-grandparent-of(bill, ?y)"], null, 1)
 	h.check("a rule in a said tree reads as its own sentences",
 		holds(saidRule.answers.lines,
-			"  <- rule ?x is grandparent of ?y <- ?x is parent of ?p, ?p is parent of ?y"))
+			"  => rule ?x is grandparent of ?y => ?x is parent of ?p, ?p is parent of ?y"))
 
 	// ── Slash commands ──────────────────────────────────────────────────────
 
@@ -380,7 +387,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	pinned = startSession([], [], ["/help", "q"])
 	h.check("the program's greeting and /help block are exactly these fifteen lines",
 		pinned.answers.lines == [
-		"Type a fact, a question or a rule as 'head <- conditions', or a value to see how it reads. /help lists the commands; /exit leaves.",
+		"Type a fact, a question or a rule as 'head => conditions', or a value to see how it reads. /help lists the commands; /exit leaves.",
 		"  /exit  leave the session",
 		"  /help [NAME]  list these commands",
 		"  /undo  take back the last change",
@@ -406,7 +413,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		printed(commandLines, "  2 facts") and printed(commandLines, "    is-parent-of(bill, tim)"))
 	h.check("/rules lists the rules it holds",
 		printed(commandLines, "  1 rule") and
-			holds(commandLines, "    is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y)"))
+			holds(commandLines, "    is-uncle-of(?x, ?y) => is-parent-of(?p, ?y)"))
 
 	// ── The facts as a diagram ───────────────────────────────────────────────
 	// /mermaid draws what the session holds through src/mermaid.ms, so a fact added at the
@@ -484,7 +491,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 
 	// The other prompt a question puts is the 'add it?' offer, and it answers the same two
 	// commands - one helper, so a command cannot be honoured at one prompt and not the other.
-	forty = t.parseRule("forty(?x, 40) <- has-age(?x, 40)")
+	forty = t.parseRule("forty(?x, 40) => has-age(?x, 40)")
 	addPrompt = startSession([spo("tim", "has-age", 24)], [rules.Rule.make(forty.head, forty.body)],
 		["forty(tim, ?n)", "/retract has-age(tim, 24)", "y"])
 	h.check("a fact is retracted from the add-it prompt too",
@@ -878,7 +885,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("and it says what it read", holds(loaded.answers.lines, "  loaded 2 facts from "))
 
 	// Rules are written as the data file spells them, with => between head and body.
-	uncle = "is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)"
+	uncle = "is-uncle-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)"
 	unclePieces = t.parseRule(uncle)
 	rulePath = scratch("rules.kb")
 	savedRules = startSession(family + [], [rules.Rule.make(unclePieces.head, unclePieces.body)],
@@ -898,7 +905,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	file.delete(rulePath)
 	h.check("/load-rules replaces the rules with the file's", loadedRules.session.rules.len == 1 and
 		loadedRules.session.rules[0].text ==
-			"is-grandparent-of(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)")
+			"is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)")
 	h.check("and the loaded rule answers a question",
 		printed(loadedRules.answers.lines, "  bill is grandparent of anna"))
 
@@ -918,7 +925,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// The same line typed at the prompt is the same hole, so it is refused there too rather
 	// than added to a schema that has no place to enforce it.
 	typedRule = startSession([], [],
-		["belongs-to-age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)"], null, 0, uniqueHead)
+		["belongs-to-age-group(?x, child) => has-age(?x, ?n), less-than-or-equal(?n, 18)"], null, 0, uniqueHead)
 	h.check("a typed rule whose head the schema marks unique(...) is refused",
 		holds(typedRule.answers.lines, "concluded by a rule") and typedRule.session.rules.len == 0)
 
@@ -947,7 +954,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// has nowhere to check.
 	derivedPath = scratch("derived-schema.kb")
 	writeFile(derivedPath, ["belongs-to-age-group(text, unique(child|adult))"])
-	older = t.parseRule("belongs-to-age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)")
+	older = t.parseRule("belongs-to-age-group(?x, child) => has-age(?x, ?n), less-than-or-equal(?n, 18)")
 	refusedSchema = startSession([], [rules.Rule.make(older.head, older.body)],
 		["/load-schema " + quoted(derivedPath)], null, 0, {"has-age": ["text", "number"]}, {})
 	file.delete(derivedPath)

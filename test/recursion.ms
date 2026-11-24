@@ -37,7 +37,7 @@ run = function(t, rules, h)
 	h.check("depth bounds the recursion", t.proveGoals(spo("bill", "ancestor", "anna"),
 		chain, ancestorRules, 1).len == 0)
 	h.check("rules are not mutated after use",
-		ancestorRec.text == "ancestor(?x, ?z) <- parent(?x, ?y), ancestor(?y, ?z)")
+		ancestorRec.text == "ancestor(?x, ?z) => parent(?x, ?y), ancestor(?y, ?z)")
 
 	goal = spo(v("a"), "ancestor", v("b"))
 	pairs = {}

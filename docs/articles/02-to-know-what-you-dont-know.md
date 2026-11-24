@@ -17,7 +17,7 @@ The interesting queries are the ones that fail; the times when backwards chainin
 Our example model is small enough to hold in your head.  A fact is one ground S-P-O triple, `is-parent-of(susan, tim)`; put a `?p` in it and it becomes a question.  A rule is a head and a body:
 
 ```
-is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+is-uncle-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
 ```
 
 When the search fails, the same machinery runs backwards: one candidate for every path where the goal could still be proved, and each rule body walked left to right.  A condition the search can meet is crossed off, carrying a value forward only when every proof agrees on it - a report never picks one of two parents just to look concrete.  The conditions it can't meet are facts to add, in symbolic form, and a later one that those facts would settle is printed as a check instead:
@@ -27,7 +27,7 @@ Query: is-uncle-of(oliver, ?p)
   no solution found at depth 8
   A solution would need one of these:
     a fact like is-uncle-of(oliver, ?p)
-    through rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+    through rule is-uncle-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
       is-parent-of(?p', ?p)
       is-sibling-of(oliver, ?p')  (checked once the facts above exist)
     (a name ending in ' is the rule's own variable, not one you asked about)
@@ -44,7 +44,7 @@ Here is that loop at the prompt from end to end - the report, the answers typed 
   no solution found at depth 8
   A solution would need one of these:
     a fact like is-uncle-of(oliver, ?p)
-    through rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+    through rule is-uncle-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
       is-parent-of(?p', ?p)
       is-sibling-of(oliver, ?p')  (checked once the facts above exist)
     (a name ending in ' is the rule's own variable, not one you asked about)
@@ -54,7 +54,7 @@ Here is that loop at the prompt from end to end - the report, the answers typed 
   no solution found at depth 8
   A solution would need one of these:
     a fact like is-uncle-of(oliver, ?p)
-    through rule is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
+    through rule is-uncle-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)
       is-parent-of(clara, ?p)
   is-parent-of(clara, ?p)
   ?p = zed

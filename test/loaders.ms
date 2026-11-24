@@ -9,22 +9,22 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 	if loadedRules isa error then return
 	// The order search tries them, which is the order the file holds.
 	expected = [
-		"is-child-of(?x, ?y) <- is-parent-of(?y, ?x)",
-		"married-to(?y, ?x) <- married-to(?x, ?y)",
-		"is-sibling-of(?x, ?y) <- is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)",
-		"is-brother-of(?x, ?y) <- is-sibling-of(?x, ?y), has-gender(?x, male)",
-		"is-sister-of(?x, ?y) <- is-sibling-of(?x, ?y), has-gender(?x, female)",
-		"is-uncle-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)",
-		"is-aunt-of(?x, ?y) <- is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, female)",
-		"is-grandpa-of(?x, ?y) <- is-parent-of(?p, ?y), is-parent-of(?x, ?p), has-gender(?x, male)",
-		"is-grandma-of(?x, ?y) <- is-parent-of(?p, ?y), is-parent-of(?x, ?p), has-gender(?x, female)",
-		"is-in-law-of(?x, ?y) <- or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(is-sibling-of(?x, ?p), married-to(?p, ?y)))",
-		"is-only-child-of(?x, ?y) <- is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))",
-		"has-age(?x, ?n) <- has-birthdate(?x, ?b), years-since(?b, ?n)",
-		"belongs-to-age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)",
-		"belongs-to-age-group(?x, adult) <- has-age(?x, ?n), not(belongs-to-age-group(?x, child))",
-		"shares-age-group-with(?x, ?y) <- belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h), not-equal(?x, ?y)",
-		"is-a(?x, location) <- has-latitude(?x, ?y), has-longitude(?x, ?z)",
+		"is-child-of(?x, ?y) => is-parent-of(?y, ?x)",
+		"married-to(?y, ?x) => married-to(?x, ?y)",
+		"is-sibling-of(?x, ?y) => is-parent-of(?p, ?x), is-parent-of(?p, ?y), not-equal(?x, ?y)",
+		"is-brother-of(?x, ?y) => is-sibling-of(?x, ?y), has-gender(?x, male)",
+		"is-sister-of(?x, ?y) => is-sibling-of(?x, ?y), has-gender(?x, female)",
+		"is-uncle-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, male)",
+		"is-aunt-of(?x, ?y) => is-parent-of(?p, ?y), is-sibling-of(?x, ?p), has-gender(?x, female)",
+		"is-grandpa-of(?x, ?y) => is-parent-of(?p, ?y), is-parent-of(?x, ?p), has-gender(?x, male)",
+		"is-grandma-of(?x, ?y) => is-parent-of(?p, ?y), is-parent-of(?x, ?p), has-gender(?x, female)",
+		"is-in-law-of(?x, ?y) => or(and(married-to(?x, ?p), is-sibling-of(?p, ?y)), and(is-sibling-of(?x, ?p), married-to(?p, ?y)))",
+		"is-only-child-of(?x, ?y) => is-parent-of(?y, ?x), not(is-sibling-of(?x, ?q))",
+		"has-age(?x, ?n) => has-birthdate(?x, ?b), years-since(?b, ?n)",
+		"belongs-to-age-group(?x, child) => has-age(?x, ?n), less-than-or-equal(?n, 18)",
+		"belongs-to-age-group(?x, adult) => has-age(?x, ?n), not(belongs-to-age-group(?x, child))",
+		"shares-age-group-with(?x, ?y) => belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h), not-equal(?x, ?y)",
+		"is-a(?x, location) => has-latitude(?x, ?y), has-longitude(?x, ?z)",
 	]
 	texts = []
 	for rule in loadedRules
@@ -194,7 +194,7 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 	file.delete(rulesPath)
 	h.check("a loader reads the rules file it is named", not (namedRules isa error) and
 		namedRules.len == 1 and
-		namedRules[0].text == "grandparent(?x, ?y) <- is-parent-of(?x, ?p), is-parent-of(?p, ?y)")
+		namedRules[0].text == "grandparent(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)")
 
 	schemaPath = scratch("schema.kb")
 	writeFile(schemaPath, ["has-age(text, number)"])

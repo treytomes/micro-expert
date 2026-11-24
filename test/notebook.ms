@@ -183,6 +183,14 @@ run = function(notebook, engine, sessionModule, triples, rules, cli, options, h)
 		cells[0].indexOf(notebook.ASK_START + "1>>") != null and
 		cells[0].indexOf(notebook.ASK_END) != null)
 	h.check("the ask carries the prompt it is waiting at", holds(cells[0], "  ?p = "))
+	// The box has to explain itself: the report above it is the cell's text, and a cell that
+	// has scrolled away leaves the box alone, so what the value stands for rides with the ask.
+	askedAt = cells[0].indexOf(notebook.ASK_START + "1>>")
+	endedAt = cells[0].indexOf(notebook.ASK_END)
+	reasonAt = cells[0].indexOf("the parent of susan")
+	h.check("and what a value there stands for",
+		askedAt != null and endedAt != null and reasonAt != null and
+			reasonAt > askedAt and reasonAt < endedAt)
 	h.check("and it stands where the prompt happened, after the report",
 		cells[0].indexOf(notebook.ASK_START + "1>>") > cells[0].indexOf("  no solution found at depth 8"))
 	h.check("the answer completes the proof",

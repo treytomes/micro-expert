@@ -58,7 +58,7 @@ is-uncle-of(?x, ?y) => and(
 	has-gender(?x, male))
 ```
 
-The file writes `=>`; the prompt and `Rule.text` write `<-`. Everything else about the shape is the
+The file writes `=>`; the prompt and `Rule.text` write `=>`. Everything else about the shape is the
 same.
 
 ## The schema
