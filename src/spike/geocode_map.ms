@@ -14,8 +14,8 @@
 //   "join": "/"              the identity is the OSM object, way/5013364, not a hash
 //
 // The coordinates arrive as text ("48.8582599"), and schema.kb types has-latitude as a
-// number, so the four facts that carry one say "as number"; a value that will not read as
-// one is left out and named in the reading's skipped list. A /lookup result may carry a
+// number, one per place, so the four facts that carry one say "as number"; a value that will
+// not read as one is left out and named in the reading's skipped list. A /lookup result may carry a
 // GeoJSON centroid instead of lat and lon, so those two fields name both, in order.
 //
 // Only /search records the question that asked for its result: was-answer-to is the free-form

@@ -156,8 +156,16 @@ run = function(t, parser, schemaLoader, h)
 			shipped["has-country"].join("|") == "text|text" and
 			shipped["has-continent"].join("|") == "text|text" and
 			shipped["has-region"].join("|") == "text|text")
-	h.check("its coordinates are numbers",
-		shipped["has-latitude"][1] == "number" and shipped["has-longitude"][1] == "number")
+	// A place has one set of coordinates, so a service's second answer corrects the first.
+	h.check("its coordinates are numbers, one of each per place",
+		shipped["has-latitude"][1] == "unique(number)" and
+			shipped["has-longitude"][1] == "unique(number)")
+	h.check("a second latitude for one place takes the first's place",
+		schemaLoader.uniqueClash(shipped, [spo("place-1", "has-latitude", 32.7254134)],
+			spo("place-1", "has-latitude", 32.7555)) != null)
+	h.check("and another place's latitude is another pair",
+		schemaLoader.uniqueClash(shipped, [spo("place-1", "has-latitude", 32.7254134)],
+			spo("place-2", "has-latitude", 32.7555)) == null)
 	h.check("and what the place is comes from the rule, so only its word is typed",
 		shipped["is-a"].join("|") == "text|text")
 	// The lines hold a place's facts, so the facts location.ms writes have to pass them and a

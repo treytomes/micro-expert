@@ -355,8 +355,9 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 
 	// Every session above is handed no schema and no types, so a service's facts are held as
 	// they come. engine.build reads data/schema.kb, which is what a run holds them against:
-	// the search's has-latitude is a number there, so the coordinate is added through the same
-	// addFact a typed line goes through rather than refused, and the place learns it.
+	// the search's has-latitude is one number per place there, so the coordinate is added
+	// through the same addFact a typed line goes through rather than refused, and a place that
+	// already had one is corrected rather than left holding two.
 	shipped = engineModule.build(triples, rules.Rule, parsed(["--domain", "data"]), null)
 	h.check("the shipped domain builds for a provider's answer", not (shipped isa error))
 	if not (shipped isa error) then
@@ -366,16 +367,24 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 			shippedSaid.push(line)
 		end function}
 		sessionModule.addFact(shipped, triples.SpoTriple.make(named, "has-city", "Fort Worth"))
+		// What the place already held: a lookup's coordinate, which a search's answer corrects.
+		stale = triples.SpoTriple.make(named, "has-latitude", 32.7254134)
+		sessionModule.addFact(shipped, stale)
+		needLon = triples.SpoTriple.make(named, "has-longitude", triples.var("lon"))
 		changed = sessionModule.provideMissing(shipped,
-			triples.needsFor(needCoords, shipped.facts, [], 8))
-		heldLat = null
+			triples.needsFor(needLon, shipped.facts, [], 8))
+		heldLats = []
+		stillStale = false
 		for fact in shipped.facts
 			if fact.predicate == "has-latitude" and triples.termText(fact.subject) == named then
-				heldLat = fact
+				heldLats.push(fact)
+				if fact.text == stale.text then stillStale = true
 			end if
 		end for
 		h.check("data/schema.kb adds the latitude a geocoder answers",
-			changed and heldLat != null and heldLat.object == 32.7555)
+			changed and heldLats.len == 1 and heldLats[0].object == 32.7555)
+		h.check("and the coordinate the place already held is replaced, not kept beside it",
+			not stillStale and heldLats.len == 1)
 		h.check("and refuses none of the facts the answer carried",
 			not holds(shippedSaid, "refused") and not holds(shippedSaid, "could not answer"))
 	end if

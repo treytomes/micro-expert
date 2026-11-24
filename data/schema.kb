@@ -44,17 +44,20 @@ has-birthdate(text, unique(date))
 
 // The names are the words the service sent and the coordinates are numbers, which is what the
 // location module writes; a geocoder spells its coordinates as text, and that is refused here.
+// A place has one set of coordinates, so a service's second latitude - a search correcting what
+// a lookup said - takes the first's place rather than standing beside it, as the service pages
+// write these two fields and docs/api/geocode-maps-co.md says why.
 has-location(text, text)
 has-continent(text, text)
 has-country(text, text)
 has-region(text, text)
 has-city(text, text)
-has-latitude(text, number)
-has-longitude(text, number)
+has-latitude(text, unique(number))
+has-longitude(text, unique(number))
 
 // ── The place a geocoder answers with ───────────────────────────────────────
 // docs/api/geocode-maps-co.md's vocabulary for one result. has-latitude, has-longitude,
-// has-city and has-country are the lookup's lines above, since one place's coordinate is a
+// has-city and has-country are the lookup's lines above, since one place's coordinate is one
 // number and one place's name is text whichever service supplied it; these are the rest.
 
 has-name(text, text)
