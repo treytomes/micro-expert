@@ -79,7 +79,7 @@ files in `data/` and the same engine answers questions about a different world.
 | `src/knowledge.ms` | The reader and writer for `.kb` data |
 | `src/session.ms` | The session's knowledge side: facts, rules, questions |
 | `data/facts.kb` | The 54 facts, as text |
-| `data/rules.kb` | The fifteen rules, as text |
+| `data/rules.kb` | The sixteen rules, as text |
 | `data/schema.kb` | The field types, as text |
 | `test/` | The 863 checks and their runner |
 | `docs/` | This wiki, the long-form articles, and the format references |

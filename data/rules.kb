@@ -79,3 +79,4 @@ belongs-to-age-group(?x, adult) => and(has-age(?x, ?n), not(belongs-to-age-group
 // the second condition goes looking for the people in it.
 shares-age-group-with(?x, ?y) => and(belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h), not-equal(?x, ?y))
 
+is-a(?x, location) => and(has-latitude(?x, ?y), has-longitude(?x, ?z))

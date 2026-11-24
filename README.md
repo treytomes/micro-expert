@@ -1,6 +1,6 @@
 # micro-expert
 
-A little expert system for MiniScript 2: 54 facts about one imaginary family, fifteen rules
+A little expert system for MiniScript 2: 54 facts about one imaginary family, sixteen rules
 about what those facts imply, and a backward-chaining solver that answers a question
 only by showing you the facts and rules that make the answer true.
 
@@ -146,7 +146,7 @@ Verbose run: depth 8
 
 `--depth 1` is a good sanity check: `is-uncle-of` is two rule levels above the facts
 (`is-uncle-of` -> `is-sibling-of` -> facts), so it answers nothing and says what it would need.
-`--log-level debug` prints all 54 facts as they load and all fifteen rules as they are
+`--log-level debug` prints all 54 facts as they load and all sixteen rules as they are
 registered, which is the fastest way to see what the engine was actually given.
 
 ### When there is no answer
@@ -564,7 +564,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-1027 passed, 0 failed
+1032 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -580,8 +580,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 1026 skipped
-##END {"passed":1,"failed":0,"skipped":1026}
+1 passed, 0 failed, 1031 skipped
+##END {"passed":1,"failed":0,"skipped":1031}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -596,8 +596,8 @@ The parser, the logger and the repl library are their own repositories with thei
 by the same interpreter, and this suite imports none of them. It keeps one check about the
 repl library, and that one is about this repository rather than the library: `examples/notes.ms`
 is a whole program written on the library and nothing else, and `test/repl.ms` is what says so.
-The 1027 cover the program itself: display and parsing (69), the knowledge data format (141),
-the predicate schema (43), the date and time types (79), the loaders (19), proofs and
+The 1032 cover the program itself: display and parsing (69), the knowledge data format (141),
+the predicate schema (48), the date and time types (79), the loaders (19), proofs and
 explanations (23), the missing-fact report (34), recursion and cycle handling (13), relations
 including the family rules (104), the session at the prompt (195), the notes example on the
 repl library (1), the command line (6), the domain (10), the Mermaid diagram (49), the id
@@ -620,13 +620,13 @@ src/schema.ms        loads the field types
 src/domain.ms        places a domain's facts, rules and schema
 src/mermaid.ms       the facts as a Mermaid flowchart
 data/facts.kb        the 54 facts, as text
-data/rules.kb        the fifteen rules, as text
+data/rules.kb        the sixteen rules, as text
 data/schema.kb       the field types, as text
 examples/notes.ms    a whole host for the repl library that is not a knowledge base
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
 src/repl/            submodule: micro-repl, the loop and its commands
-test/                the 1027 checks and their runner
+test/                the 1032 checks and their runner
 docs/articles/       the long-form write-up
 docs/kb-grammar.md   the .kb grammar, its constraints and its schema
 docs/constraints.md  the seven built-in constraints, one by one

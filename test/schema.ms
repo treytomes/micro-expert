@@ -131,7 +131,7 @@ run = function(t, parser, schemaLoader, h)
 	shipped = schemaLoader.build()
 	h.check("data/schema.kb loads", not (shipped isa error))
 	if shipped isa error then return
-	h.check("data/schema.kb names seventeen predicates", shipped.len == 17)
+	h.check("data/schema.kb names twenty-five predicates", shipped.len == 25)
 	h.check("a birthdate is a date, and one per person",
 		shipped["has-birthdate"][1] == "unique(date)")
 	h.check("an age is a number the age rule works out", shipped["has-age"][1] == "number")
@@ -145,4 +145,28 @@ run = function(t, parser, schemaLoader, h)
 	h.check("a derived relation is text either way", shipped["is-sibling-of"].join("|") == "text|text")
 	h.check("a derived group is one of the words its rules write",
 		shipped["belongs-to-age-group"][1] == "child|adult")
+
+	// ── The place a lookup answers with ──────────────────────────────────────
+	// These lines are what a place's facts are held against whichever service supplied them, and
+	// what the rule that turns two coordinates into a location writes.
+
+	// has-location's two slots are pinned through the facts below; these say the names are words.
+	h.check("a place and the names it is known by are text either way",
+		shipped["has-city"].join("|") == "text|text" and
+			shipped["has-country"].join("|") == "text|text" and
+			shipped["has-continent"].join("|") == "text|text" and
+			shipped["has-region"].join("|") == "text|text")
+	h.check("its coordinates are numbers",
+		shipped["has-latitude"][1] == "number" and shipped["has-longitude"][1] == "number")
+	h.check("and what the place is comes from the rule, so only its word is typed",
+		shipped["is-a"].join("|") == "text|text")
+	// The lines hold a place's facts, so the facts the spike writes have to pass them and a
+	// coordinate written as text has to fail.
+	h.check("the facts a lookup writes fit these lines",
+		schemaLoader.misfit(shipped, spo("session", "has-location", "place-f1d6b283a52a28dc")) == null and
+			schemaLoader.misfit(shipped, spo("place-f1d6b283a52a28dc", "has-region", "Texas")) == null and
+			schemaLoader.misfit(shipped, spo("place-f1d6b283a52a28dc", "has-city", "Fort Worth")) == null)
+	h.check("a coordinate written as text is refused",
+		schemaLoader.misfit(shipped, spo("place-f1d6b283a52a28dc", "has-latitude", "32.7254134")) ==
+			"the object should be a number")
 end function

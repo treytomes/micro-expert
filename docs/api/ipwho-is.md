@@ -149,7 +149,6 @@ is in, and the place holds what the answer says about it.
 
 ```prolog
 has-location(session, place-f1d6b283a52a28dc)
-is-a(place-f1d6b283a52a28dc, location)
 has-continent(place-f1d6b283a52a28dc, North America)
 has-country(place-f1d6b283a52a28dc, United States)
 has-region(place-f1d6b283a52a28dc, Texas)
@@ -171,8 +170,9 @@ Hashing rather than minting is the property that matters: the term is the same o
 and on another machine with no store to look it up in, so today's facts and next month's land on one
 subject. A minted id - a UUID drawn from randomness - would be unique and useless here, because
 nothing would recognize the same city tomorrow and every run would write a second copy of every
-fact. `is-a` says what the term is, since an id says nothing on its own, and `has-city` keeps the
-words the id was made from.
+fact. `has-city` keeps the words the id was made from, and what the place is comes from a rule
+rather than a fact: `data/rules.kb` concludes `is-a(?x, location)` from the two coordinates, so
+any term that has them is a place without a line saying so.
 
 What the id cannot do is see that two spellings are one place: `Fort Worth, TX` and `Fort Worth,
 Texas` hash differently, which is why the identity is the service's own three fields rather than
@@ -183,10 +183,13 @@ lookup prints its refusal instead of facts.
 
 Four of the spellings are the other two pages' own - `has-city`, `has-country`, `has-latitude`,
 `has-longitude` - written here exactly as they are there, with the same field types, so one schema
-line and one rule cover a place whichever service supplied it. `has-continent`, `has-region`,
-`has-location` and `is-a` are this page's. The coordinates are numbers here, where the geocoder's
-reply writes its two as text: `has-latitude(place-f1d6b283a52a28dc, 32.725413)` compares,
-`has-latitude(way/5013364, "48.8582599")` does not.
+line and one rule cover a place whichever service supplied it. `has-continent`, `has-region` and
+`has-location` are this page's. `data/schema.kb` types all seven place predicates - the names as
+text, the coordinates as numbers - and `is-a` as the two terms its rule writes. The
+coordinates are numbers here, where the geocoder's reply writes its two as text:
+`has-latitude(place-f1d6b283a52a28dc, 32.725413)` compares,
+`has-latitude(way/5013364, "48.8582599")` does not, and the schema line says so by refusing the
+geocoder's spelling of a coordinate.
 
 Nothing yet writes these lines to a file: they are printed, and pasting them into a domain is a
 person's step rather than a program's.

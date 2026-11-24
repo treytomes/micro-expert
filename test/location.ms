@@ -22,11 +22,11 @@ run = function(session, uid, triples, h)
 
 	// ── The place the session holds ─────────────────────────────────────────
 
-	h.check("a location is eight facts", facts.len == 8)
+	h.check("a location is seven facts", facts.len == 7)
 	subject = factAbout(facts, "has-location").object
 	h.check("the session has the place the lookup answered with", subject == place)
 	h.check("named by the id its own fields generate", subject == "place-f1d6b283a52a28dc")
-	h.check("and the place says what it is", factAbout(facts, "is-a").object == "location")
+	h.check("and what the place is comes from the rule, not a fact", factAbout(facts, "is-a") == null)
 	others = 0
 	for fact in facts
 		if fact.predicate != "has-location" and fact.subject != subject then others = others + 1
@@ -60,7 +60,7 @@ run = function(session, uid, triples, h)
 		"city": "Fort Worth", "latitude": 32.7254134, "longitude": -97.3208492}
 	narrowFacts = session.generateLocationFacts(triples, uid, narrow)
 	h.check("a reply with no region writes no region fact", factAbout(narrowFacts, "has-region") == null)
-	h.check("and still writes the rest, one fact fewer", narrowFacts.len == 7)
+	h.check("and still writes the rest, one fact fewer", narrowFacts.len == 6)
 	h.check("still naming the place by what it carried",
 		factAbout(narrowFacts, "has-location").object == uid.of("place", ["Fort Worth", "United States"]))
 
@@ -69,12 +69,12 @@ run = function(session, uid, triples, h)
 		"city": "Fort Worth", "latitude": 32.7254134, "longitude": -97.3208492}
 	nullFacts = session.generateLocationFacts(triples, uid, nullRegion)
 	h.check("a null field is dropped exactly as an absent one",
-		nullFacts.len == 7 and factAbout(nullFacts, "has-region") == null)
+		nullFacts.len == 6 and factAbout(nullFacts, "has-region") == null)
 	blankRegion = {"ok": 1, "country": "United States", "region": "  ", "city": "Fort Worth",
 		"longitude": -97.3208492}
 	blankFacts = session.generateLocationFacts(triples, uid, blankRegion)
 	h.check("a field sent as spaces is no field either",
-		blankFacts.len == 5 and factAbout(blankFacts, "has-region") == null)
+		blankFacts.len == 4 and factAbout(blankFacts, "has-region") == null)
 	nullObjects = 0
 	for fact in facts + narrowFacts + nullFacts
 		if fact.object == null then nullObjects = nullObjects + 1

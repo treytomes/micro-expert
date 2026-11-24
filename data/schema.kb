@@ -40,6 +40,18 @@ married-to(text, text)
 has-gender(text, unique(male|female))
 has-birthdate(text, unique(date))
 
+// ── The place a lookup answers with ─────────────────────────────────────────
+
+// The names are the words the service sent and the coordinates are numbers, which is what the
+// location spike writes; a geocoder spells its coordinates as text, and that is refused here.
+has-location(text, text)
+has-continent(text, text)
+has-country(text, text)
+has-region(text, text)
+has-city(text, text)
+has-latitude(text, number)
+has-longitude(text, number)
+
 // ── Derived by rules ─────────────────────────────────────────────────────────
 
 is-child-of(text, text)
@@ -55,3 +67,6 @@ is-only-child-of(text, text)
 has-age(text, number)
 belongs-to-age-group(text, child|adult)
 shares-age-group-with(text, text)
+
+// A place is a location by rule: is-a(?x, location) holds for anything with both coordinates.
+is-a(text, text)

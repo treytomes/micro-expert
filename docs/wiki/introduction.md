@@ -6,7 +6,7 @@ answer is stored in advance: the engine derives it when you ask, and it can show
 facts and rule applications that make it true.
 
 The project ships with one domain: an imaginary family of fifteen people, described by 54 facts
-and reasoned about with fifteen rules. That family is only data. The engine itself knows nothing
+and reasoned about with sixteen rules. That family is only data. The engine itself knows nothing
 about parents, uncles, or ages, and it can answer questions about any domain you can express as
 triples.
 
@@ -191,7 +191,7 @@ Every option:
 | `--help`, `-h` | Usage, generated from the option table the parser uses |
 | `--version`, `-v` | Version line |
 
-`--log-level debug` prints all 54 facts as they load and all fifteen rules as they are registered.
+`--log-level debug` prints all 54 facts as they load and all sixteen rules as they are registered.
 It is the fastest way to see what the engine was actually given.
 
 ### Run the tests
@@ -200,7 +200,7 @@ The suite needs the same interpreter your `.env` points at:
 
 ```text
 "%MINISCRIPT_EXE_PATH%" test\run.ms
-1027 passed, 0 failed
+1032 passed, 0 failed
 ```
 
 On Linux, `"$MINISCRIPT_EXE_PATH"` — but a plain shell does not read `.env`, so export it or paste

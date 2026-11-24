@@ -24,12 +24,13 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 		"belongs-to-age-group(?x, child) <- has-age(?x, ?n), less-than-or-equal(?n, 18)",
 		"belongs-to-age-group(?x, adult) <- has-age(?x, ?n), not(belongs-to-age-group(?x, child))",
 		"shares-age-group-with(?x, ?y) <- belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h), not-equal(?x, ?y)",
+		"is-a(?x, location) <- has-latitude(?x, ?y), has-longitude(?x, ?z)",
 	]
 	texts = []
 	for rule in loadedRules
 		texts.push(rule.text)
 	end for
-	h.check("data/rules.kb holds fifteen rules", loadedRules.len == 15)
+	h.check("data/rules.kb holds sixteen rules", loadedRules.len == 16)
 	h.check("the rules load in order", texts.join("|") == expected.join("|"))
 
 	loadedFacts = factsLoader.build(t)

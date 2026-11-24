@@ -22,7 +22,7 @@ Type a fact, a question or a rule as 'head <- conditions', or a value to see how
 On Windows the wrapper is `micro-expert.bat`; on Linux it is `./micro-expert.sh`. Every example in
 this wiki writes `micro-expert` for both. The timestamps in the log lines are trimmed for width.
 
-With no options the session loads the default domain in `data/`: 54 facts, fifteen rules, and the
+With no options the session loads the default domain in `data/`: 54 facts, sixteen rules, and the
 schema that types their fields. The `?` at the start of the last line is the **prompt** — it is
 waiting for you to type. Variables also begin with `?`, so `? is-uncle-of(bill, ?p)` is the prompt
 followed by a question containing one variable.

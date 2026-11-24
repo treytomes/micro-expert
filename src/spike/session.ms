@@ -27,8 +27,10 @@
 // session reaches the network from, not which room it sits in.
 //
 // generateLocationFacts turns that answer into facts about the session: one line places it,
-// has-location(session, place-f1d6b283a52a28dc), one says what the place is, and the rest say what
-// it is like, one S-P-O triple per field. A lookup carries no id of its own, so the place gets one
+// has-location(session, place-f1d6b283a52a28dc), and the rest say what the place is like, one
+// S-P-O triple per field. What the place is - a location - is a rule's work rather than a fact's:
+// data/rules.kb concludes is-a(?x, location) from the two coordinates, so no line spends itself on
+// it. A lookup carries no id of its own, so the place gets one
 // from src/uid.ms: a hash of the city, region and country it answered with, which is the same term
 // on the next run and on another machine, so a folder of these facts can be added to rather than
 // replaced. Each triple's text is one line of a `.kb` file, which is what src/where.ms prints.
@@ -90,7 +92,6 @@ generateLocationFacts = function(triples, uid, location)
 	// same term and the facts meet.
 	facts = []
 	facts.push triples.SpoTriple.make("session", "has-location", subject)
-	facts.push triples.SpoTriple.make(subject, "is-a", "location")
 	facts.push triples.SpoTriple.make(subject, "has-continent", fieldOf(location, "continent"))
 	facts.push triples.SpoTriple.make(subject, "has-country", fieldOf(location, "country"))
 	facts.push triples.SpoTriple.make(subject, "has-region", fieldOf(location, "region"))
