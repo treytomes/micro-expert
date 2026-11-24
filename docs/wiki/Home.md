@@ -29,10 +29,11 @@ branch names the rule it used. No weights, no API key, no network.
 | [4. Writing rules](04-writing-rules.md) | Write your own rules with `and`, `or`, `not`, and the seven constraints |
 | [5. Your own domain](05-your-own-domain.md) | Replace the family with your own facts, rules, and schema |
 | [6. Tests and extending the knowledge base](06-tests-and-extending.md) | Run the suite and add a rule with checks behind it |
+| [7. The notebook in VS Code](07-the-notebook.md) | Run knowledge as cells: the protocol, the ask box and its reason line, the settings |
 | [The `.kb` grammar](kb-grammar.md) | Reference: the exact file format for facts, rules, and schema |
 | [The built-in constraints](constraints.md) | Reference: what each constraint checks, binds, and refuses |
 
-Read the introduction first, then work through chapters 1 to 6 in order. Each chapter assumes only
+Read the introduction first, then work through chapters 1 to 7 in order. Each chapter assumes only
 the ones before it. If you want the long-form story instead — why a rules engine in 2026, how
 backward chaining and unification work here, and where an LLM fits in front of it — read
 [A Micro Expert in MiniScript](../articles/01-a-micro-expert-in-miniscript.md).
@@ -86,7 +87,7 @@ files in `data/` and the same engine answers questions about a different world.
 | `data/schema.kb` | The field types, as text |
 | `test/` | The 1069 checks and their runner |
 | `docs/` | This wiki, the long-form articles, and the format references |
-| `vscode-knowledge/` | Syntax highlighting for `.kb` files |
+| `vscode-knowledge/` | Syntax highlighting for `.kb` files, and the `.kbnb` notebook |
 | `bootstrap.bat`, `bootstrap.sh` | Submodules, interpreter, `.env` |
 | `micro-expert.bat`, `micro-expert.sh` | Run the entry point named in `.env` |
 

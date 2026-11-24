@@ -11,6 +11,7 @@
 - [4. Writing rules](04-writing-rules.md)
 - [5. Your own domain](05-your-own-domain.md)
 - [6. Tests and extending the knowledge base](06-tests-and-extending.md)
+- [7. The notebook in VS Code](07-the-notebook.md)
 
 **Reference**
 
