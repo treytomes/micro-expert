@@ -6,11 +6,11 @@
 //
 //   <<kbnb:cell>>                what this file writes: a cell's source, then its end
 //   <<kbnb:end>>
-//   <<kbnb:out>>                 what the engine writes: the cell's text, its marks,
-//   <<kbnb:end-out>>             and any picture it drew
-//   <<kbnb:draw:image/svg+xml>>
-//   <<kbnb:end-draw>>
-//   <<kbnb:failed>>              a line of the cell said a warning
+//   <<kbnb:out>>                 what the engine writes: the cell's text, with the ask
+//   <<kbnb:end-out>>             inside it where the prompt happened, then the mark of a
+//   <<kbnb:failed>>              warning, then the picture the cell drew - the draw block
+//   <<kbnb:draw:image/svg+xml>>  comes after the output has ended, not inside it, since a
+//   <<kbnb:end-draw>>            notebook draws the picture beside the text
 //   <<kbnb:ask:1>>               a question waiting for a value: the prompt and what a value
 //   ?p =                          there stands for, then its end
 //   the parent of ?p, needed to answer is-uncle-of(oliver, ?p)
@@ -149,8 +149,9 @@ class KbnbSession {
 			}
 
 			// A block is opened by its mark and closed by the matching end, and one may sit
-			// inside another: the diagram a cell draws and the question it asks are both inside
-			// its output, so the text after either belongs to the output again, not to nothing.
+			// inside another: the ask is written inside the output, where the prompt happened,
+			// so the text after it belongs to the output again, not to nothing. The diagram is
+			// not nested - its block comes after <<kbnb:end-out>> and is the picture itself.
 			const enclosing = blocks.length ? blocks[blocks.length - 1] : "idle";
 
 			if (line === OUT_START) {
