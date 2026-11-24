@@ -158,10 +158,25 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	askedTimed = startSession(family + [], [], ["is-parent-of(?p, susan) @ 2019-04-01 ~ 80%"])
 	h.check("a typed question that carries an annotation is refused, and says why",
 		printed(askedTimed.answers.lines,
-			"  refused: is-parent-of(?p, susan) @ 2019-04-01 ~ 80%: a question is not a stored fact, so it takes no annotation"))
+			"  refused: is-parent-of(?p, susan) @ 2019-04-01 ~ 80%: a line that is not a stored fact takes no annotation"))
 	h.check("and nothing is stored or searched from it",
 		askedTimed.session.facts.len == family.len and
 			not holds(askedTimed.answers.lines, "no solution found"))
+	// A constraint line is the other line that reads rather than stores: it is checked and
+	// said true or false, so an annotation on one is as meaningless as on a question, and a
+	// value in every field does not make the line a fact.
+	checkedTimed = startSession(family + [], [], ["not-equal(tim, susan) @ 2019-04-01"])
+	h.check("a typed constraint that carries an annotation is refused, and says why",
+		printed(checkedTimed.answers.lines,
+			"  refused: not-equal(tim, susan) @ 2019-04-01: a line that is not a stored fact takes no annotation"))
+	h.check("and it is neither checked nor stored",
+		checkedTimed.session.facts.len == family.len and
+			not printed(checkedTimed.answers.lines, "  false") and
+			not printed(checkedTimed.answers.lines, "  true"))
+	// The bare line still checks, so the refusal is the annotation's alone.
+	checkedBare = startSession(family + [], [], ["not-equal(tim, susan)"])
+	h.check("a typed constraint without one is still checked",
+		printed(checkedBare.answers.lines, "  true"))
 
 	// A rule is a line too, and it is the door most likely to be typed: its head and every
 	// condition are asked the same question, and the answer says why rather than falling back

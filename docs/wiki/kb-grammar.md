@@ -227,10 +227,10 @@ every fact written before the annotations existed says.
 
 Both doors read this. A fact typed at the prompt takes the same annotations through the same
 reader, so `won-prize(bill, sprint) @ 2002-04-05` typed there is the fact the same line in a
- file is — kept with its text, and written back in that form by `/save-facts`. A question is not a
-fact either: a line that still holds a variable is a search, and the search reads neither
-annotation, so it is refused rather than answered with the annotation dropped. And neither is
-a rule: its head and every condition are written bare, so an annotation on either is refused
+ file is — kept with its text, and written back in that form by `/save-facts`. Neither a question nor a
+constraint is a fact: a line that still holds a variable is a search, and a constraint line is a
+check, and the search and the check read neither annotation, so an annotated line of either is
+refused rather than answered with the annotation dropped. And neither is a rule: its head and every condition are written bare, so an annotation on either is refused
 wherever the rule is read.
 
 ### When a fact holds
