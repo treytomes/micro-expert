@@ -1,10 +1,10 @@
-// where.ms — runs the location spike: prints where this session is, as `.kb` facts.
+// where.ms — prints where this session is, as `.kb` facts.
 //
-// The spike itself is src/spike/session.ms, a module that imports nothing and reads no globals, so
-// the maps it works from are loaded here and passed in. That this script sits in src/ rather than
-// beside the module matters for one reason: an import is resolved against the entry script's
-// folder, and triples.ms imports "temporal" itself, so from src/spike that import would look for
-// src/spike/temporal.ms and fail.
+// src/location.ms answers the place and turns that answer into facts; it imports nothing and reads
+// no globals, so the maps it works from are loaded here and passed in. This script sits in src/ so
+// that every import resolves the same way: an import is resolved against the entry script's
+// folder, and triples.ms imports "temporal" itself, so run from anywhere else that import would
+// look in the wrong folder and fail.
 //
 //   ./3rd-party/miniscript-linux/miniscript src/where.ms
 //
@@ -19,21 +19,21 @@ import "api/client"
 import "api/ipwhois"
 import "triples"
 import "uid"
-import "spike/session"
+import "location"
 
 api = globals["api/client"]
 ipwhois = globals["api/ipwhois"]
 triples = globals["triples"]
 uid = globals["uid"]
-session = globals["spike/session"]
+location = globals["location"]
 
-loc = session.getCurrentLocation(api, ipwhois)
-if not loc.ok then
-	print loc.error
+here = location.sessionFacts(triples, uid, api, ipwhois)
+if not here.ok then
+	print here.error
 	exit 1
 end if
 
 // Each triple's text is one line of a `.kb` file, so the output reads back as the same facts.
-for fact in session.generateLocationFacts(triples, uid, loc)
+for fact in here.facts
 	print fact.text
 end for

@@ -1,7 +1,7 @@
 // Cases for the id generator: one term per entity, the same one from run to run, and the
 // normalization that stops case and spacing from naming a second entity.
 //
-// Fort Worth is the entity throughout, because it is what the location spike answers with: the
+// Fort Worth is the entity throughout, because it is what src/location.ms answers with: the
 // city, the region and the country are the three fields a place term is built from.
 
 run = function(uid, triples, h)

@@ -4,7 +4,7 @@ ipwho.is reads an IP address to where it is: the country, region and city that a
 registered to, the coordinates of that city, and the network, clock and flag that go with it.
 `src/api/ipwhois.ms` holds the one endpoint the layer models - the lookup of the session's own
 address - with the two parameters it takes. There is no program of its own for this service;
-`src/spike/session.ms` is the caller, asking it where the session is.
+`src/location.ms` is the caller, asking it where the session is.
 
 This document is the remote surface written out: what a request looks like, what comes back, the
 classes that reply is read into, the facts written from them, and the endpoint with its parameters.
@@ -144,7 +144,7 @@ transport's own words, and `reply` is `null`.
 
 ## The reply as facts
 
-`src/spike/session.ms` writes the answer as facts about the session: the session holds the place it
+`src/location.ms` writes the answer as facts about the session: the session holds the place it
 is in, and the place holds what the answer says about it.
 
 ```prolog
@@ -191,8 +191,9 @@ coordinates are numbers here, where the geocoder's reply writes its two as text:
 `has-latitude(way/5013364, "48.8582599")` does not, and the schema line says so by refusing the
 geocoder's spelling of a coordinate.
 
-Nothing yet writes these lines to a file: they are printed, and pasting them into a domain is a
-person's step rather than a program's.
+Nothing writes these lines to a file on its own: `src/where.ms` prints them, and a run loads them
+into the session at startup, where `/save-facts` writes them with the rest of what the session
+holds. A run that loads them again finds the saved ones already there and adds nothing twice.
 
 ## Endpoints
 
@@ -218,19 +219,25 @@ read whatever came back.
 
 ## How a program calls it
 
-There is no command-line program for this service: `src/where.ms` runs the location spike,
-`src/spike/session.ms`, which asks for the session's location and prints it as the facts above. The
-module imports nothing and reads no globals - an imported module's imports belong to the entry
-script, and so does its globals - so the host in `src/` loads the maps and hands them in:
+There is no command-line program for this service: `src/where.ms` runs `src/location.ms`, which asks
+for the session's location and prints it as the facts above. The module imports nothing and reads
+no globals - an imported module's imports belong to the entry script, and so does its globals - so
+the host in `src/` loads the maps and hands them in:
 
 ```
 api = globals["api/client"]
 ipwhois = globals["api/ipwhois"]
-where = session.getCurrentLocation(api, ipwhois)
+location = globals["location"]
+where = location.getCurrentLocation(api, ipwhois)
 where.city                        Fort Worth
 where.latitude                    32.725413
-session.generateLocationFacts(globals["triples"], globals["uid"], where)   the facts above
+location.generateLocationFacts(globals["triples"], globals["uid"], where)   the facts above
 ```
+
+The session at the prompt takes them by the same route: every run calls `location.sessionFacts`
+before the first question, so `? has-location(session, ?p)` answers and the domain's `is-a` rule
+types the place, with nothing pasted into a file. A lookup that fails is a warning rather than a
+failed run: the session starts without the place's facts.
 
 A program doing the lookup itself reads the same layer by hand - `ipwhois.fetch(api, "lookup",
 {"fields": "city,country"})` - and finds the shared `Place` at `result.reply.place`, the request

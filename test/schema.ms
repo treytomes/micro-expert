@@ -160,7 +160,7 @@ run = function(t, parser, schemaLoader, h)
 		shipped["has-latitude"][1] == "number" and shipped["has-longitude"][1] == "number")
 	h.check("and what the place is comes from the rule, so only its word is typed",
 		shipped["is-a"].join("|") == "text|text")
-	// The lines hold a place's facts, so the facts the spike writes have to pass them and a
+	// The lines hold a place's facts, so the facts location.ms writes have to pass them and a
 	// coordinate written as text has to fail.
 	h.check("the facts a lookup writes fit these lines",
 		schemaLoader.misfit(shipped, spo("session", "has-location", "place-f1d6b283a52a28dc")) == null and

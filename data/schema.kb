@@ -43,7 +43,7 @@ has-birthdate(text, unique(date))
 // ── The place a lookup answers with ─────────────────────────────────────────
 
 // The names are the words the service sent and the coordinates are numbers, which is what the
-// location spike writes; a geocoder spells its coordinates as text, and that is refused here.
+// location module writes; a geocoder spells its coordinates as text, and that is refused here.
 has-location(text, text)
 has-continent(text, text)
 has-country(text, text)

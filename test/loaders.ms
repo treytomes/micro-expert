@@ -33,6 +33,20 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 	h.check("data/rules.kb holds sixteen rules", loadedRules.len == 16)
 	h.check("the rules load in order", texts.join("|") == expected.join("|"))
 
+	// is-a is a rule now rather than a fact src/location.ms wrote, so the shipped file has to
+	// prove it from the two coordinates and from nothing else.
+	place = "place-f1d6b283a52a28dc"
+	coordinates = [t.SpoTriple.make(place, "has-latitude", 32.7254134),
+		t.SpoTriple.make(place, "has-longitude", -97.3208492)]
+	isLocation = t.SpoTriple.make(place, "is-a", "location")
+	proved = t.proveGoals(isLocation, coordinates, loadedRules, 1)
+	step = null
+	if proved.len == 1 then step = proved[0].reasons[0]
+	h.check("the is-a rule proves a place is a location from its two coordinates",
+		step != null and step.rule.head.predicate == "is-a" and step.conditions.len == 2)
+	h.check("and one coordinate on its own proves nothing",
+		t.proveGoals(isLocation, coordinates[:1], loadedRules, 1).len == 0)
+
 	loadedFacts = factsLoader.build(t)
 	h.check("data/facts.kb loads through facts.ms", not (loadedFacts isa error))
 	if loadedFacts isa error then return

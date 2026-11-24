@@ -154,7 +154,7 @@ The new predicate `is-cousin-of` has no schema line yet. The prompt accepts a pr
 does not name, so the rule still works, but it will not type-check its fields. Chapter 5 adds the
 line when the rule moves into a file.
 
-## The fifteen shipped rules, grouped
+## The sixteen shipped rules, grouped
 
 Reading the rules file is the best way to learn the idiom. In `data/rules.kb`:
 
@@ -169,8 +169,9 @@ Reading the rules file is the best way to learn the idiom. In `data/rules.kb`:
 | Age | `has-age` | `years-since` computes the number; nothing stores an age |
 | Age groups | `belongs-to-age-group` (child and adult) | One comparison and one negation, with the threshold written once |
 | Shared group | `shares-age-group-with` | `equal` binds the second group from the first |
+| A place | `is-a` | Two coordinates and nothing else, which is why the location module writes no such fact |
 
-All fifteen are typed in `data/schema.kb`, derived predicates included. That typing is what lets the
+All sixteen are typed in `data/schema.kb`, derived predicates included. That typing is what lets the
 prompt refuse a question whose constant could never match, and it is part of adding a rule to the
 shipped domain (chapter 6).
 

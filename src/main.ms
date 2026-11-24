@@ -18,6 +18,12 @@ import "rule"
 import "domain"
 import "knowledge"
 import "options"
+// The API layer and the location module are here for --where: the option asks ipwho.is where this
+// session is, and location.ms turns that answer into facts about the session subject.
+import "api/client"
+import "api/ipwhois"
+import "uid"
+import "location"
 
 // src/cli and src/logging are submodules, so their modules live at <folder>/<file>:
 // import names the resulting map after the path it was given, so each is aliased back
@@ -191,6 +197,30 @@ end if
 // The Rule class, so a rule typed at the prompt joins the search like the ones
 // rules.ms loads: the same class, the same .text, the same solver.
 Rule = globals["rule"].Rule
+
+// ── Where the session is ─────────────────────────────────────────────────────
+// A run asks ipwho.is where this session reaches the network from and adds the place's facts
+// under the session subject, so the prompt answers has-location(session, ?p) and the domain's
+// is-a rule types the place. A machine with no network still gets a session: the lookup's failure
+// is a warning, and the facts are simply not there.
+
+here = globals["location"].sessionFacts(triples, globals["uid"],
+	globals["api/client"], globals["api/ipwhois"])
+if not here.ok then
+	log.warning "{Warning}", {"Warning": here.error}
+else
+	// A domain that already holds the place's facts is not given them twice.
+	held = {}
+	for known in facts
+		held[known.text] = 1
+	end for
+	for placeFact in here.facts
+		if not held.hasIndex(placeFact.text) then
+			facts.push(placeFact)
+			held[placeFact.text] = 1
+		end if
+	end for
+end if
 
 // 'known', not 'fact': a top-level loop variable is a global here, so naming it
 // fact would overwrite the fact() shorthand with a triple as soon as the loop ran.

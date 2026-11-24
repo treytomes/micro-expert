@@ -1,25 +1,26 @@
-// session.ms — where this session is, physically.
+// location.ms — where this session is, physically.
 //
 // A script has no sensor to ask, so the session's public address stands in for it: ipwho.is
 // reads that address to a city and a pair of coordinates. The lookup itself is the API layer's
 // - api/ipwhois.ms holds the service's surface and the classes its answer comes back as, and
-// api/client.ms is the transport both programs use - so this file is only the spike on top of
-// them: one function answering the place, and one turning that answer into facts.
+// api/client.ms is the transport both programs use - so this file is only the part on top of
+// them: one function answering the place, and one turning that answer into facts. It sits with
+// the program's other modules because it reads the API layer rather than belonging to it.
 //
-// Both take what they need as arguments, the way the API modules do. This file imports nothing
-// and reads no globals: an imported module's imports belong to the entry script, and so does its
-// globals, so the maps handed to it are the only ones it can be sure of its classes in. A host
-// loads them first and passes them in, as src/where.ms does:
+// Both functions take what they need as arguments, the way the API modules do. This file imports
+// nothing and reads no globals: an imported module's imports belong to the entry script, and so
+// does its globals, so the maps handed to it are the only ones it can be sure of its classes in.
+// A host loads them first and passes them in, as src/where.ms does:
 //
 //   import "api/client"
 //   import "api/ipwhois"
 //   import "triples"
 //   import "uid"
-//   import "spike/session"
-//   session = globals["spike/session"]
-//   where = session.getCurrentLocation(globals["api/client"], globals["api/ipwhois"])
-//   print where.city           Fort Worth
-//   print where.latitude       32.7254134
+//   import "location"
+//   location = globals["location"]
+//   here = location.getCurrentLocation(globals["api/client"], globals["api/ipwhois"])
+//   print here.city           Fort Worth
+//   print here.latitude       32.7254134
 //
 // The answer is ok with the continent, country, region, city and the address's two coordinates,
 // or ok 0 and error. Nothing here prints, and nothing here touches the network until a host calls
@@ -34,6 +35,10 @@
 // from src/uid.ms: a hash of the city, region and country it answered with, which is the same term
 // on the next run and on another machine, so a folder of these facts can be added to rather than
 // replaced. Each triple's text is one line of a `.kb` file, which is what src/where.ms prints.
+//
+// sessionFacts is the two together, because that is what a run wants: the answer, then the facts,
+// or ok 0 and the reason there are none. main.ms calls it once at startup under --where, so the
+// session the prompt reasons from already holds where it is.
 
 
 getCurrentLocation = function(api, ipwhois)
@@ -105,4 +110,12 @@ generateLocationFacts = function(triples, uid, location)
 		if fact.object != null then kept.push fact
 	end for
 	return kept
+end function
+
+
+sessionFacts = function(triples, uid, api, ipwhois)
+	"Where this session is, as the facts it starts with: ok with them, or ok 0 and the reason there are none."
+	here = getCurrentLocation(api, ipwhois)
+	if not here.ok then return {"ok": 0, "facts": [], "error": here.error}
+	return {"ok": 1, "facts": generateLocationFacts(triples, uid, here), "error": null}
 end function

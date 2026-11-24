@@ -1,11 +1,11 @@
-// Cases for the location spike: the place a bare lookup answers with, turned into facts about
+// Cases for src/location.ms: the place a bare lookup answers with, turned into facts about
 // the session and named by the id its own fields generate.
 //
 // The lookup is not run here, and no request leaves the program: generateLocationFacts takes the
 // answer a lookup would return, so these cases hand it maps. Fort Worth is the answer throughout,
 // because that is what ipwho.is answers this machine with, and its id is the one the facts carry.
 
-run = function(session, uid, triples, h)
+run = function(location, uid, triples, apiClient, ipwhois, h)
 	fortWorth = {"ok": 1, "continent": "North America", "country": "United States",
 		"region": "Texas", "city": "Fort Worth", "latitude": 32.7254134, "longitude": -97.3208492}
 
@@ -18,7 +18,7 @@ run = function(session, uid, triples, h)
 	end function
 
 	place = uid.of("place", ["Fort Worth", "Texas", "United States"])
-	facts = session.generateLocationFacts(triples, uid, fortWorth)
+	facts = location.generateLocationFacts(triples, uid, fortWorth)
 
 	// ── The place the session holds ─────────────────────────────────────────
 
@@ -58,7 +58,7 @@ run = function(session, uid, triples, h)
 
 	narrow = {"ok": 1, "continent": "North America", "country": "United States",
 		"city": "Fort Worth", "latitude": 32.7254134, "longitude": -97.3208492}
-	narrowFacts = session.generateLocationFacts(triples, uid, narrow)
+	narrowFacts = location.generateLocationFacts(triples, uid, narrow)
 	h.check("a reply with no region writes no region fact", factAbout(narrowFacts, "has-region") == null)
 	h.check("and still writes the rest, one fact fewer", narrowFacts.len == 6)
 	h.check("still naming the place by what it carried",
@@ -67,12 +67,12 @@ run = function(session, uid, triples, h)
 	// A field sent as null is the same as one not sent at all.
 	nullRegion = {"ok": 1, "continent": "North America", "country": "United States", "region": null,
 		"city": "Fort Worth", "latitude": 32.7254134, "longitude": -97.3208492}
-	nullFacts = session.generateLocationFacts(triples, uid, nullRegion)
+	nullFacts = location.generateLocationFacts(triples, uid, nullRegion)
 	h.check("a null field is dropped exactly as an absent one",
 		nullFacts.len == 6 and factAbout(nullFacts, "has-region") == null)
 	blankRegion = {"ok": 1, "country": "United States", "region": "  ", "city": "Fort Worth",
 		"longitude": -97.3208492}
-	blankFacts = session.generateLocationFacts(triples, uid, blankRegion)
+	blankFacts = location.generateLocationFacts(triples, uid, blankRegion)
 	h.check("a field sent as spaces is no field either",
 		blankFacts.len == 4 and factAbout(blankFacts, "has-region") == null)
 	nullObjects = 0
@@ -88,14 +88,41 @@ run = function(session, uid, triples, h)
 	noCity = {"ok": 1, "continent": "North America", "country": "United States", "region": "Texas",
 		"latitude": 32.7254134, "longitude": -97.3208492}
 	h.check("a reply with no city has no place to hang facts on",
-		session.generateLocationFacts(triples, uid, noCity).len == 0)
+		location.generateLocationFacts(triples, uid, noCity).len == 0)
 	noCoordinates = {"ok": 1, "continent": "North America", "country": "United States",
 		"region": "Texas", "city": "Fort Worth"}
 	h.check("nor does a reply with no coordinates",
-		session.generateLocationFacts(triples, uid, noCoordinates).len == 0)
+		location.generateLocationFacts(triples, uid, noCoordinates).len == 0)
 	blankCity = {"ok": 1, "country": "United States", "city": "   ", "longitude": -97.3208492}
 	h.check("and a city of spaces is no city",
-		session.generateLocationFacts(triples, uid, blankCity).len == 0)
+		location.generateLocationFacts(triples, uid, blankCity).len == 0)
 	h.check("a lookup that failed writes no facts",
-		session.generateLocationFacts(triples, uid, {"ok": 0, "error": "no location"}).len == 0)
+		location.generateLocationFacts(triples, uid, {"ok": 0, "error": "no location"}).len == 0)
+
+	// ── The facts a run starts with ─────────────────────────────────────────
+	// sessionFacts is what --where calls at startup, so the path from a lookup to the facts a
+	// session holds is walked here through a client stand-in, with no request leaving the program.
+	// The stand-in copies the client's own checks by name, since reading one out of an iteration
+	// pair calls it, and answers get with canned JSON.
+
+	stubFor = function(json)
+		fake = {}
+		for name in apiClient.indexes
+			fake[name] = apiClient[name]
+		end for
+		fake.canned = json
+		fake.get = function(url, timeout=null)
+			return {"ok": 1, "status": 200, "body": "", "json": self.canned, "url": url, "error": null}
+		end function
+		return fake
+	end function
+
+	looked = location.sessionFacts(triples, uid, stubFor({"success": 1, "continent": "North America",
+		"country": "United States", "region": "Texas", "city": "Fort Worth",
+		"latitude": 32.7254134, "longitude": -97.3208492}), ipwhois)
+	h.check("a session's facts come from one lookup", looked.ok and looked.facts.len == 7 and
+		looked.facts[0].text == "has-location(session, place-f1d6b283a52a28dc)")
+	refusedLookup = location.sessionFacts(triples, uid, stubFor({"success": 0, "message": "404 not found"}), ipwhois)
+	h.check("a refused lookup leaves the session without facts",
+		not refusedLookup.ok and refusedLookup.facts.len == 0 and refusedLookup.error != null)
 end function

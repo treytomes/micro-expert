@@ -1,6 +1,6 @@
 # micro-expert
 
-**A little expert system for MiniScript 2.** Fifty-four facts about one imaginary family, fifteen
+**A little expert system for MiniScript 2.** Fifty-four facts about one imaginary family, sixteen
 rules about what those facts imply, and a backward-chaining solver that answers a question only by
 showing you the facts and rules that make the answer true.
 
@@ -58,7 +58,8 @@ Then type a question at the `?` prompt, and `/exit` to leave:
 ```
 
 `--nlp` says each answer as a sentence instead, `--verbose` prints the proof tree behind it, and
-`--help` lists every option. The [introduction](introduction.md) explains what `bootstrap` does,
+`--help` lists every option. A run starts holding where the session is, asked of ipwho.is before
+the first question. The [introduction](introduction.md) explains what `bootstrap` does,
 what goes in `.env`, and how to run the suite.
 
 ## What it is, in one paragraph
@@ -81,7 +82,7 @@ files in `data/` and the same engine answers questions about a different world.
 | `data/facts.kb` | The 54 facts, as text |
 | `data/rules.kb` | The sixteen rules, as text |
 | `data/schema.kb` | The field types, as text |
-| `test/` | The 863 checks and their runner |
+| `test/` | The 1036 checks and their runner |
 | `docs/` | This wiki, the long-form articles, and the format references |
 | `vscode-knowledge/` | Syntax highlighting for `.kb` files |
 | `bootstrap.bat`, `bootstrap.sh` | Submodules, interpreter, `.env` |

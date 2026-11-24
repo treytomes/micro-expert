@@ -60,7 +60,7 @@ import "../src/api/openmeteo"
 import "../src/api/ipwhois"
 import "../src/dotenv"
 import "../src/uid"
-import "../src/spike/session"
+import "../src/location"
 
 import "harness"
 import "display"
@@ -158,9 +158,9 @@ dotenvCases = globals["dotenv"]
 // src/uid.ms generates the term an entity is named by; `uid` is this suite's case module for it.
 uidModule = globals["../src/uid"]
 uidCases = globals["uid"]
-// src/spike/session.ms turns a lookup into facts about the session; `location` is this suite's
-// case module for it, named away from the session module the cases must not be confused with.
-locationModule = globals["../src/spike/session"]
+// src/location.ms turns a lookup into facts about the session; `location` is this suite's case
+// module for it, named away from the session module the cases must not be confused with.
+locationModule = globals["../src/location"]
 locationCases = globals["location"]
 
 // The library and the session module, both loaded by the block above.
@@ -215,7 +215,7 @@ if uidModule == null or uidModule.hasIndex("of") == 0 then
 	exit 1
 end if
 if locationModule == null or locationModule.hasIndex("generateLocationFacts") == 0 then
-	print "error: could not import ../src/spike/session"
+	print "error: could not import ../src/location"
 	exit 1
 end if
 
@@ -267,6 +267,6 @@ weatherCases.run(meteo, apiClient, harness)
 ipwhoisCases.run(ipwhoisModule, apiClient, harness)
 dotenvCases.run(dotenvModule, harness)
 uidCases.run(uidModule, triples, harness)
-locationCases.run(locationModule, uidModule, triples, harness)
+locationCases.run(locationModule, uidModule, triples, apiClient, ipwhoisModule, harness)
 
 harness.summary()
