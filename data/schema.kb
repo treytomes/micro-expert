@@ -52,6 +52,30 @@ has-city(text, text)
 has-latitude(text, number)
 has-longitude(text, number)
 
+// ── The place a geocoder answers with ───────────────────────────────────────
+// docs/api/geocode-maps-co.md's vocabulary for one result. has-latitude, has-longitude,
+// has-city and has-country are the lookup's lines above, since one place's coordinate is a
+// number and one place's name is text whichever service supplied it; these are the rest.
+
+has-name(text, text)
+has-name-in-fr(text, text)
+has-south-latitude(text, unique(number))
+has-north-latitude(text, unique(number))
+has-west-longitude(text, unique(number))
+has-east-longitude(text, unique(number))
+has-osm-class(text, text)
+has-osm-type(text, text)
+has-place-rank(text, unique(number))
+has-importance(text, unique(number))
+has-place-id(text, unique(number))
+has-house-number(text, unique(text))
+has-road(text, unique(text))
+has-country-code(text, unique(text))
+has-wikidata(text, unique(text))
+has-wikipedia(text, unique(text))
+has-fee(text, text)
+was-answer-to(text, text)
+
 // ── Derived by rules ─────────────────────────────────────────────────────────
 
 is-child-of(text, text)

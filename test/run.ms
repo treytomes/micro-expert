@@ -63,6 +63,10 @@ import "../src/api/ipwhois"
 import "../src/dotenv"
 import "../src/uid"
 import "../src/location"
+// The declared writer and the ipwho.is map it reads; `declared` below is the case module.
+import "../src/spike/declared"
+import "../src/spike/ipwhois_map"
+import "../src/spike/geocode_map"
 
 import "harness"
 import "display"
@@ -87,6 +91,8 @@ import "ipwhois"
 import "dotenv"
 import "uid"
 import "location"
+import "declared"
+import "geocoder"
 import "notebook"
 
 // shellArgs[0] is this script, so the options start at index 1.
@@ -165,6 +171,15 @@ uidCases = globals["uid"]
 // module for it, named away from the session module the cases must not be confused with.
 locationModule = globals["../src/location"]
 locationCases = globals["location"]
+// src/spike/declared.ms is the shared writer and src/spike/ipwhois_map.ms is ipwho.is as the
+// map it reads; `declared` is this suite's case module for both.
+declaredModule = globals["../src/spike/declared"]
+declaredMap = globals["../src/spike/ipwhois_map"]
+declaredCases = globals["declared"]
+// src/spike/geocode_map.ms is geocode.maps.co as the same writer reads it; `geocoder` is this
+// suite's case module for it.
+geocodeMap = globals["../src/spike/geocode_map"]
+geocoderCases = globals["geocoder"]
 
 // The library and the session module, both loaded by the block above.
 replLibrary = globals["repl/repl"]
@@ -227,6 +242,18 @@ if locationModule == null or locationModule.hasIndex("generateLocationFacts") ==
 	print "error: could not import ../src/location"
 	exit 1
 end if
+if declaredModule == null or declaredModule.hasIndex("read") == 0 then
+	print "error: could not import ../src/spike/declared"
+	exit 1
+end if
+if declaredMap == null or declaredMap.hasIndex("build") == 0 then
+	print "error: could not import ../src/spike/ipwhois_map"
+	exit 1
+end if
+if geocodeMap == null or geocodeMap.hasIndex("build") == 0 then
+	print "error: could not import ../src/spike/geocode_map"
+	exit 1
+end if
 
 if engineModule == null or engineModule.hasIndex("build") == 0 then
 	print "error: could not import ../src/engine"
@@ -286,6 +313,8 @@ ipwhoisCases.run(ipwhoisModule, apiClient, harness)
 dotenvCases.run(dotenvModule, harness)
 uidCases.run(uidModule, triples, harness)
 locationCases.run(locationModule, uidModule, triples, apiClient, ipwhoisModule, harness)
+declaredCases.run(declaredModule, declaredMap, apiClient, ipwhoisModule, triples, uidModule, locationModule, harness)
+geocoderCases.run(declaredModule, geocodeMap, apiClient, geocode, triples, uidModule, schemaLoader, harness)
 notebookCases.run(notebookModule, engineModule, sessionModule, triples, rules, cliLibrary, optionsModule, harness)
 
 harness.summary()
