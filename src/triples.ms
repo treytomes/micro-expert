@@ -859,6 +859,14 @@ dayText = function(day)
 	return str(day.year) + "-" + month + "-" + date
 end function
 
+freshToday = function(fact)
+	"Whether a question can read this fact as today's: one typed here has no day and never ages, and one a service answered is fresh the day it was fetched."
+	if fact == null then return false
+	if fact.source == null then return true
+	return fact.fetched == dayText(dayToday())
+end function
+
+
 yearsSince = function(text, on)
 	"The whole years from a yyyy-MM-dd date to a day, or null when that is not a date or it has not arrived yet."
 	// The reader that owns the shape is what says whether the text is a date, so a value it
@@ -1577,7 +1585,7 @@ offsetHeld = function(place, facts)
 		if fact.predicate != "has-utc-offset" then continue
 		if termText(fact.subject) != termText(place) then continue
 		if not (fact.object isa number) then continue
-		if fact.source == null or fact.fetched == today then return true
+		if freshToday(fact) then return true
 	end for
 	return false
 end function
