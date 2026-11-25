@@ -143,9 +143,11 @@ build = function
 				// /search answers with a list, so every entry is one place - and it is asked with
 				// limit=1, so the first entry is the one that answers. The reply's own city and
 				// country must be the place the session holds, or another Fort Worth would be read
-				// as this one and a forecast computed for it.
+				// as this one and a forecast computed for it. Some results carry no city in their
+				// address - Sao Paulo and Mexico City among them - so the name the result is called
+				// is what confirms those, and a reply with neither says nothing to disagree with.
 				"reply": replyShape("$", 1,
-					{"has-city": "address.city", "has-country": "address.country"}),
+					{"has-city": ["address.city", "name"], "has-country": "address.country"}),
 			},
 			"reverse": {
 				"method": "GET",

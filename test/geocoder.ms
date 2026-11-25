@@ -242,6 +242,25 @@ run = function(declared, geocodeMap, apiClient, triples, uid, schemaLoader, h)
 	h.check("a result that calls Washington, D.C. just Washington is read",
 		district.ok == 1 and district.facts.len > 0)
 
+	// A result with no city in its address is confirmed by the name it is called: Sao Paulo's
+	// first result carries the coordinates and no city at all, so the name is the word checked,
+	// and a namesake without a city is still refused.
+	saoPaulo = {"osm_type": "relation", "osm_id": 298285, "lat": "-23.55065",
+		"lon": "-46.63338", "name": "São Paulo", "address": {"country": "Brasil"}}
+	heldSao = [triples.SpoTriple.make("place-3", "has-city", "Sao Paulo")]
+	brazil = declared.read(triples, uid, decl, "search", [saoPaulo], {"q": "Sao Paulo"}, heldSao)
+	h.check("a result with no city is confirmed by the name it is called",
+		brazil.ok == 1 and brazil.subject == "relation/298285")
+	noCityNamesake = {"osm_type": "node", "osm_id": 5, "lat": "20.6736", "lon": "-103.3446",
+		"name": "Springfield", "address": {"country": "Brasil"}}
+	h.check("while one with no city and another name is refused, naming that name",
+		declared.read(triples, uid, decl, "search", [noCityNamesake], {"q": "Sao Paulo"},
+			heldSao).error == "the first result is not the place asked about: its name is " +
+			"Springfield, not Sao Paulo")
+	h.check("and a city the reply does carry is what it is judged by, not its name",
+		declared.read(triples, uid, decl, "search", [eiffel], {"q": "Paris"},
+			[triples.SpoTriple.make("place-4", "has-city", "Paris")]).ok == 1)
+
 	wrongCountry = {"osm_type": "node", "osm_id": 2, "lat": "48.8583", "lon": "2.2945",
 		"name": "Paris", "address": {"city": "Paris", "country": "Canada"}}
 	h.check("and another country is refused by its own name",

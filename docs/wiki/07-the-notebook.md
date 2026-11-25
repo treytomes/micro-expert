@@ -33,6 +33,8 @@ the place and its country - so a geocoder that finds the wrong town on either si
 asked for in the box under the cell. "The same name" is the same words rather than the same
 letters: `Washington, D.C.` is confirmed by a reply that says `Washington`, `New York` by `City of
 New York`, and `St. Louis` by `Saint Louis`, while another town's name is still another town's.
+A result with no city in its address is judged by the name it is called, so `Sao Paulo` - which
+comes back with coordinates and no city - is confirmed rather than taken unchecked.
 
 `examples/explore.kbnb` is the tour: a rule's answer, a question that needs a value, the fact that
 answer added, a rule typed in a cell, and `/mermaid`. `examples/providers.kbnb` is the services

@@ -47,7 +47,10 @@
 //
 // The reply half may also say which of its fields make it the place the question named:
 //
-//   "reply": {"confirm": {"has-city": "address.city", "has-country": "address.country"}}
+//   "reply": {"confirm": {"has-city": ["address.city", "name"], "has-country": "address.country"}}
+//
+// A field may be a list of paths, the first that carries text in the reply being the one it is
+// judged by, so a search result that has no address can still be confirmed by its own name.
 //
 // A search sends limit=1 and is read as what came back, so an agreement is what stops a result
 // for another Fort Worth being read as this one: each named predicate is looked for in the facts
@@ -569,15 +572,27 @@ disagreement = function(triples, reply, first, held)
 	for predicate in reply.confirm.indexes
 		wanted = heldText(triples, held, predicate)
 		if wanted == null then continue
-		said = at(first, reply.confirm[predicate])
+		// A field may be named as one path or as a list of them, the first that carries text being
+		// the one the reply is judged by: a search result often has no city, and its own name is
+		// then the service's word for the place it answered with.
+		paths = [reply.confirm[predicate]]
+		if reply.confirm[predicate] isa list then paths = reply.confirm[predicate]
+		used = null
+		said = null
+		for path in paths
+			value = at(first, path)
+			if value == null then continue
+			if trimText(value) == "" then continue
+			used = path
+			said = trimText(value)
+			break
+		end for
 		if said == null then continue
-		said = trimText(said)
-		if said == "" then continue
 		// A name is the same name in another case, another spelling, or with the words a name may
 		// carry: a service's capitals are its own, and so are its abbreviations.
 		if samePlace(said, wanted) then continue
-		return "the first result is not the place asked about: its " +
-			fieldWord(reply.confirm[predicate]) + " is " + said + ", not " + wanted
+		return "the first result is not the place asked about: its " + fieldWord(used) + " is " +
+			said + ", not " + wanted
 	end for
 	return null
 end function

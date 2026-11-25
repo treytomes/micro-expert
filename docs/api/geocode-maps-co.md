@@ -474,7 +474,7 @@ the first match's and a second answer would only be a second opinion.
 
 The first match is worth the coordinates only if it is the place that was asked about, so the
 search's reply block names the fields that make it so:
-`"confirm": {"has-city": "address.city", "has-country": "address.country"}`.
+`"confirm": {"has-city": ["address.city", "name"], "has-country": "address.country"}`.
 `src/spike/declared.ms` looks each of those predicates up among the facts the session already
 holds about that place and refuses the reply when the service's own word for the field disagrees
 - a service's capitals, its accents, its abbreviations and the words a name may carry are the
@@ -485,6 +485,9 @@ place. What counts as the same naming is `samePlace` in `src/spike/declared.ms`:
 name once case, accents, punctuation, one-letter initials and the administrative words are set
 aside, with `St.` read as `Saint` and `Ft.` as `Fort`. Only that: `Newark` is not `New York City`,
 `Paso` is not `El Paso`, and a name in another script that this cannot spell is compared as it
-stands. A field the
-session holds no fact under, or that the reply leaves out, is nothing to disagree with: the
+stands. A field may name a list of paths, the first that carries text being the one the reply is
+judged by, which is why a result with no city in its address is confirmed by the name it is called:
+`Sao Paulo` and `Mexico City` answer with coordinates and no city, and the name is the service's
+own word for the place, so the check does not depend on a field a result may not have. A field the
+session holds no fact under, or that the reply carries none of, is nothing to disagree with: the
 declaration says which fields it can check, not that every reply must carry them.
