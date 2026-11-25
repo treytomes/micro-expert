@@ -78,7 +78,7 @@ A few ways out of a value prompt:
 | Nothing (just Enter) | Stops the asking and leaves the report standing |
 | A whole fact, such as `is-uncle-of(oliver, walter)` | Asserts it as a fact, then starts the question again |
 | A line that still holds a variable | Refused as a value; it is neither a fact nor a value |
-| `/undo` | Takes back the last change, then asks the question again |
+| `/undo` | Takes back the last change, then asks the question again; a service's answer comes back whole |
 | `/retract <FACT>` | Removes a stored fact, then asks the question again |
 
 If a fact is already complete — a condition that needed no variable — the session offers it with
@@ -92,8 +92,9 @@ answer instead of deriving it.
 
 ## Taking changes back
 
-`/undo` takes back the last change — an added fact, a value that replaced one, or a retraction — at
-the prompt or in the middle of a question. This is what keeps a wrong value from sticking for the
+`/undo` takes back the last change — an added fact, a value that replaced one, a retraction, or the
+facts a service answered with, which go back together rather than one at a time — at the prompt or
+in the middle of a question. This is what keeps a wrong value from sticking for the
 rest of the run:
 
 ```text

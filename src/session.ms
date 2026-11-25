@@ -131,7 +131,9 @@ end function
 // the session would offer to take back what it cannot put back. So each one is recorded as
 // it happens, and the record is what /undo reads: an add drops the last fact, a replacement
 // swaps the old one back into the place it stood in, and a retraction puts its fact back
-// where it was. The list is why nothing has to compare against a starting length.
+// where it was. A service's answer is one change too, holding the changes its several facts
+// made, so /undo takes a whole answer back rather than a fact at a time. The list is why
+// nothing has to compare against a starting length.
 
 noteChange = function(session, step)
 	"Records a change /undo can reverse."
@@ -140,27 +142,46 @@ noteChange = function(session, step)
 end function
 
 undo = function(session)
-	"Takes back the last change the session made - an added fact, a replacement, or a retraction - or says there is none."
+	"Takes back the last change the session made - an added fact, a replacement, a retraction, or an answer a service gave - or says there is none."
 	if not session.hasIndex("changes") then session.changes = []
 	if session.changes.len == 0 then
 		repl.say(session, "warning", "  nothing to take back")
 		return false
 	end if
 	step = session.changes.pop
+	if step.kind == "batch" then
+		// One answer is one change, so it goes back whole: the changes its facts made are
+		// reversed in the order they were made, and the answer is said once rather than once
+		// a fact. Reversing each one restores the array it changed, so a replacement inside
+		// the answer puts the value it corrected back where that value stood.
+		for index in range(step.steps.len - 1, 0, -1)
+			undoStep(session, step.steps[index], true)
+		end for
+		repl.say(session, "added", "  took back " + repl.countText(step.steps.len, "fact") +
+			" " + step.service + " answered")
+		return true
+	end if
+	undoStep(session, step)
+	return true
+end function
+
+undoStep = function(session, step, quiet=false)
+	"Puts back what one recorded change did, saying what it put back unless the caller is saying the whole answer."
 	if step.kind == "replace" then
 		session.facts[step.at] = step.held
-		repl.say(session, "added", "  took back " + step.added.text +
-			", putting " + step.held.text + " back")
-		return true
+		if not quiet then
+			repl.say(session, "added", "  took back " + step.added.text +
+				", putting " + step.held.text + " back")
+		end if
+		return
 	end if
 	if step.kind == "retract" then
 		session.facts.insert(step.at, step.held)
-		repl.say(session, "added", "  put " + step.held.text + " back")
-		return true
+		if not quiet then repl.say(session, "added", "  put " + step.held.text + " back")
+		return
 	end if
 	session.facts.pop
-	repl.say(session, "added", "  took back " + step.added.text)
-	return true
+	if not quiet then repl.say(session, "added", "  took back " + step.added.text)
 end function
 
 // ── Retracting a fact ───────────────────────────────────────────────────────
@@ -823,17 +844,33 @@ provideMissing = function(session, options)
 				continue
 			end if
 			// The facts go in the way a typed one does, so each is held against the schema and
-			// none is stored twice; /undo takes them back one at a time, as it does any add.
+			// none is stored twice. What they changed is then kept as one change, so /undo takes
+			// the whole answer back rather than a fact at a time.
 			added = 0
+			before = 0
+			if session.hasIndex("changes") then before = session.changes.len
 			for fact in answered.facts
 				if alreadyKnown(session, fact) then continue
 				if addFact(session, fact) then added = added + 1
 			end for
-			if added > 0 then return true
+			if added > 0 then
+				groupAnswer(session, before, capability)
+				return true
+			end if
 		end for
 	end for
 	return false
 end function
+
+groupAnswer = function(session, from, capability)
+	"One service's answer as one change /undo takes back whole, when the facts it added made more than one; a single fact is already one step."
+	steps = session.changes[from:]
+	if steps.len < 2 then return
+	session.changes = session.changes[:from]
+	session.changes.push({"kind": "batch", "steps": steps, "service": capability.service,
+		"endpoint": capability.endpoint})
+end function
+
 
 nameSet = function(session, triple)
 	"The names of a triple's variables, as a set."

@@ -388,6 +388,21 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 			not stillStale and heldLats.len == 1)
 		h.check("and refuses none of the facts the answer carried",
 			not holds(shippedSaid, "refused") and not holds(shippedSaid, "could not answer"))
+		// The answer replaced the place's latitude as well as adding its longitude, and both
+		// changes belong to the one answer: /undo puts the corrected latitude back where it
+		// stood rather than leaving the answer half taken back.
+		lastChange = shipped.changes[shipped.changes.len - 1]
+		takenBack = sessionModule.undo(shipped)
+		restored = 0
+		backToStale = false
+		for fact in shipped.facts
+			if fact.predicate == "has-latitude" and triples.termText(fact.subject) == named then
+				restored = restored + 1
+				if fact.text == stale.text then backToStale = true
+			end if
+		end for
+		h.check("/undo takes that answer back whole, the corrected latitude with it",
+			takenBack and lastChange.kind == "batch" and restored == 1 and backToStale)
 	end if
 
 	// ── A weather service asked about a place the session locates ───────────
@@ -463,6 +478,25 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	h.check("and holds the reading it answered as that place's",
 		heldTemperature != null and triples.termText(heldTemperature.subject) == located and
 			heldTemperature.object == 18.4)
+
+	// Five facts from one reply are one change, so /undo takes the answer back whole rather
+	// than leaving four of its readings behind - and says so once rather than five times.
+	h.check("a service's answer is one change the session records",
+		weatherSession.changes.len == 1 and weatherSession.changes[0].kind == "batch" and
+			weatherSession.changes[0].steps.len == 5)
+	takenBack = sessionModule.undo(weatherSession)
+	coordinates = 0
+	for fact in weatherSession.facts
+		if fact.predicate == "has-latitude" or fact.predicate == "has-longitude" then
+			coordinates = coordinates + 1
+		end if
+	end for
+	h.check("/undo takes the whole answer back in one step",
+		takenBack and weatherSession.facts.len == 2 and coordinates == 2 and
+			weatherSession.changes.len == 0)
+	h.check("saying it once, with the service that answered",
+		countOf(weatherSaid, "took back 5 facts open-meteo answered") == 1 and
+			not holds(weatherSaid, "took back has-temperature-2m("))
 
 	// A forecast that cannot answer leaves the fact to the reader, and the place's next weather
 	// fact reads the same failed attempt rather than making a second request.
