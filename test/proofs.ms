@@ -250,4 +250,28 @@ run = function(t, rules, h)
 	absent = t.proveGoals(spo("ann", "is-stranger-to", "zed"), chain,
 		[step, stepThen, stranger], 5)
 	h.check("where nobody is an ancestor the negation holds at any depth", absent.len == 1)
+
+	// ── A binding map cannot bind a variable to itself ──────────────────────
+	// The solver binds only after dereferencing both sides, so the map it builds is a forest. A
+	// map built by hand can hold a cycle, and walking one used to overflow the stack: the walk
+	// now stops where it started, and unification refuses the alias rather than adding it.
+	selfBound = {"x": t.var("x")}
+	stood = t.deref(t.var("x"), selfBound)
+	h.check("a variable bound to itself derefs to itself instead of overflowing",
+		stood isa t.Var and stood.name == "x")
+	ring = {"x": t.var("y"), "y": t.var("x")}
+	h.check("a ring of two variables ends on a variable, not on a stack overflow",
+		t.deref(t.var("x"), ring) isa t.Var and t.deref(t.var("y"), ring) isa t.Var)
+	refused = t.unifyTerms(t.var("x"), t.var("x"), selfBound)
+	h.check("unifying a variable with itself leaves the map as it was",
+		refused != null and refused["x"] isa t.Var and refused["x"].name == "x")
+	h.check("a variable is not bound to an alias it already stands for",
+		t.unifyTerms(t.var("x"), t.var("y"), {"x": t.var("x")}) != null)
+	// A question asked under a hand-built cycle still answers: the binding derefs to the
+	// variable itself, which the fact then settles.
+	cycleFacts = [spo("zed", "has-rank", 1)]
+	cycleGoal = spo(v("x"), "has-rank", v("n"))
+	cycled = t.proveGoals(cycleGoal, cycleFacts, [], 0, selfBound)
+	h.check("and a goal asked under one still answers",
+		cycled.len == 1 and answerText(cycleGoal, cycled[0]) == "has-rank(zed, 1)")
 end function

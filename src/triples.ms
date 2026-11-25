@@ -529,20 +529,35 @@ unifyTerms = function(left, right, binds)
 	left = deref(left, binds)
 	right = deref(right, binds)
 	if left == right then return binds
+	// Once deref has followed the aliases, a variable stands for itself, so there is no value
+	// here that holds it. Binding it to a variable already naming it - possible only through a
+	// map holding a cycle, or through a Var that compares by something other than its name -
+	// would walk that cycle again, so the variable is refused and the bindings left as they are.
+	if left isa Var and right isa Var and left.name == right.name then return binds
 	if left isa Var then return withBinding(binds, left.name, right)
 	if right isa Var then return withBinding(binds, right.name, left)
 	return null
 end function
 
 deref = function(term, binds)
-	"Follows bindings until a non-variable or an unbound variable."
+	"Follows bindings until a non-variable or an unbound variable, and stops at a cycle."
 	if not (term isa Var) then return term
 	// No bindings yet means nothing is bound, so the variable derefs to itself. The top
 	// level of a query derefs a goal's predicate with null binds (candidateFacts,
 	// predicatesMeet), and only a variable predicate ever reaches this line.
 	if binds == null then return term
-	if not binds.hasIndex(term.name) then return term
-	return deref(binds[term.name], binds)
+	// The solver binds only after dereferencing both sides, so the map it builds is a forest.
+	// A map built by hand can hold a variable bound to itself or around a ring of them, which
+	// walking would never resolve: a variable met twice is taken to stand for itself, so the
+	// walk ends where it started instead of overflowing the stack.
+	seen = {}
+	current = term
+	while current isa Var and binds.hasIndex(current.name)
+		if seen.hasIndex(current.name) then return current
+		seen[current.name] = 1
+		current = binds[current.name]
+	end while
+	return current
 end function
 
 resolveBindings = function(binds)
