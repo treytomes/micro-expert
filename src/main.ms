@@ -160,9 +160,13 @@ end if
 // its address by its coordinates. Nothing is asked at startup, so a run that never asks where it
 // is never reaches the network, and a lookup that fails is a warning rather than a lost session.
 
-engineSession.providers = providers.registry(globals["api/client"], globals["spike/declared"],
-	globals["uid"], [globals["spike/ipwhois_map"].build(),
-		globals["spike/geocode_map"].build(), globals["spike/openmeteo_map"].build()])
+// --offline is the one option that decides this: with it, no registry is built and no question
+// can reach the network, so a run answers from its files and the prompt.
+if not engineSession.offline then
+	engineSession.providers = providers.registry(globals["api/client"], globals["spike/declared"],
+		globals["uid"], [globals["spike/ipwhois_map"].build(),
+			globals["spike/geocode_map"].build(), globals["spike/openmeteo_map"].build()])
+end if
 
 // 'known', not 'fact': a top-level loop variable is a global here, so naming it
 // fact would overwrite the fact() shorthand with a triple as soon as the loop ran.

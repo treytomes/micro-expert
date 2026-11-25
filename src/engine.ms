@@ -22,6 +22,9 @@
 // fact it needs, which main.ms builds from the service maps with src/providers.ms. build answers
 // null, so a session nobody gave a registry - a notebook's - starts from the domain's files and
 // asks nothing of the network, and this module stays clear of the API layer either way.
+//
+// offline is --offline, and it is build's business because it comes from the command line: a
+// session that carries it asks nothing of the network even when it is handed a registry.
 
 import "domain"
 import "facts"
@@ -65,6 +68,7 @@ build = function(triples, Rule, options, style)
 		"depth": options.values.depth,
 		"verbose": options.values.verbose,
 		"nlp": options.values.nlp,
+		"offline": options.values.offline,
 		"style": style,
 		"schema": schema,
 		"types": types,

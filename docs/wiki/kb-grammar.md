@@ -298,6 +298,10 @@ The last two lines are one fact written twice: the annotations may stand in eith
 <source-annotation> ::= "#" <service> "/" <endpoint> <moment>
 ```
 
+An annotation opens only after the call's closing `)`, so a `#` inside a value is part of the
+value: `has-home-town(guid, "Dallas #1")` is one field holding a hash, and
+`has-home-town(guid, "Dallas #1") # ipwho.is/lookup 2026-11-21` is that fact plus its source.
+
 `#` followed by the service and endpoint that answered the fact, and the day they were asked,
 says where the fact came from: `open-meteo/forecast`, `geocode.maps.co/search`,
 `ipwho.is/lookup`. The service and the endpoint are one word each, joined by `/`, and the day
@@ -306,7 +310,9 @@ is a moment the date reader takes.
 A fact with no `#` is nobody's answer: it was typed, or loaded from a file that had been. A
 fact a service answered carries one, so a session — or a facts file it saves, since a fact's
 line is what a file writes — can tell the two apart, and see how stale the answer is by its
-day.
+day. Fetching the same fact again on another day is fetching the same claim: a session replaces
+the line the earlier answer stood on with the newer one rather than keeping two, and a typed
+fact that says the same thing is not written over at all.
 
 ```prolog
 has-location(session, place-4f2c) # ipwho.is/lookup 2026-11-21

@@ -616,6 +616,19 @@ addFact = function(session, triple)
 		repl.say(session, "note", "  already known: " + triple.text)
 		return false
 	end if
+	// The same fact answered again says the same thing however the day of the answer differs,
+	// so a service's later answer takes the place of its earlier one rather than sitting beside
+	// it; a typed fact that says the same thing is not written over, since the claim is known.
+	if triple.source != null then
+		claimed = claimFor(session, triple)
+		if claimed != null then
+			if claimed.held.source == null then
+				repl.say(session, "note", "  already known: " + claimed.held.text)
+				return false
+			end if
+			return replaceFact(session, triple, claimed)
+		end if
+	end if
 	taken = takenFact(session, triple)
 	if taken != null then return replaceFact(session, triple, taken)
 	session.facts.push(triple)
@@ -667,6 +680,16 @@ alreadyKnown = function(session, triple)
 		if known.text == triple.text then return true
 	end for
 	return false
+end function
+
+claimFor = function(session, triple)
+	"The held fact that says the same thing as this one, whatever service or day it came from, as {at, held}, or null when the session holds no such claim."
+	for index in session.facts.indexes
+		held = session.facts[index]
+		if held.text == triple.text then continue
+		if session.triples.sameClaim(held, triple) then return {"at": index, "held": held}
+	end for
+	return null
 end function
 
 addRule = function(session, line)
@@ -838,6 +861,9 @@ provideMissing = function(session, options)
 	"Lets a declared service answer the first missing fact one can supply, adding what it says; says whether the session now holds more than it did."
 	if not session.hasIndex("providers") then return false
 	if session.providers == null then return false
+	// --offline refuses every call: the question is asked the way it was before there were
+	// services, and nothing reaches the network.
+	if session.hasIndex("offline") and session.offline then return false
 	if not session.hasIndex("providerCalls") then session.providerCalls = {}
 	for option in options
 		for need in option.needs

@@ -23,4 +23,7 @@ run = function(cli, options, h)
 	h.check("and each flag leaves the other alone",
 		values(["--nlp"]).verbose == 0 and values(["--verbose"]).nlp == 0)
 	h.check("depth still starts at 8", plain.depth == 8)
+	// A run talks to the network only when it was not told not to.
+	h.check("a run with no flags may ask a service", plain.offline == 0)
+	h.check("--offline refuses every network call", values(["--offline"]).offline == 1)
 end function

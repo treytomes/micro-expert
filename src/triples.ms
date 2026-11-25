@@ -222,6 +222,15 @@ SpoTriple.parse = function(line)
 	return triple
 end function
 
+sameClaim = function(one, other)
+	"Says whether two facts make the same claim - the same subject, predicate, object, moment and confidence - whatever service answered them, or on what day."
+	return termText(one.subject) == termText(other.subject) and
+		termText(one.predicate) == termText(other.predicate) and
+		termText(one.object) == termText(other.object) and
+		one.at == other.at and one.confidence == other.confidence
+end function
+
+
 SpoTriple.parseBare = function(line)
 	"SpoTriple.parse with no annotations, for a rule's head and conditions, which are written bare: only a stored fact carries one."
 	if indexOfAnnotation(line) != null then

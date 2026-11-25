@@ -33,6 +33,13 @@ declare = function(cli, cmd)
 		"description": "Say answers, and the proof trees above them, as sentences.",
 	})
 	cli.add(cmd, {
+		"name": "offline",
+		"aliases": ["--offline"],
+		"type": "flag",
+		"default": 0,
+		"description": "Refuse network calls: answer from the files and the prompt.",
+	})
+	cli.add(cmd, {
 		"name": "domain",
 		"aliases": ["--domain"],
 		"type": "string",

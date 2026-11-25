@@ -715,6 +715,67 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		stampedWeather.ok and forecastStamps == 5)
 	triples.today = savedToday
 
+	// ── The same fact, answered again ───────────────────────────────────────
+
+	// A reading fetched on another day is the same claim, so the later answer takes the line
+	// the earlier one stood on rather than sitting beside it - and /undo puts the earlier back.
+	refetched = uid.of("place", ["Fort Worth refetched"])
+	firstRead = triples.SpoTriple.make(refetched, "has-latitude", 32.7555)
+	firstRead.source = "geocode.maps.co/search"
+	firstRead.fetched = "2026-11-20"
+	secondRead = triples.SpoTriple.make(refetched, "has-latitude", 32.7555)
+	secondRead.source = "geocode.maps.co/search"
+	secondRead.fetched = "2026-11-21"
+	readingSession = {"triples": triples, "Rule": rules.Rule, "facts": [firstRead], "rules": [],
+		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"providers": null, "io": {"read": null, "say": function(line)
+		end function}}
+	changed = sessionModule.addFact(readingSession, secondRead)
+	h.check("a fact answered again replaces the line it was read on before",
+		changed and readingSession.facts.len == 1 and
+			readingSession.facts[0].fetched == "2026-11-21" and
+			readingSession.changes.len == 1 and readingSession.changes[0].kind == "replace")
+	changed = sessionModule.undo(readingSession)
+	h.check("and /undo puts the earlier answer back",
+		changed and readingSession.facts.len == 1 and
+			readingSession.facts[0].fetched == "2026-11-20")
+
+	// A typed fact that says the same thing is not written over by an answer: the claim is
+	// already known, so the service's line is not a second copy of it.
+	typedRead = triples.SpoTriple.make(refetched, "has-latitude", 32.7555)
+	typedSaid = []
+	typedSession = {"triples": triples, "Rule": rules.Rule, "facts": [typedRead], "rules": [],
+		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"providers": null, "io": {"read": null, "say": function(line)
+			typedSaid.push(line)
+		end function}}
+	changed = sessionModule.addFact(typedSession, secondRead)
+	h.check("a typed fact saying the same thing is not written over by an answer",
+		not changed and typedSession.facts.len == 1 and typedSession.facts[0].source == null and
+			holds(typedSaid, "already known"))
+
+	// ── --offline is the run's own switch ──────────────────────────────────
+
+	// It is read from the command line into the session, and a session carrying it asks nothing
+	// of any service it was handed: the question goes the way it did before there were any.
+	offlineRun = engineModule.build(triples, rules.Rule,
+		parsed(["--domain", "data", "--offline"]), null)
+	onlineRun = engineModule.build(triples, rules.Rule, parsed(["--domain", "data"]), null)
+	h.check("--offline is the run's own switch, off unless asked for",
+		not (offlineRun isa error) and offlineRun.offline == 1 and
+			not (onlineRun isa error) and onlineRun.offline == 0)
+	offlineStub = stubFor(weatherReply)
+	offlineSession = {"triples": triples, "Rule": rules.Rule, "facts": [locatedLat, locatedLon],
+		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
+		"knowledge": null, "offline": 1,
+		"providers": providers.registry(offlineStub, declared, uid, [weatherDecl]),
+		"io": {"read": null, "say": function(line)
+		end function}}
+	changed = sessionModule.provideMissing(offlineSession,
+		triples.needsFor(needTemperature, offlineSession.facts, [], 8))
+	h.check("and refuses a call the session could otherwise make",
+		not changed and offlineStub.calls == 0)
+
 	// ── A session given no registry asks nothing ────────────────────────────
 
 	plain = startSession(null, ["has-location(session, ?p)", "Fort Worth", "quit"])

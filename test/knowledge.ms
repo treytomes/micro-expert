@@ -273,6 +273,17 @@ run = function(t, knowledge, h)
 			"has-location(session, Fort Worth) # ipwho.is/lookup 2026-11-21")
 	h.check("while a fact with no '#' names no service",
 		annotated("has-age(walter, 78)").source == null)
+	// A '#' inside a value is part of the value: an annotation opens only after the call's
+	// closing ')', so a text that holds one is read as it is written.
+	hashValue = annotated("has-home-town(guid, " + char(34) + "Dallas #1" + char(34) + ")")
+	h.check("a '#' inside a value is part of the value",
+		hashValue != null and hashValue.object == "Dallas #1" and hashValue.source == null and
+			annotated("has-tag(item, #1)").object == "#1")
+	hashAnnotated = annotated("has-home-town(guid, " + char(34) + "Dallas #1" + char(34) +
+		") # ipwho.is/lookup 2026-11-21")
+	h.check("and only the '#' after the call opens the annotation",
+		hashAnnotated != null and hashAnnotated.object == "Dallas #1" and
+			hashAnnotated.source == "ipwho.is/lookup")
 
 	// The annotations come after the call, so a quoted field and a comment beside them are
 	// unaffected.
