@@ -449,7 +449,9 @@ reverse: [{"fact": ["has-road", "?place", "?road"], "about": "?place",
 on the OSM object, but `has-latitude(place-f1d6…, ?lat)` is a question about the domain's place,
 so each fact the reply writes is read back onto that term. `from` fills the request's fields from
 facts the session already holds about that place: the first of its `has-name` and `has-city`, or
-its `has-latitude` and `has-longitude`. A place with neither is not asked about - there is
+its `has-latitude` and `has-longitude`, today's reading before an earlier day's. A field with only
+an earlier day's reading behind it counts as unfilled, so the map that declares it is asked for a
+newer one first and the old one is used only when nothing can. A place with neither is not asked about - there is
 nothing to put in the request - so the question falls through to the prompt as it would with no
 registry at all.
 

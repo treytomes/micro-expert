@@ -816,6 +816,55 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		noteAt != null and answerAt != null and noteAt < answerAt and
 			lonelyAsked.answers.lines[noteAt].indexOf("fetched 2026-11-20") != null and
 			lonelyAsked.answers.lines[noteAt].indexOf("# open-meteo/forecast 2026-11-20") != null)
+	// A request sent now is not computed from yesterday's coordinates. The forecast's fields want
+	// today's readings, so the map that declares a stale one is asked for a newer reading first,
+	// and the forecast goes out with what that map answered.
+	coordStub = splitStub([
+		{"host": "geocode.maps.co", "json": newerReply},
+		{"host": "api.open-meteo.com", "json": weatherReply},
+	])
+	coordPlace = uid.of("place", ["Fort Worth old coords"])
+	oldLat = triples.SpoTriple.make(coordPlace, "has-latitude", 32.7555)
+	oldLat.source = "geocode.maps.co/search"
+	oldLat.fetched = "2026-11-20"
+	oldLon = triples.SpoTriple.make(coordPlace, "has-longitude", -97.3308)
+	oldLon.source = "geocode.maps.co/search"
+	oldLon.fetched = "2026-11-20"
+	coordAsked = startSession(
+		providers.registry(coordStub, declared, uid, [geoDecl, weatherDecl]),
+		["has-temperature-2m(" + coordPlace + ", ?t)", "quit"],
+		[triples.SpoTriple.make(coordPlace, "has-city", "Fort Worth"), oldLat, oldLon])
+	h.check("a forecast is not sent with yesterday's coordinates",
+		coordStub.calls.len == 2 and coordStub.calls[0].indexOf("geocode.maps.co") != null and
+			coordStub.calls[1].indexOf("latitude=32.76") != null and
+			coordStub.calls[1].indexOf("32.7555") == null)
+	h.check("and the reading it answers with is the forecast's",
+		holds(coordAsked.answers.lines, "has-temperature-2m(" + coordPlace + ", 18.4)"))
+
+	// With no map declaring the coordinate, the reading the session holds is what the request
+	// goes with: an old coordinate still answers where nothing can refresh it.
+	lonelyCoord = stubFor(weatherReply)
+	lonelyCoords = startSession(providers.registry(lonelyCoord, declared, uid, [weatherDecl]),
+		["has-temperature-2m(" + coordPlace + ", ?t)", "quit"], [oldLat, oldLon])
+	h.check("a coordinate nothing can refresh is sent as it stands, and answered",
+		lonelyCoord.calls == 1 and lonelyCoord.seenUrl.indexOf("latitude=32.7555") != null and
+			holds(lonelyCoords.answers.lines, "has-temperature-2m(" + coordPlace + ", 18.4)"))
+
+	// When the session holds both, today's reading is the one the request is computed from.
+	bothCoordStub = stubFor(weatherReply)
+	todayLat = triples.SpoTriple.make(coordPlace, "has-latitude", 32.76)
+	todayLat.source = "geocode.maps.co/search"
+	todayLat.fetched = "2026-11-21"
+	todayLon = triples.SpoTriple.make(coordPlace, "has-longitude", -97.34)
+	todayLon.source = "geocode.maps.co/search"
+	todayLon.fetched = "2026-11-21"
+	startSession(providers.registry(bothCoordStub, declared, uid, [geoDecl, weatherDecl]),
+		["has-temperature-2m(" + coordPlace + ", ?t)", "quit"],
+		[oldLat, oldLon, todayLat, todayLon])
+	h.check("today's reading is preferred to the earlier one, without asking for another",
+		bothCoordStub.calls == 1 and bothCoordStub.seenUrl.indexOf("latitude=32.76") != null and
+			bothCoordStub.seenUrl.indexOf("32.7555") == null)
+
 	// A reading the question never needed is not announced. A rule's other derivation wants
 	// yesterday's temperature, which proves nothing - 18.4 is not 10 or less - so the answer
 	// comes from the latitude alone, and the note names only that reading.

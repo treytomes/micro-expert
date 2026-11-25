@@ -791,7 +791,10 @@ shaped alike:
 `about` says the reply is read onto the place the question named. The reply names that place by
 nothing but the coordinates it was asked with, so the reading is told the place as well, under
 the same part's name, while the request itself carries only what the service uses. `from` fills
-the request's coordinates from facts the session already holds about that place. A place the
+the request's coordinates from facts the session already holds about that place - today's reading
+before an earlier day's, since a forecast fetched now should not be computed from yesterday's
+coordinate. A place whose only coordinates were fetched on an earlier day is located again first,
+by whichever map declares them, and the old coordinate is sent only when nothing can refresh it. A place the
 session knows only by name or city has none of them yet, so the geocoder's search is asked for the
 coordinates first and the weather question comes round with them - one answer per pass, two
 answers. A place with no coordinates and nothing to search it by is not asked about at all, and

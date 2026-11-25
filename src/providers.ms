@@ -177,23 +177,23 @@ answers = function(triples, part, term, about)
 end function
 
 
-heldFrom = function(triples, facts, subject, wanted)
-	"One field's value: the first of these predicates the session holds a fact for about this subject, or null when it holds none."
+heldFrom = function(triples, facts, subject, wanted, freshOnly=0)
+	"One field's value: the first of these predicates the session holds a fact for about this subject, today's reading before an earlier day's, or null when it holds none - or holds only earlier readings and freshOnly asks for today's."
 	for predicate in wanted
-		value = heldTerm(triples, facts, subject, predicate)
+		value = heldTerm(triples, facts, subject, predicate, freshOnly)
 		if value != null then return value
 	end for
 	return null
 end function
 
 
-requestFor = function(capability, triples, facts, subject)
-	"The request to send, its fields filled from facts the session holds about the subject; null when one of them has no fact to fill it."
+requestFor = function(capability, triples, facts, subject, freshOnly=0)
+	"The request to send, its fields filled from facts the session holds about the subject - today's readings first, since a request sent now should not be computed from a day-old one - or null when one of them has no fact to fill it, or freshOnly asks for a newer reading than the session holds."
 	request = capability.request + {}
 	for name in capability.from.indexes
 		wanted = capability.from[name]
 		if not (wanted isa list) then wanted = [wanted]
-		value = heldFrom(triples, facts, subject, wanted)
+		value = heldFrom(triples, facts, subject, wanted, freshOnly)
 		if value == null then return null
 		request[name] = value
 	end for
@@ -201,13 +201,13 @@ requestFor = function(capability, triples, facts, subject)
 end function
 
 
-unfilledFor = function(capability, triples, facts, subject)
-	"One request's fields no held fact answers, each with the predicates that would fill it, in field-name order - the facts another service may be asked for."
+unfilledFor = function(capability, triples, facts, subject, freshOnly=0)
+	"One request's fields no held fact answers - or, when freshOnly asks for today's reading, only earlier days' answers - each with the predicates that would fill it, in field-name order: the facts another service may be asked for."
 	unfilled = []
 	for name in capability.from.indexes
 		wanted = capability.from[name]
 		if not (wanted isa list) then wanted = [wanted]
-		if heldFrom(triples, facts, subject, wanted) == null then
+		if heldFrom(triples, facts, subject, wanted, freshOnly) == null then
 			unfilled.push({"field": name, "predicates": wanted})
 		end if
 	end for
@@ -216,15 +216,21 @@ unfilledFor = function(capability, triples, facts, subject)
 end function
 
 
-heldTerm = function(triples, facts, subject, predicate)
-	"The first value a held fact gives this subject under this predicate, or null when it gives none."
+heldTerm = function(triples, facts, subject, predicate, freshOnly=0)
+	"The value a held fact gives this subject under this predicate - a typed fact or today's reading first, an earlier day's only when no newer one is asked for - or null when it gives none."
+	today = triples.dayText(triples.dayToday())
+	older = null
 	for fact in facts
 		if fact.predicate != predicate then continue
 		if triples.termText(fact.subject) != triples.termText(subject) then continue
 		if triples.isVar(fact.object) then continue
-		return fact.object
+		// A typed fact is the session's own and never stale; a reading is fresh the day it was
+		// fetched, and stands in only for want of a newer one.
+		if fact.source == null or fact.fetched == today then return fact.object
+		if older == null then older = fact.object
 	end for
-	return null
+	if freshOnly then return null
+	return older
 end function
 
 

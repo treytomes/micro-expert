@@ -984,14 +984,20 @@ provideMissing = function(session, options)
 			// the next to try before the reader.
 			for capability in providers.fittingTo(session.providers, session.triples, triple)
 				// The request's own fields come from what the session holds about the subject the
-				// question names. A field with no fact behind it is asked of another service first,
-				// and this question comes round with what that one answered.
+				// question names - today's readings first, since a request sent now is not computed
+				// from yesterday's coordinate. A field with no fact behind it, or only an earlier
+				// day's, is asked of another service first, and this question comes round with what
+				// that one answered.
 				request = providers.requestFor(capability, session.triples, session.facts,
-					triple.subject)
+					triple.subject, 1)
 				if request == null then
 					if provideField(session, capability, triple.subject) then return true
-					continue
+					// Nothing can fetch a newer reading, so the request goes with the one the
+					// session holds: an old coordinate still answers where no map can refresh it.
+					request = providers.requestFor(capability, session.triples, session.facts,
+						triple.subject)
 				end if
+				if request == null then continue
 				if askService(session, capability, request, triple) then return true
 			end for
 		end for
@@ -1029,13 +1035,18 @@ provideField = function(session, capability, subject)
 	// A field is a fact about the place the question names, and a place is only asked about by a
 	// term the session holds; a variable would be a question of its own rather than a field.
 	if session.triples.isVar(subject) then return false
-	for unfilled in providers.unfilledFor(capability, session.triples, session.facts, subject)
+	// A field with only an earlier day's reading behind it is asked for as well, not just a field
+	// with no fact at all: the reading is what the request would otherwise be computed from.
+	for unfilled in providers.unfilledFor(capability, session.triples, session.facts, subject, 1)
 		for predicate in unfilled.predicates
 			need = session.triples.SpoTriple.make(subject, predicate, session.triples.var("value"))
 			// The field is a fact one service declares, so the same rule as a question's: each
 			// that declares it is tried, and the first that answers fills it.
 			for found in providers.fittingTo(session.providers, session.triples, need)
-				request = providers.requestFor(found, session.triples, session.facts, subject)
+				request = providers.requestFor(found, session.triples, session.facts, subject, 1)
+				if request == null then
+					request = providers.requestFor(found, session.triples, session.facts, subject)
+				end if
 				if request == null then continue
 				if askService(session, found, request, need) then return true
 			end for
