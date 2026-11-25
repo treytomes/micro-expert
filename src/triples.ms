@@ -1552,11 +1552,47 @@ end function
 // fact with the goal's own shape, or a rule whose body still needs something - and
 // each answer is the facts that way would need, with the rule that would use them.
 
+clockNeeds = function(goal, facts, binds)
+	"The fact that would give this clock a reading to stand on: a place's offset, when the session holds none it can read a clock by - today's, or a typed one."
+	if binds == null then binds = {}
+	place = goal.subject
+	if place isa Var then
+		place = deref(place, binds)
+		if place isa Var then return []
+	end if
+	// The machine's own clock is the host's, and the place the session is located at reads from
+	// it, so neither needs an offset: the offset is what another place is read against.
+	if not (place isa string) then return []
+	if place == "session" or (sessionPlace != null and place == sessionPlace) then return []
+	if offsetHeld(place, facts) then return []
+	return [{"rule": null, "needs": [
+		missingFact(SpoTriple.make(place, "has-utc-offset", var("offset")), false)]}]
+end function
+
+
+offsetHeld = function(place, facts)
+	"Whether the session holds an offset it can read a clock by: a typed one, or one a service answered today, since a place may have moved its clocks twice a year since."
+	today = dayText(dayToday())
+	for fact in facts
+		if fact.predicate != "has-utc-offset" then continue
+		if termText(fact.subject) != termText(place) then continue
+		if not (fact.object isa number) then continue
+		if fact.source == null or fact.fetched == today then return true
+	end for
+	return false
+end function
+
+
 needsFor = function(goal, facts, rules, depth, binds=null, open=null)
 	"Every way goal could still be answered: the facts it needs, and the rule that would use them; asked only for a goal the search could not prove."
 	path = enterGoal(goal, binds, open)
 	if path == null then return []
-	// A call's name is read from the clock, so nothing can be added that would answer it.
+	// A clock is read from the machine and the offsets a service answered with, so a clock the
+	// goal cannot read is settled by the place's offset rather than by a fact shaped like the
+	// call: asking for that fact is what has a service answer with today's, where yesterday's
+	// offset is not one to read a clock by.
+	if goal.predicate == "has-time" then return clockNeeds(goal, facts, binds)
+	// The other call's name is read from the clock too, so nothing can be added for it.
 	if isCallName(goal.predicate) then return []
 	// One more fact, shaped like the goal, would answer it outright.
 	options = []

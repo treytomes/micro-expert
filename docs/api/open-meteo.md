@@ -3,7 +3,7 @@
 Open-Meteo is not one API but a family of them. Each forecast product has its own host, the
 domain APIs - marine, air quality, flood, climate, seasonal, satellite - add more, and the
 geocoder is a separate service that shares the parameter style. `src/services/openmeteo_map.ms`
-holds the writer's map of them: 23 endpoints, each with its host, path and the complete set of
+holds the writer's map of them: 24 endpoints, each with its host, path and the complete set of
 query parameters it accepts, and the shape of the reply that comes back.
 
 This document writes the table out: the shape of a request, the shape of a reply, every
@@ -184,7 +184,11 @@ fact that outlives the day it was read is a day old and is answered for again: `
 an offset answered today, since a place may have moved its clocks twice a year since, so a session
 holding yesterday's asks the forecast again rather than reading a clock by it. The machine's own
 offset comes from the lookup that says where it is (`docs/api/ipwho-is.md`), so the two together are
-what `has-time` reads a place the machine is not at against. They are what
+what `has-time` reads a place the machine is not at against. The map has a `clock` endpoint for
+exactly that: the same request, read only for what it says once about the place, so a question that
+asks only what time it is at a place costs one request and adds no readings it never asked for -
+`has-utc-offset(?place, ?offset)` is the fact it provides, and `src/triples.ms` names it as what a
+clock with no offset to stand on is missing. They are what
 `has-time(?place, ?now)` reads - the clock the reply's hours are written in - so a place the machine
 is not at can still be asked what time it is there.
 

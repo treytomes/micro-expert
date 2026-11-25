@@ -1,4 +1,4 @@
-// openmeteo_map.ms — Open-Meteo as one map: all twenty-three endpoints, and what one reply becomes.
+// openmeteo_map.ms — Open-Meteo as one map: all twenty-four endpoints, and what one reply becomes.
 //
 //   import "services/openmeteo_map"
 //   decl = globals["services/openmeteo_map"].build()
@@ -41,7 +41,7 @@
 // elevation endpoint with nothing but its heights, so those two carry their own reply shape.
 
 build = function
-	"Open-Meteo's twenty-three endpoints, as the writer reads them."
+	"Open-Meteo's twenty-four endpoints, as the writer reads them."
 
 	// ── Parameters ──────────────────────────────────────────────────────
 	latitude = {"name": "latitude", "type": "coordinates", "min": -90, "max": 90,
@@ -271,6 +271,20 @@ build = function
 		["has-utc-offset", "?place", "$.utc_offset_seconds as number"],
 	]
 
+	// The zone facts alone: a question that asks what time it is at a place costs one request and
+	// adds no readings it never asked about, because this reply is read for what it says once
+	// about the place and for nothing else.
+	clock = weather("https://api.open-meteo.com", "/v1/forecast", location + time + output, [])
+	clock.reply.once = [
+		["has-timezone", "?place", "$.timezone"],
+		["has-utc-offset", "?place", "$.utc_offset_seconds as number"],
+	]
+	clock.provides = [
+		{"fact": ["has-utc-offset", "?place", "?offset"], "about": "?place",
+			"from": {"latitude": "has-latitude", "longitude": "has-longitude"},
+			"request": {"timezone": "auto"}},
+	]
+
 	// The seasonal forecast publishes its own weekly table: one row a week, its date the day the
 	// week begins, and a mean over that week rather than a reading of it. Five weeks is the month
 	// a weekly report is made of, so the request asks for thirty days of them.
@@ -292,6 +306,7 @@ build = function
 		"base": "https://api.open-meteo.com",
 		"endpoints": {
 			"forecast": forecast,
+			"clock": clock,
 			"historical": weather("https://archive-api.open-meteo.com", "/v1/archive",
 				location + [elevation, tilt, azimuth, startDateRequired, endDateRequired,
 					hourly, daily] + units + time + [models, cell] + output,

@@ -12,7 +12,7 @@ shell:
 ```text
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
 ...
-1330 passed, 0 failed
+1335 passed, 0 failed
 ```
 
 On Linux, `"$MINISCRIPT_EXE_PATH"` — a plain shell does not read `.env`, so export it or paste the
@@ -43,8 +43,8 @@ While working on one rule, run only the checks that cover it:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 1329 skipped
-##END {"passed":1,"failed":0,"skipped":1329}
+1 passed, 0 failed, 1334 skipped
+##END {"passed":1,"failed":0,"skipped":1334}
 ```
 
 | Argument | Meaning |
@@ -135,7 +135,7 @@ birthday cannot change them — so the focused run is a shortcut, not the final 
 
 ## The suite's own shape
 
-The 1330 checks cover the program itself, split by area: display and parsing (71), the knowledge data
+The 1335 checks cover the program itself, split by area: display and parsing (71), the knowledge data
 format (151), the predicate schema (50), the date and time types (79), the loaders (26), proofs and
 explanations (77), the missing-fact report (34), recursion and cycle handling (13), relations
 including the family rules (104), the session at the prompt (240), the notebook's cells (40), the

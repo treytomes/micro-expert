@@ -617,6 +617,44 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		changed and clocking.calls == 1 and offsets.len == 1 and
 			offsets[offsets.indexes[0]] == -21600)
 	triples.today = savedClockDay
+	// A question that asks only what time it is at a place has no reading in it to fetch, so the
+	// fact the session is missing is that place's offset: the clock endpoint is asked for today's,
+	// and the clock is read rather than the question failing on yesterday's answer. The reply is
+	// read for what it says once about the place, so the question adds no readings it never asked.
+	clockReply = {"latitude": 52.52, "longitude": 13.404, "timezone": "Europe/Berlin",
+		"utc_offset_seconds": 3600}
+	clocking = stubFor(clockReply)
+	savedOnlyDay = triples.today
+	savedOnlyClock = triples.clock
+	triples.today = "2026-11-25"
+	triples.clock = "2026-11-25 17:45:00"
+	clockLines = []
+	clockOnly = {"triples": triples, "Rule": rules.Rule, "facts": [
+		triples.SpoTriple.make("session", "has-location", "home"),
+		triples.SpoTriple.make("home", "has-utc-offset", -21600),
+		triples.SpoTriple.make("berlin", "has-latitude", 52.52),
+		triples.SpoTriple.make("berlin", "has-longitude", 13.404),
+		triples.SpoTriple.make("berlin", "has-utc-offset", 7200, null, 100,
+			"open-meteo/forecast", "2026-11-21")],
+		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
+		"knowledge": knowledge, "providers": providers.registry(clocking, declared, uid, [weatherDecl]),
+		"io": {"read": null, "say": function(line)
+			clockLines.push(line)
+		end function}}
+	sessionModule.askGoal(clockOnly, triples.SpoTriple.make("berlin", "has-time", triples.var("now")))
+	clockOffset = null
+	for fact in clockOnly.facts
+		if fact.predicate == "has-utc-offset" and triples.termText(fact.subject) == "berlin" and
+				fact.fetched == "2026-11-25" then clockOffset = fact.object
+	end for
+	h.check("a question that asks only the clock asks a service for today's offset",
+		clocking.calls == 1 and clockOffset == 3600)
+	h.check("and the clock it could not read from yesterday's is read from that reply",
+		holds(clockLines, "2026-11-26 00:45:00"))
+	h.check("and the reply adds the zone rather than readings the question never asked for",
+		clockLines.len > 0 and clockOnly.facts.len == 7)
+	triples.clock = savedOnlyClock
+	triples.today = savedOnlyDay
 	// A forecast that cannot answer leaves the fact to the reader. One attempt is one request,
 	// and each variable has a request of its own now, so another variable is a second attempt
 	// rather than the same failed one; the request already made is not made twice.

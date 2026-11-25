@@ -131,6 +131,19 @@ run = function(declared, openmeteoMap, apiClient, triples, uid, schemaLoader, h)
 	end for
 	h.check("and every one fits data/schema.kb", unfit == 0)
 
+	// ── The clock: the same reply read for two facts ──────────────────────
+
+	// A question that asks only what time it is at a place needs the zone and the offset and
+	// nothing else, so the clock endpoint reads the reply for what it says once about the place:
+	// one request, two facts, and none of the readings the question never asked for.
+	clockReading = declared.read(triples, uid, decl, "clock", forecast, {"place": "berlin"})
+	h.check("the clock endpoint reads the zone and the offset and no reading at all",
+		clockReading.ok and clockReading.facts.len == 2 and
+			clockReading.facts[0].text == "has-timezone(berlin, GMT)" and
+			clockReading.facts[1].text == "has-utc-offset(berlin, 0)")
+	h.check("and the offset is a number, as the reply sent it",
+		clockReading.facts[1].object isa number and clockReading.facts[1].at == null)
+
 	// ── The two annotations ─────────────────────────────────────────────
 
 	h.check("an hour is the span from its instant to the next",
