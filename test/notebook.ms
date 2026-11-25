@@ -8,7 +8,8 @@
 // Nothing here opens a terminal: serve is handed a reader over a script and a writer into a
 // list, which is the same seam main() has, so the whole protocol runs without a pipe.
 
-run = function(notebook, engine, sessionModule, triples, rules, cli, options, h)
+run = function(notebook, engine, sessionModule, triples, rules, cli, options, apiClient, declared,
+	uid, maps, h)
 	"Checks the cell protocol and what a served session answers."
 
 	// The arguments a front end writes, parsed the way notebook.ms parses them, so the
@@ -116,10 +117,18 @@ run = function(notebook, engine, sessionModule, triples, rules, cli, options, h)
 
 	first = startSession()
 	h.check("a notebook's session is the domain's", not (first isa error))
-	// engine.build answers no registry, and notebook.ms never gives it one, so a cell that asks
-	// where the session is prompts rather than reaching the network.
-	h.check("a notebook's session asks no service",
+	// engine.build answers no registry: the notebook program attaches one after the build, so a
+	// cell that asks where the session is reaches ipwho.is rather than the box under the cell.
+	h.check("engine.build leaves the registry to the program",
 		not (first isa error) and first.providers == null)
+
+	// ── The services a cell may ask ──────────────────────────────────────────
+	// The same three maps the prompt builds its registry from: ipwho.is's lookup, geocode.maps.co's
+	// search and reverse, and Open-Meteo's geocoder and forecast. --offline is what refuses them.
+	services = notebook.services(apiClient, declared, uid, maps)
+	h.check("the program gives its session the services the maps declare",
+		services.len == 12 and services[0].service == "ipwho.is" and
+			services[0].endpoint == "lookup")
 
 	// ── One cell, one marked answer ─────────────────────────────────────────
 

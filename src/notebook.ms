@@ -58,6 +58,13 @@ import "engine"
 import "session"
 import "mermaid"
 import "options"
+import "api/client"
+import "spike/declared"
+import "spike/ipwhois_map"
+import "spike/geocode_map"
+import "spike/openmeteo_map"
+import "uid"
+import "providers"
 
 cli = globals["cli/cli"]
 repl = globals["repl/repl"]
@@ -253,6 +260,20 @@ drawPicture = function(session, write)
 	write(DRAW_END)
 end function
 
+// ── What a cell's question may ask ──────────────────────────────────────────
+// A notebook is the same session the prompt runs, so its questions ask the same services: the
+// registry is built from the same three maps src/main.ms builds it from, and a question the
+// facts cannot answer is answered by ipwho.is, geocode.maps.co or Open-Meteo rather than the box
+// under the cell. A fact a service answers carries "# <service>/<endpoint> <day>" into the cell,
+// so what came from where is visible there too. --offline is the switch that refuses every call,
+// for a notebook opened where the network is not wanted.
+
+services = function(api, declared, uid, maps)
+	"The registry a cell's question may ask: the services the maps declare, the same ones a line at the prompt asks. Its parts are handed in rather than looked up, since a two-segment import binds no name to look up."
+	return providers.registry(api, declared, uid, maps)
+end function
+
+
 // ── The program ─────────────────────────────────────────────────────────────
 
 main = function
@@ -276,6 +297,14 @@ main = function
 	if session isa error then
 		print "error: " + session.message
 		exit 1
+	end if
+	// --offline refuses every call, so a notebook given it answers from its files and its cells
+	// alone, as a run of the prompt does.
+	if not session.offline then
+		session.providers = services(globals["api/client"], globals["spike/declared"],
+			globals["uid"], [globals["spike/ipwhois_map"].build(),
+				globals["spike/geocode_map"].build(),
+				globals["spike/openmeteo_map"].build()])
 	end if
 	serve(session, @readLine, @sayLine)
 	exit 0

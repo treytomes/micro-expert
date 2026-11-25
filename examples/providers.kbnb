@@ -1,0 +1,75 @@
+{
+	"version": 1,
+	"cells": [
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "# Three services, one notebook\n\nEvery cell here is a question the facts alone cannot answer, so the engine asks the service that declares the fact instead of asking you. The cells share one session, so run them in order with **Shift+Enter**.\n\n**These cells reach the network.** Each one is a real request, and each fact a service answers comes back carrying `# <service>/<endpoint> <day>` in its line. Start the engine with `--offline` and the questions ask you instead."
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "## 1. ipwho.is - where this machine is\n\n`ipwho.is`'s lookup declares that it answers `has-location(session, ?place)`. Nothing is typed: the question is the whole request, and the answer is a place term with its continent, country, region, city and coordinates hung off it."
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "has-location(session, ?place)"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "One reply carried every fact about that place, so a second question about it reads what the session already holds rather than asking again:"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "has-latitude(session, ?lat)"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "## 2. geocode.maps.co - a place by its name\n\nThis map answers about a place the session already names: the search is asked by the place's own `has-name` or `has-city`, and the reverse by its coordinates. A cell can type both halves, so the fact and the question that needs it can sit together:"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "has-city(fort-worth, \"Fort Worth\")\nhas-latitude(fort-worth, ?lat)"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "The coordinates that answer came from are now facts of the session, so the reverse geocoder can be asked about the same place - by its coordinates this time - for its address:"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "has-road(fort-worth, ?road)"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "## 3. Open-Meteo - the weather for a located place\n\nThe forecast is asked with the place's coordinates, and one reply carries every hourly variable it was asked for, so the next weather question about that place is answered without another request:"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "has-temperature-2m(fort-worth, ?t)"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "has-wind-speed-10m(fort-worth, ?w)"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "Both readings carry the hour they describe as their `@` and the day they were fetched in their annotation. Fetch the same fact again on another day and the newer reading replaces the line the earlier one stood on; a question that finds only an earlier day's reading asks the service again, and says which day it answered from when nothing can refresh it.\n\nTwo maps declare a place's coordinates - `geocode.maps.co`'s search and Open-Meteo's geocoder - so the one that cannot answer leaves the other to try before you are asked.\n\n`/facts` lists what the session holds now, provider facts and their annotations included:"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "/facts"
+		}
+	]
+}

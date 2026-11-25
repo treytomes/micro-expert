@@ -29,3 +29,48 @@
 * Spike: Bringing an Ollama embedding model into MiniScript.
 * Spike: Bringing an Ollama chat model into MiniScript.
 * Match predicate names based on some kind of similarity search, e.g. `has-sex` should match to `has-gender`.  Use the match if its confident, otherwise create a new fact.
+
+# Much Later
+
+* **Provenance where answers are read.** Value: high. The proof tree prints `fact` for every leaf
+  (`src/triples.ms`, `reasonText`) while the whole staleness story hangs on which fact and which
+  day, so `--verbose` hides the thing a reader needs. A tree line naming the service and day, and
+  a plain `2 of 3 from services` under an answer, would show it. Effort: small-medium; the
+  matched fact has to be carried into the reason.
+* **Confirm that a geocoder found the place that was asked about.** Value: high, it is the worst
+  failure mode left. Search sends `limit=1` and takes the first match with nothing checking the
+  reply's city or country, so a wrong Fort Worth yields a fresh, today's forecast with clean
+  provenance. Effort: medium; an agreement rule on the reply, refusing when it does not match.
+* **An age ceiling for readings (`--max-age`).** Value: high, it finishes the staleness rule.
+  Every earlier day is equally stale today, so yesterday's coordinate and a 2024 reading are both
+  used once nothing can refresh them. Effort: small-medium; a day count on the session and a
+  refusal in `staleFacts`/`askGoal` when nothing fresh can be had.
+* **A lint test over the shipped declarations.** Value: medium-high, cheap insurance. Every
+  `provides` entry should be askable: each `from` field has a request parameter, the reply can
+  produce the declared fact, no entry collides with another, and the same predicate is not
+  declared twice by one endpoint. Effort: small; one case in `test/providers.ms`.
+* **Per-service switches and ordering.** Value: medium. `--offline` is all-or-nothing and registry
+  order is the literal list in `src/main.ms` (and now in `src/notebook.ms`), which decides who is
+  asked first now that a failure falls through. `--without geocode.maps.co`, or an order declared
+  by the domain, makes priority a user decision. Effort: small.
+* **Retry transient failures, and cap the calls.** Value: medium. One attempt per request is
+  remembered for the whole run, so a single 429 or 5xx costs the question its answer, and
+  `providerCalls` has no idea which failures are worth repeating. Effort: small-medium; a retry
+  with a short backoff for retryable statuses, plus a per-run call budget.
+* **Notebook parity: `/providers`.** Value: medium. The notebook now asks the same services the
+  prompt does, but no host can list what a session could ask, what it last asked, or how old each
+  reading is - `/facts` is the only way to see a `# source day`. Effort: medium; one command
+  reading `session.providers` and `session.providerCalls`.
+* **Persist attempts with the session.** Value: medium, a design decision worth arguing first.
+  `providerCalls` lives in the session map and dies with the process, so `/save` then `/load`
+  re-asks everything while `/undo` forgets a request only within the run. Effort: medium; a saved
+  calls file beside the facts, with the same reload rules.
+* **Moment-aware questions (`--as-of`).** Value: high, and the largest piece here. A forecast is
+  fetched for the next hour whatever the question meant, so a fact carries two kinds of time - the
+  hour it describes (`@`) and the day it was fetched - and nothing says which one a question wants.
+  Effort: large; declarations that take a moment beside their coordinates, and a goal that names
+  one.
+* **A "declaring a service" page in the wiki.** Value: medium-high for anyone else. `provides` is
+  described only inside the three `docs/api` pages, and wiki step 05 is about domains, so the
+  pattern - map, `provides`, request fields, reply reading - has no guide of its own. Effort:
+  small; one page, with a local service as the worked example.
