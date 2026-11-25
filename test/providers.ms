@@ -733,6 +733,46 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		changed and secondIdle.calls.len == 1 and
 			secondIdle.calls[0].indexOf("geocode.maps.co") != null)
 
+	// A key the environment does not hold is the same shape of failure, and the same fall-
+	// through: the map that wanted the key says so in the session and the next declaration is
+	// asked, so a notebook cell shows the refusal and still gets its answer. The stub would have
+	// answered, which is what makes "nothing was sent" worth pinning.
+	keylessPlace = uid.of("place", ["Fort Worth keyless"])
+	keyless = splitStub([
+		{"host": "geocode.maps.co", "json": searchReply},
+		{"host": "geocoding-api.open-meteo.com", "json": geocoderReply},
+	])
+	keptKey = null
+	if env.hasIndex("GEOCODE_MAPS_API_KEY") then keptKey = env["GEOCODE_MAPS_API_KEY"]
+	env.remove("GEOCODE_MAPS_API_KEY")
+	keylessSession = startSession(providers.registry(keyless, declared, uid, [geoDecl, weatherDecl]),
+		["has-latitude(" + keylessPlace + ", ?lat)"],
+		[triples.SpoTriple.make(keylessPlace, "has-city", "Fort Worth")])
+	if keptKey == null then
+		env.remove("GEOCODE_MAPS_API_KEY")
+	else
+		env["GEOCODE_MAPS_API_KEY"] = keptKey
+	end if
+	keylessLines = keylessSession.answers.lines
+	h.check("a key the environment does not hold is said in the session, naming the variable",
+		printed(keylessLines, "  geocode.maps.co could not answer has-latitude(" +
+			keylessPlace + ", ?lat): geocode.maps.co needs a key: set GEOCODE_MAPS_API_KEY " +
+			"in the environment or in the .env beside the run"))
+	keylessAsked = 0
+	for url in keyless.calls
+		if url.indexOf("geocode.maps.co") != null then keylessAsked = keylessAsked + 1
+	end for
+	h.check("with no request built for the map that wanted it", keylessAsked == 0 and
+		keyless.calls.len == 1 and keyless.calls[0].indexOf("geocoding-api.open-meteo.com") != null)
+	keylessLatitude = null
+	for readFact in keylessSession.session.facts
+		if readFact.predicate == "has-latitude" then keylessLatitude = readFact
+	end for
+	h.check("so the next declaration answers, and the question is answered from it",
+		printed(keylessLines, "  has-latitude(" + keylessPlace + ", 32.7555)") and
+			keylessLatitude != null and keylessLatitude.source == "open-meteo/geocoding" and
+			not holds(keylessSession.answers.asked, "  ?lat = "))
+
 	// ── A weather question answered through the prompt ──────────────────
 
 	// The whole loop rather than one pass: a question about a place the session knows only by

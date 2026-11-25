@@ -12,7 +12,7 @@ shell:
 ```text
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
 ...
-1180 passed, 0 failed
+1183 passed, 0 failed
 ```
 
 On Linux, `"$MINISCRIPT_EXE_PATH"` — a plain shell does not read `.env`, so export it or paste the
@@ -43,8 +43,8 @@ While working on one rule, run only the checks that cover it:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 1179 skipped
-##END {"passed":1,"failed":0,"skipped":1179}
+1 passed, 0 failed, 1182 skipped
+##END {"passed":1,"failed":0,"skipped":1182}
 ```
 
 | Argument | Meaning |
