@@ -1276,6 +1276,16 @@ run = function(t, rules, host, h, schema, knowledge, library)
 			"  has-temperature-2m(berlin, 9.8) @ [2026-11-22 20:00, 2026-11-22 21:00]") and
 			not printed(offsetAsked.answers.lines,
 				"  has-temperature-2m(berlin, 7.3) @ [2026-11-22 17:00, 2026-11-22 18:00]"))
+	// The session reads where the machine is from its facts, so a place's clock is the machine's
+	// own there - and three hours from it needs no offset written by hand.
+	// The place's clock is the machine's own there, so three hours is three hours on this clock.
+	t.clock = "2026-11-22 17:45:00"
+	placeSessionFacts = offsetFacts + [t.SpoTriple.make("session", "has-location", "berlin")]
+	placeAsked = startSession(placeSessionFacts, [],
+		["and(has-temperature-2m(berlin, ?t) @ add-hours(has-time(berlin, ?now), 3))"], null, 0, offsetTypes)
+	h.check("a question asks for the hour at the place's own clock",
+		printed(placeAsked.answers.lines,
+			"  has-temperature-2m(berlin, 9.8) @ [2026-11-22 20:00, 2026-11-22 21:00]"))
 	// The time is not a fact a session keeps, so a line that would store it is refused.
 	clockStored = startSession([], [], ["has-time(session, 2026-11-22 11:45:00)"], null, 0, {})
 	refusedClock = null

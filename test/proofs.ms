@@ -347,6 +347,39 @@ run = function(t, rules, h)
 	h.check("a cold body asks for the reading the call settles",
 		coldNeeds.len == 1 and coldNeeds[0].needs.len == 1 and
 			coldNeeds[0].needs[0].triple.text == "has-temperature-2m(berlin, ?t) @ add-hours(has-time(session, ?now), 9)")
+	// ── The place's clock ───────────────────────────────────────────────
+	// has-time takes where as well as session: the clock at the place the machine is in is the
+	// machine's own, and another place's is that clock moved by how far the two stand from UTC.
+	t.sessionPlace = "berlin"
+	t.machineOffset = -21600
+	t.placeOffsets = {"berlin": -21600, "tokyo": 32400}
+	placeClock = function(where)
+		return t.evaluate(t.Call.make("has-time", [where, t.var("now")]), {})
+	end function
+	h.check("the clock at the place the machine is in is its own",
+		placeClock("berlin").value == "2026-11-25 11:45:00")
+	h.check("another place's clock is moved by how far the two stand from UTC",
+		placeClock("tokyo").value == "2026-11-26 02:45:00")
+	h.check("a place with no known clock has none", placeClock("lima") == null)
+	t.clock = "2026-11-25 17:45:00"
+	threeAtPlace = t.SpoTriple.parse("has-temperature-2m(berlin, ?t) @ add-hours(has-time(berlin, ?now), 3)")
+	h.check("three hours from the place's clock is the reading that covers it",
+		t.proveGoals(threeAtPlace, clockFacts, [], 0).len == 1 and
+			t.proveGoals(threeAtPlace, clockFacts, [], 0)[0].binds["t"] == 9.8)
+	t.sessionPlace = null
+	t.machineOffset = null
+	t.placeOffsets = {}
+	// ── A call in a constraint field is a value ─────────────────────────
+	fieldCall = t.constraintOf("equal(?x, add-hours(2026-11-25 20:00:00, 2))")
+	bound = t.applyConstraint(fieldCall, {})
+	h.check("a call in a constraint field is worked out before it is compared",
+		bound != null and bound["x"] == "2026-11-25 22:00:00")
+	h.check("and the check reads the value it yields",
+		t.holdsConstraint(t.constraintOf("not-equal(add-hours(2026-11-25 20:00:00, 2), 2026-11-25 20:00:00)"), {}) and
+			not t.holdsConstraint(t.constraintOf("not-equal(add-hours(2026-11-25 20:00:00, 2), 2026-11-25 22:00:00)"), {}))
+	h.check("a call written with the wrong number of fields is refused where it is read",
+		t.constraintOf("equal(?x, add-hours(1))") isa error and
+			t.parseBodyPart("and(has-temperature-2m(berlin, ?t) @ add-hours(1))", "a bad call", 1) isa error)
 	t.clock = null
 	t.clock = null
 end function

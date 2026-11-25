@@ -189,6 +189,22 @@ end function
 
 callNames = {"has-time": 1, "add-hours": 1}
 
+callFields = {"has-time": 2, "add-hours": 2}
+
+callProblem = function(term)
+	"Says what is wrong with a call's shape, or null when it is written as its name takes it."
+	if not (term isa Call) then return null
+	wanted = callFields[term.name]
+	if term.args.len != wanted then
+		return term.name + " takes " + wanted + " fields, not " + term.args.len
+	end if
+	for arg in term.args
+		problem = callProblem(arg)
+		if problem != null then return problem
+	end for
+	return null
+end function
+
 isCallName = function(name)
 	"Says whether a name is a call's, which reads the clock rather than a fact."
 	return name isa string and callNames.hasIndex(name) != 0
@@ -386,7 +402,11 @@ readAtTerm = function(text)
 				end if
 			end for
 			if endAt == null then return err("'@' needs the call to close: " + text)
-			return {"text": termOf(text[:endAt + 1]), "rest": text[endAt + 1:]}
+			written = text[:endAt + 1]
+			called = termOf(written)
+			problem = callProblem(called)
+			if problem != null then return err(problem + ": " + written)
+			return {"text": called, "rest": text[endAt + 1:]}
 		end if
 	end for
 	if text[:1] != "?" then return readMoment(text)
@@ -866,8 +886,9 @@ end function
 
 yearsSinceBinds = function(constraint, binds)
 	"The bindings that make the years the date's, or null when the branch ends."
-	date = substitute(constraint.date, binds)
+	date = constraintValue(constraint.date, binds)
 	wanted = substitute(constraint.years, binds)
+	if date == null then return null
 	years = yearsSince(date, dayToday())
 	if years == null then return null
 	if wanted isa Var then return unifyTerms(constraint.years, years, binds)
@@ -885,6 +906,9 @@ end function
 startedAt = time
 clock = null         // the moment a caller pinned, as the suite does
 questionClock = null // the moment the question being answered runs at
+sessionPlace = null  // where the machine is, when a lookup said so
+machineOffset = null // how far the machine's clock stands from UTC, in seconds
+placeOffsets = {}    // how far each place's clock stands from UTC, in seconds
 
 hostNow = function
 	"The machine's clock now, to the second."
@@ -918,13 +942,23 @@ evaluate = function(term, binds)
 	end if
 	if not (term isa Call) then return {"binds": binds, "value": term}
 	if term.name == "has-time" then
-		// has-time(session, ?now) is the time it is: the second field takes the moment, and one
-		// already holding a moment asks whether that is the time.
+		// has-time(<where>, ?now) is the time it is there: session is the machine's own clock,
+		// a place is that place's, and neither is a fact the session keeps.
 		if term.args.len != 2 then return null
 		subject = evaluate(term.args[0], binds)
 		if subject == null then return null
-		if subject.value != "session" then return null
-		moment = momentNow()
+		place = subject.value
+		moment = null
+		if place == "session" or (sessionPlace != null and place == sessionPlace) then
+			// The machine is at this place, so its own clock is the place's clock.
+			moment = momentNow()
+		else if machineOffset != null and place isa string and
+				placeOffsets.hasIndex(place) != 0 then
+			// Somewhere else: its clock is the machine's, moved by how the two stand from UTC -
+			// the one part of a zone a name alone cannot give.
+			moment = shiftMoment(momentNow(), (placeOffsets[place] - machineOffset) / 3600)
+		end if
+		if moment == null then return null
 		held = deref(term.args[1], subject.binds)
 		if held isa Var then
 			return {"binds": withBinding(subject.binds, held.name, moment), "value": moment}
@@ -962,8 +996,8 @@ end function
 
 comparisonHolds = function(constraint, binds)
 	"Says whether a comparison holds: both sides must be numbers, so another type cannot slip through as zero."
-	left = substitute(constraint.left, binds)
-	right = substitute(constraint.right, binds)
+	left = constraintValue(constraint.left, binds)
+	right = constraintValue(constraint.right, binds)
 	if not (left isa number) or not (right isa number) then return false
 	if constraint.symbol == "<=" then return left <= right
 	if constraint.symbol == ">=" then return left >= right
@@ -975,7 +1009,10 @@ holdsConstraint = function(constraint, binds)
 	"Says whether a constraint holds under the current bindings."
 	if constraint isa Comparison then return comparisonHolds(constraint, binds)
 	if constraint isa NotEqual then
-		return substitute(constraint.left, binds) != substitute(constraint.right, binds)
+		left = constraintValue(constraint.left, binds)
+		right = constraintValue(constraint.right, binds)
+		if left == null or right == null then return false
+		return left != right
 	end if
 	return false
 end function
@@ -985,9 +1022,34 @@ end function
 // one way equal needs - the same value holds, and a variable takes the other side's - so an
 // equal is exactly one unification whose bindings are kept.
 
+constraintValue = function(term, binds)
+	"The value a constraint field stands for: a call is worked out and anything else is read through the bindings. Null when a call cannot be read."
+	if term isa Call then
+		evaluated = evaluate(term, binds)
+		if evaluated == null then return null
+		return evaluated.value
+	end if
+	return substitute(term, binds)
+end function
+
 equalBinds = function(constraint, binds)
-	"The bindings that make the two terms the same one, or null when they cannot be."
-	return unifyTerms(constraint.left, constraint.right, binds)
+	"The bindings that make the two terms the same one, or null when they cannot be: a call on either side is worked out first, since a call is a value and not the text it is written as."
+	settled = binds
+	left = constraint.left
+	if left isa Call then
+		evaluated = evaluate(left, settled)
+		if evaluated == null then return null
+		settled = evaluated.binds
+		left = evaluated.value
+	end if
+	right = constraint.right
+	if right isa Call then
+		evaluated = evaluate(right, settled)
+		if evaluated == null then return null
+		settled = evaluated.binds
+		right = evaluated.value
+	end if
+	return unifyTerms(left, right, settled)
 end function
 
 applyConstraint = function(constraint, binds)
@@ -1020,7 +1082,12 @@ settledHolds = function(constraint)
 	"Says whether a constraint whose fields are all values holds, by the reading a rule body gives it; fields still holding variables are the caller's to refuse."
 	// equal is the one that binds, and here there is nothing left to bind: two values are the
 	// same one or they are not.
-	if constraint isa Equal then return constraint.left == constraint.right
+	if constraint isa Equal then
+		left = constraintValue(constraint.left, null)
+		right = constraintValue(constraint.right, null)
+		if left == null or right == null then return false
+		return left == right
+	end if
 	// years-since counts its date on the day the search runs, and a date the calendar does not
 	// have has no years at all - which a body reads as a check that failed, not as a refusal,
 	// and so does this.
@@ -2116,10 +2183,16 @@ constraintOf = function(text)
 	left = trimSpace(fields[0])
 	right = trimSpace(fields[1])
 	if left == "" or right == "" then return err(expected)
-	if name == equalName then return Equal.make(termOf(left), termOf(right))
-	if name == notEqualName then return NotEqual.make(termOf(left), termOf(right))
-	if name == sinceName then return YearsSince.make(termOf(left), termOf(right))
-	return Comparison.make(comparisonNames[name], termOf(left), termOf(right))
+	leftTerm = termOf(left)
+	rightTerm = termOf(right)
+	for term in [leftTerm, rightTerm]
+		problem = callProblem(term)
+		if problem != null then return err(problem + ": " + text)
+	end for
+	if name == equalName then return Equal.make(leftTerm, rightTerm)
+	if name == notEqualName then return NotEqual.make(leftTerm, rightTerm)
+	if name == sinceName then return YearsSince.make(leftTerm, rightTerm)
+	return Comparison.make(comparisonNames[name], leftTerm, rightTerm)
 end function
 
 parseBodyPart = function(text, line, atAllowed=0)

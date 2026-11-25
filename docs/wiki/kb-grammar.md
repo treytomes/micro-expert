@@ -237,9 +237,13 @@ also part of a search. `has-temperature-2m(berlin, ?t) @ ?when` takes the moment
 into `?when`, so a day of readings comes back with each answer's hour; `... @ 2026-11-22 20:30`
 takes only a reading whose span holds that instant, which is how a question asks for one hour out
 of a day. '@' may also hold a call that works the moment out rather than naming it:
-`add-hours(has-time(session, ?now), 9)` is nine hours after the clock, and the reading whose span
-covers that moment is the one that answers. `has-time` reads the time it is and `add-hours` moves
-it; neither is a fact, so neither is stored, saved, or listed among the facts a session holds. The rest stay a stored fact's own: `~` and `#` are refused on a question rather than
+`add-hours(has-time(?place, ?now), 3)` is three hours after the clock at the place, and the
+reading whose span covers that moment is the one that answers. `has-time` names `session` for the
+machine's own clock, and a place for the clock there: the machine's own when the session is
+located at that place, otherwise its clock moved by how far the place and the machine stand from
+UTC, which is a fact a service answers with. A place whose clock the session knows nothing about
+has none, rather than the machine's standing in for it. `add-hours` moves a moment. Neither is a
+fact, so neither is stored, saved, or listed among the facts a session holds. The rest stay a stored fact's own: `~` and `#` are refused on a question rather than
 answered with them dropped, a constraint line takes none at all, and a rule's head and every
 condition are written bare, so an annotation on either is refused wherever the rule is read.
 

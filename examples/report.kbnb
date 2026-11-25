@@ -84,12 +84,12 @@
 		{
 			"kind": "markdown",
 			"language": "markdown",
-			"source": "## 5. The hour three hours from now\n\nEvery reading above carries the hour it holds for as its `@`, and a question may name that hour: `@ ?when` binds the moment of each reading, and `hours-from-now(?when, 3)` keeps the one whose hour covers the clock plus three hours. Nothing is typed as an instant, so the question still asks for \"three hours from now\" the next time it runs.\n\nThe clock is this machine's, and the hours the forecast writes are its service's - UTC, six hours ahead of this machine - so three hours from now is nine hours on this clock. `hours-from-now` counts in the frame the moments are written in, which is why the offset is nine and not three.\n"
+			"source": "## 5. The hour three hours from now\n\nEvery reading above carries the hour it holds for as its `@`, and a question may work that hour out instead of naming it: `has-time(?place, ?now)` is the clock at the place, `add-hours(...)` moves it, and the moment that comes out is matched against the span each reading holds for. Nothing is typed as an instant, so the question still asks for \"three hours from now\" the next time it runs.\n\nThe forecast is asked in the place's own zone, so the hours it answers with are the hours there, and the clock at the place is the machine's own clock when the machine is there - which is why three hours needs no offset written by hand. A place somewhere else takes its clock from the offsets a service answered with, and a place with no known clock has none rather than a guess.\n"
 		},
 		{
 			"kind": "code",
 			"language": "micro-expert-kb",
-			"source": "and(has-location(session, ?place), has-temperature-2m(?place, ?t) @ add-hours(has-time(session, ?now), 9))"
+			"source": "and(has-location(session, ?place), has-temperature-2m(?place, ?t) @ add-hours(has-time(?place, ?now), 3))"
 		}
 	]
 }

@@ -396,7 +396,10 @@ parenthesis and no `//`. Weather data strains that harder than a geocoder result
   and the day that service was asked rather than an undated, unattributed conclusion.
   A rule still cannot depend on it, but a *question* can name it: `has-temperature-2m(place, ?t) @
   ?when` takes each reading's span into the variable, and `... @ 2026-11-25 20:30` asks for the
-  reading whose span holds that instant - one hour out of a day, without reading the lines. The way out is to reify the reading
+  reading whose span holds that instant - one hour out of a day, without reading the lines.
+  The forecast is asked with `timezone=auto`, so those hours are the hours at the place and not the
+  service's own: `has-time(?place, ?now)` is the clock those hours are written in, and
+  `... @ add-hours(has-time(?place, ?now), 3)` asks for the reading three hours from now. The way out is to reify the reading
   and write its parts as facts of their own:
 
   ```prolog

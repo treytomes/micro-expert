@@ -814,6 +814,27 @@ askBody = function(session, conditions, line)
 	askQuestion(session, {"goal": null, "conditions": conditions, "text": session.triples.trimSpace(line)})
 end function
 
+placeClocks = function(session)
+	"The clock facts a question reads: where the machine is, and how far its clock and each known place's stand from UTC - the offsets a service answered with, so no zone rules live here."
+	place = null
+	machine = null
+	places = {}
+	for fact in session.facts
+		if fact.subject == "session" and fact.predicate == "has-location" and fact.object isa string then
+			place = fact.object
+		else if fact.predicate == "has-utc-offset" and fact.object isa number then
+			if fact.subject == "session" then
+				machine = fact.object
+			else if fact.subject isa string then
+				places[fact.subject] = fact.object
+			end if
+		end if
+	end for
+	session.triples.sessionPlace = place
+	session.triples.machineOffset = machine
+	session.triples.placeOffsets = places
+end function
+
 askQuestion = function(session, question)
 	"Answers a question - a goal, or a body with no head - asking for the variables that would complete a missing fact."
 	// The clock is read once for the whole question: every condition of it and every fact it
@@ -833,6 +854,9 @@ askQuestion = function(session, question)
 	while true
 		due = staleFacts(session)
 		facts = session.facts
+		// What the session knows about clocks grows as services answer, so it is read again on
+		// each pass rather than once before the first.
+		placeClocks(session)
 		if due.len > 0 and not reused then facts = freshFacts(session)
 		proofs = answersFor(session, question, facts)
 		if proofs.len > 0 then

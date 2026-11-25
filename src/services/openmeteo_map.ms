@@ -252,7 +252,10 @@ build = function
 			"fact": [weatherFacts[i], "?place", "?value"],
 			"about": "?place",
 			"from": {"latitude": "has-latitude", "longitude": "has-longitude"},
-			"request": {"hourly": [weatherVariables[i]], "forecast_hours": 24},
+			// Asked in the place's own zone: a reading's hour is the hour there, and
+			// has-time(?place, ?now) is the clock the same hours are written in.
+			"request": {"hourly": [weatherVariables[i]], "forecast_hours": 24,
+				"timezone": "auto"},
 		})
 	end for
 	forecast = weather("https://api.open-meteo.com", "/v1/forecast",
