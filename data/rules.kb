@@ -80,3 +80,15 @@ belongs-to-age-group(?x, adult) => and(has-age(?x, ?n), not(belongs-to-age-group
 shares-age-group-with(?x, ?y) => and(belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h), not-equal(?x, ?y))
 
 is-a(?x, location) => and(has-latitude(?x, ?y), has-longitude(?x, ?z))
+
+// A temperature read in Celsius is one written in Fahrenheit: ?f is ?c through the arithmetic,
+// and the reading's '@' comes through the derivation unchanged, so the hour the reading covers is
+// the hour the Fahrenheit value covers. Neither scale is a fact of its own - only the value is
+// worked out - so nothing is stored twice and the reading stays the one the service answered.
+has-fahrenheit-value(?p, ?f) => and(has-temperature-2m(?p, ?c), equal(?f, add(divide(multiply(?c, 9), 5), 32)))
+
+// ...and back, for a session handed Fahrenheit and asked in Celsius. The head is
+// has-celsius-value rather than has-temperature-2m on purpose: two rules that concluded one
+// another's body would feed each other, and the arithmetic is floating point, so each pass round
+// the pair would drift a hair and a question would answer with a chain of near-copies.
+has-celsius-value(?p, ?c) => and(has-fahrenheit-value(?p, ?f), equal(?c, divide(multiply(subtract(?f, 32), 5), 9)))

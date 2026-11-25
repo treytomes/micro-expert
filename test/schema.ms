@@ -131,7 +131,7 @@ run = function(t, parser, schemaLoader, h)
 	shipped = schemaLoader.build()
 	h.check("data/schema.kb loads", not (shipped isa error))
 	if shipped isa error then return
-	h.check("data/schema.kb names forty-eight predicates", shipped.len == 48)
+	h.check("data/schema.kb names fifty predicates", shipped.len == 50)
 	h.check("a birthdate is a date, and one per person",
 		shipped["has-birthdate"][1] == "unique(date)")
 	h.check("an age is a number the age rule works out", shipped["has-age"][1] == "number")

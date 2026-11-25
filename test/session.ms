@@ -1316,6 +1316,37 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("while the machine's own clock, which is no offset, still answers where it is",
 		not holds(staleHome.answers.lines, "no solution found"))
 	t.today = savedToday
+	// ── A reading converted, hour and all ───────────────────────────────
+	// data/rules.kb carries both conversions, so this reads the file the program reads rather than
+	// a copy of its line: Fahrenheit from the Celsius reading, and Celsius back from a Fahrenheit
+	// value. A fact derived from an annotated one keeps its moment, so the hour the reading covers
+	// comes through the conversion unchanged, and neither direction is stored anywhere.
+	shipped = knowledge.loadRules(t, info(@knowledge.loadRulesAt).sourceLoc, "../data/rules.kb")
+	conversions = []
+	if not (shipped isa error) then
+		for piece in shipped
+			if piece.head.predicate == "has-fahrenheit-value" or
+					piece.head.predicate == "has-celsius-value" then
+				conversions.push rules.Rule.make(piece.head, piece.body)
+			end if
+		end for
+	end if
+	h.check("the conversion rules load from data/rules.kb, one for each direction",
+		not (shipped isa error) and conversions.len == 2)
+	celsiusReadings = [t.SpoTriple.make("berlin", "has-temperature-2m", 10.4,
+		"[2026-11-25 15:00, 2026-11-25 16:00]")]
+	converted = startSession(celsiusReadings, conversions,
+		["has-fahrenheit-value(berlin, ?f) @ ?when"], null, 0, offsetTypes)
+	h.check("a Celsius reading converts to Fahrenheit with the hour it covers",
+		printed(converted.answers.lines,
+			"  has-fahrenheit-value(berlin, 50.72) @ [2026-11-25 15:00, 2026-11-25 16:00]"))
+	fahrenheitValues = [t.SpoTriple.make("berlin", "has-fahrenheit-value", 50.72,
+		"[2026-11-25 15:00, 2026-11-25 16:00]")]
+	backAgain = startSession(fahrenheitValues, conversions,
+		["has-celsius-value(berlin, ?c) @ ?when"], null, 0, offsetTypes)
+	h.check("and a Fahrenheit value converts back to Celsius with the same hour",
+		printed(backAgain.answers.lines,
+			"  has-celsius-value(berlin, 10.4) @ [2026-11-25 15:00, 2026-11-25 16:00]"))
 	// The time is not a fact a session keeps, so a line that would store it is refused.
 	clockStored = startSession([], [], ["has-time(session, 2026-11-22 11:45:00)"], null, 0, {})
 	refusedClock = null

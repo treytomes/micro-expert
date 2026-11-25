@@ -103,6 +103,10 @@ is-grandma-of(text, text)
 is-in-law-of(text, text)
 is-only-child-of(text, text)
 has-age(text, number)
+// The same reading in another unit, worked out by the rules in data/rules.kb rather than stored:
+// the two are not unique, since a place has one of each for every hour of its day.
+has-fahrenheit-value(text, number)
+has-celsius-value(text, number)
 belongs-to-age-group(text, child|adult)
 shares-age-group-with(text, text)
 

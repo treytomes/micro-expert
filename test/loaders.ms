@@ -25,12 +25,14 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 		"belongs-to-age-group(?x, adult) => has-age(?x, ?n), not(belongs-to-age-group(?x, child))",
 		"shares-age-group-with(?x, ?y) => belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h), not-equal(?x, ?y)",
 		"is-a(?x, location) => has-latitude(?x, ?y), has-longitude(?x, ?z)",
+		"has-fahrenheit-value(?p, ?f) => has-temperature-2m(?p, ?c), equal(?f, add(divide(multiply(?c, 9), 5), 32))",
+		"has-celsius-value(?p, ?c) => has-fahrenheit-value(?p, ?f), equal(?c, divide(multiply(subtract(?f, 32), 5), 9))",
 	]
 	texts = []
 	for rule in loadedRules
 		texts.push(rule.text)
 	end for
-	h.check("data/rules.kb holds sixteen rules", loadedRules.len == 16)
+	h.check("data/rules.kb holds eighteen rules", loadedRules.len == 18)
 	h.check("the rules load in order", texts.join("|") == expected.join("|"))
 
 	// is-a is a rule now rather than a fact src/location.ms wrote, so the shipped file has to
