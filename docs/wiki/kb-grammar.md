@@ -316,7 +316,8 @@ fact that says the same thing is not written over at all. A question that would 
 a reading from an earlier day asks the service again before it answers, so an answer is today's
 reading and not yesterday's; a reading nothing can fetch again still answers, rather than the
 reader being asked for a fact the session holds, and the transcript says which day that reading
-is from - the note carries the line a facts file would, its annotation with it.
+is from - the note carries the line a facts file would, its annotation with it, and only the
+readings the answer stands on are named.
 
 ```prolog
 has-location(session, place-4f2c) # ipwho.is/lookup 2026-11-21

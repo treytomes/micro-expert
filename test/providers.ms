@@ -79,7 +79,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 
 	// A session over a script of typed lines, recording what it printed and asked, as the
 	// prompt's own cases do.
-	startSession = function(registry, script, facts=[])
+	startSession = function(registry, script, facts=[], ruleList=[])
 		answers = {"lines": [], "asked": [], "at": 0}
 		reader = function(question)
 			answers.asked.push(question)
@@ -92,7 +92,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		end function
 		// No schema and no types, as a session handed neither reads: the facts a service answers
 		// with are held as they come, which is what these cases are about.
-		session = {"triples": triples, "Rule": rules.Rule, "facts": facts + [], "rules": [],
+		session = {"triples": triples, "Rule": rules.Rule, "facts": facts + [], "rules": ruleList,
 			"depth": 8, "verbose": 0, "nlp": 0, "style": null,
 			"paths": {}, "knowledge": null, "providers": registry,
 			"io": {"read": @reader, "say": @writer}}
@@ -816,6 +816,34 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		noteAt != null and answerAt != null and noteAt < answerAt and
 			lonelyAsked.answers.lines[noteAt].indexOf("fetched 2026-11-20") != null and
 			lonelyAsked.answers.lines[noteAt].indexOf("# open-meteo/forecast 2026-11-20") != null)
+	// A reading the question never needed is not announced. A rule's other derivation wants
+	// yesterday's temperature, which proves nothing - 18.4 is not 10 or less - so the answer
+	// comes from the latitude alone, and the note names only that reading.
+	warmer = triples.SpoTriple.make(duePlace, "has-temperature-2m", 18.4)
+	warmer.source = "open-meteo/forecast"
+	warmer.fetched = "2026-11-20"
+	hereByLatitude = triples.parseRule("is-here(?p, yes) => has-latitude(?p, ?lat)")
+	hereByWeather = triples.parseRule(
+		"is-here(?p, yes) => has-temperature-2m(?p, ?t), less-than-or-equal(?t, 10)")
+	hereRules = [rules.Rule.make(hereByLatitude.head, hereByLatitude.body),
+		rules.Rule.make(hereByWeather.head, hereByWeather.body)]
+	quietAsked = startSession([], ["is-here(" + duePlace + ", ?v)", "quit"],
+		[dueCity, dueLat, warmer], hereRules)
+	h.check("a reading the answer never stood on is not announced",
+		holds(quietAsked.answers.lines, "from an earlier reading, fetched 2026-11-20: " +
+			"has-latitude(" + duePlace + ", 32.7555)") and
+			not holds(quietAsked.answers.lines, "18.4") and
+			holds(quietAsked.answers.lines, "is-here(" + duePlace + ", yes)"))
+
+	// Nor is one announced for a question that ends up unanswered: the reading could fill the
+	// gap of a derivation, but no derivation is reached, so there is no answer to stand on it.
+	cozyRule = triples.parseRule(
+		"is-cozy(?p, yes) => has-temperature-2m(?p, ?t), less-than-or-equal(?t, 10)")
+	cozyAsked = startSession([], ["is-cozy(?p, yes)", "quit"], [warmer],
+		[rules.Rule.make(cozyRule.head, cozyRule.body)])
+	h.check("and a question that stays unanswered announces none",
+		not holds(cozyAsked.answers.lines, "from an earlier reading") and
+			holds(cozyAsked.answers.lines, "no solution found"))
 	triples.today = savedStaleDay
 
 	// ── A provider's fact says who answered it, and when ────────────────────

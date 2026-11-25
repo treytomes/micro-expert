@@ -731,6 +731,7 @@ askGoal = function(session, goal)
 		if due.len > 0 and not reused then facts = freshFacts(session)
 		proofs = session.triples.proveGoals(goal, facts, session.rules, session.depth)
 		if proofs.len > 0 then
+			if reused then announceStale(session, goal, proofs, due)
 			showProofs(session, goal, proofs)
 			return
 		end if
@@ -741,23 +742,8 @@ askGoal = function(session, goal)
 		if due.len > 0 and not reused then
 			if provideMissing(session, options) then continue
 			// Nothing could fetch a newer reading, so what the session holds answers after all -
-			// and the transcript says which day that reading is from, with the line the file
-			// would hold, so an answer from an old fact is not taken for a fresh one.
-			said = {}
-			for option in options
-				for need in option.needs
-					held = staleOf(session, need.triple)
-					if held == null then continue
-					if said.hasIndex(held.text) then continue
-					said[held.text] = 1
-					if held.fetched == null then
-						repl.say(session, "note", "  from an earlier reading: " + held.text)
-					else
-						repl.say(session, "note", "  from an earlier reading, fetched " +
-							held.fetched + ": " + held.text)
-					end if
-				end for
-			end for
+			// and the answer is asked afterwards which readings it stands on, rather than the
+			// gap, which a derivation the answer never took may have been the one to fill.
 			reused = 1
 			continue
 		end if
@@ -880,6 +866,47 @@ freshFacts = function(session)
 		fresh.push(fact)
 	end for
 	return fresh
+end function
+
+readsFrom = function(session, proof)
+	"The facts a proof's derivations rest on, as the triples they were, so a reading the answer stands on can be told from one it never used."
+	used = []
+	collectReadings(session, proof.goal, proof.binds, proof.at, proof.confidence, proof.reasons, used)
+	return used
+end function
+
+collectReadings = function(session, goal, binds, at, confidence, reasons, used)
+	"Appends the facts behind each derivation: a fact match is the goal it settled, and a rule's body is walked the same way."
+	for reason in reasons
+		if reason.rule == null then
+			used.push(session.triples.answerTriple(goal, binds, at, confidence))
+		else
+			for condition in reason.conditions
+				collectReadings(session, condition.goal, condition.binds, condition.at,
+					condition.confidence, condition.reasons, used)
+			end for
+		end if
+	end for
+end function
+
+announceStale = function(session, goal, proofs, due)
+	"Says which earlier readings the answers stand on, each once, with the line a facts file would hold - and says nothing about a reading the question never needed."
+	said = {}
+	for proof in proofs
+		for used in readsFrom(session, proof)
+			for stale in due
+				if not session.triples.sameClaim(used, stale) then continue
+				if said.hasIndex(stale.text) then continue
+				said[stale.text] = 1
+				if stale.fetched == null then
+					repl.say(session, "note", "  from an earlier reading: " + stale.text)
+				else
+					repl.say(session, "note", "  from an earlier reading, fetched " +
+						stale.fetched + ": " + stale.text)
+				end if
+			end for
+		end for
+	end for
 end function
 
 staleOf = function(session, triple)
