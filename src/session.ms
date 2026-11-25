@@ -719,8 +719,17 @@ askGoal = function(session, goal)
 	// What has been given for this question already, by the label the report shows each
 	// variable under: the question comes round again, and nothing is asked for twice.
 	given = {}
+	// A reading a service gave on an earlier day stands only until the world has had a day to
+	// change: the question is answered from today's readings first, and what yesterday's say is
+	// asked of the service again, so the answer is not yesterday's weather. A reading nothing
+	// can fetch again still answers - the alternative would be asking the reader for a fact the
+	// session holds - so the fresh readings are tried once and then the rest.
+	reused = 0
 	while true
-		proofs = session.triples.proveGoals(goal, session.facts, session.rules, session.depth)
+		due = staleFacts(session)
+		facts = session.facts
+		if due.len > 0 and not reused then facts = freshFacts(session)
+		proofs = session.triples.proveGoals(goal, facts, session.rules, session.depth)
 		if proofs.len > 0 then
 			showProofs(session, goal, proofs)
 			return
@@ -728,7 +737,12 @@ askGoal = function(session, goal)
 		// One walk over the goal feeds both the report and the question, so the variables
 		// asked about are the ones the report showed - with the values given so far in
 		// them, and without the facts the session can already prove, which need nothing.
-		options = session.triples.needsFor(goal, session.facts, session.rules, session.depth)
+		options = session.triples.needsFor(goal, facts, session.rules, session.depth)
+		if due.len > 0 and not reused then
+			if provideMissing(session, options) then continue
+			reused = 1
+			continue
+		end if
 		// A fact a declared service can answer is asked of the service before it is asked of
 		// the reader: the report and the prompt are for what no service supplies. What the
 		// service says is added as facts, so the question comes round again and is answered
@@ -828,6 +842,39 @@ proved = function(session, triple)
 	return session.triples.proveGoals(triple, session.facts, session.rules, session.depth).len > 0
 end function
 
+staleFacts = function(session)
+	"Every fact a service answered on an earlier day: a reading is due again once the world has had a day to change."
+	today = session.triples.dayText(session.triples.dayToday())
+	due = []
+	for fact in session.facts
+		if fact.source == null then continue
+		if fact.fetched != today then due.push(fact)
+	end for
+	return due
+end function
+
+freshFacts = function(session)
+	"The facts the session holds that are not readings from an earlier day, which a question is answered from before anything older."
+	today = session.triples.dayText(session.triples.dayToday())
+	fresh = []
+	for fact in session.facts
+		if fact.source != null and fact.fetched != today then continue
+		fresh.push(fact)
+	end for
+	return fresh
+end function
+
+staleOf = function(session, triple)
+	"The reading from an earlier day that proves this fact on its own, or null: a bound fact a service answered yesterday is asked for again rather than answered from."
+	today = session.triples.dayText(session.triples.dayToday())
+	for fact in session.facts
+		if fact.source == null then continue
+		if fact.fetched == today then continue
+		if session.triples.proveGoals(triple, [fact], [], 0).len > 0 then return fact
+	end for
+	return null
+end function
+
 // ── What a service can answer ───────────────────────────────────────────────
 // A question the facts and rules cannot answer may still be one a service can: ipwho.is's lookup
 // declares that it answers has-location(session, ?place), so a question needing that fact asks
@@ -855,6 +902,11 @@ end function
 // A fact a service answered carries "# <service>/<endpoint> <day>" in its line, so the
 // session holds who gave it and how stale it is, and a facts file it saves says the same.
 //
+// A reading is due again once its day has passed: a question that would be answered by a fact a
+// service gave on an earlier day is answered from today's readings first, and the service is asked
+// for the rest, so an answer is not yesterday's weather. A reading nothing can fetch again still
+// answers - the alternative is asking the reader for a fact the session holds.
+//
 // A service is asked once, and what it answered is kept whether it answered or failed: a question
 // that comes round again, or a second question needing the same fact, reads the first attempt
 // rather than making the same request again. What is remembered is the request - the endpoint and
@@ -877,7 +929,10 @@ provideMissing = function(session, options)
 			triple = need.triple
 			// A fact the session can already prove needs no service, the way withoutHeld drops
 			// it from the report.
-			if not session.triples.hasUnknowns(triple) and proved(session, triple) then continue
+			// A fact proved by a reading from an earlier day is not one the session holds for
+			// this question: the service is asked for today's, and the answer replaces that line.
+			if not session.triples.hasUnknowns(triple) and proved(session, triple) and
+				staleOf(session, triple) == null then continue
 			// Two services may declare one fact - both geocoders declare a place's coordinates -
 			// so each is asked in the order the maps were given, and one that cannot answer leaves
 			// the next to try before the reader.

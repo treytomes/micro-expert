@@ -739,6 +739,67 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		holds(askedWeather.answers.lines, "has-temperature-2m(" + byCity + ", 18.4)") and
 			not holds(askedWeather.answers.lines, "no solution found"))
 
+	// ── A reading from an earlier day is due again ──────────────────────────
+
+	// The day is the host's, so the suite pins one, as the provenance cases do.
+	savedStaleDay = triples.today
+	triples.today = {"year": 2026, "month": 11, "day": 21}
+	// Yesterday's coordinate says where the place was yesterday. A question needing it asks the
+	// service again and is answered from today's reading, which takes the earlier line's place.
+	newerReply = [{"osm_type": "relation", "osm_id": 12345, "lat": "32.7600",
+		"lon": "-97.3400", "name": "Fort Worth", "class": "place", "type": "city",
+		"place_rank": 16, "importance": 0.7, "place_id": 1,
+		"address": {"city": "Fort Worth", "country": "United States", "country_code": "us"}}]
+	newerStub = stubFor(newerReply)
+	duePlace = uid.of("place", ["Fort Worth yesterday"])
+	dueCity = triples.SpoTriple.make(duePlace, "has-city", "Fort Worth")
+	dueLat = triples.SpoTriple.make(duePlace, "has-latitude", 32.7555)
+	dueLat.source = "geocode.maps.co/search"
+	dueLat.fetched = "2026-11-20"
+	dueAsked = startSession(providers.registry(newerStub, declared, uid, [geoDecl]),
+		["has-latitude(" + duePlace + ", ?lat)", "quit"], [dueCity, dueLat])
+	h.check("a reading fetched on an earlier day is asked for again", newerStub.calls == 1)
+	dueLatHeld = null
+	for readFact in dueAsked.session.facts
+		if readFact.predicate == "has-latitude" then dueLatHeld = readFact
+	end for
+	h.check("and the answer is today's reading, on the line the earlier one stood on",
+		dueLatHeld != null and dueLatHeld.object == 32.76 and
+			dueLatHeld.fetched == "2026-11-21" and holds(dueAsked.answers.lines,
+			"has-latitude(" + duePlace + ", 32.76)"))
+
+	// A reading fetched today is today's already, and a typed fact was never a service's to
+	// fetch: neither asks anything.
+	todayStub = stubFor(newerReply)
+	todayLat = triples.SpoTriple.make(duePlace, "has-latitude", 32.7555)
+	todayLat.source = "geocode.maps.co/search"
+	todayLat.fetched = "2026-11-21"
+	todayAsked = startSession(providers.registry(todayStub, declared, uid, [geoDecl]),
+		["has-latitude(" + duePlace + ", ?lat)", "quit"], [dueCity, todayLat])
+	h.check("a reading fetched today is answered from without a call",
+		todayStub.calls == 0 and holds(todayAsked.answers.lines,
+			"has-latitude(" + duePlace + ", 32.7555)"))
+	typedStub = stubFor(newerReply)
+	typedAsked = startSession(providers.registry(typedStub, declared, uid, [geoDecl]),
+		["has-latitude(" + duePlace + ", ?lat)", "quit"],
+		[dueCity, triples.SpoTriple.make(duePlace, "has-latitude", 32.7555)])
+	h.check("and a typed fact was never a service's to fetch again", typedStub.calls == 0)
+
+	// Nothing in the registry declares the reading, so there is no newer one to fetch: the fact
+	// the session holds answers, and the reader is not asked for what it already knows.
+	lonelyPlace = uid.of("place", ["Fort Worth uncovered"])
+	lonelyTemp = triples.SpoTriple.make(lonelyPlace, "has-temperature-2m", 18.4)
+	lonelyTemp.source = "open-meteo/forecast"
+	lonelyTemp.fetched = "2026-11-20"
+	lonelyStub = stubFor(searchReply)
+	lonelyAsked = startSession(providers.registry(lonelyStub, declared, uid, [geoDecl]),
+		["has-temperature-2m(" + lonelyPlace + ", ?t)", "quit"], [lonelyTemp])
+	h.check("a reading nothing can fetch again still answers, rather than the reader",
+		lonelyStub.calls == 0 and not holds(lonelyAsked.answers.asked, "  ?t = ") and
+			holds(lonelyAsked.answers.lines,
+				"has-temperature-2m(" + lonelyPlace + ", 18.4)"))
+	triples.today = savedStaleDay
+
 	// ── A provider's fact says who answered it, and when ────────────────────
 
 	// The day is the host's, so the suite pins one, as the age cases do.

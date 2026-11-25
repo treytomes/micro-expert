@@ -312,7 +312,10 @@ fact a service answered carries one, so a session — or a facts file it saves, 
 line is what a file writes — can tell the two apart, and see how stale the answer is by its
 day. Fetching the same fact again on another day is fetching the same claim: a session replaces
 the line the earlier answer stood on with the newer one rather than keeping two, and a typed
-fact that says the same thing is not written over at all.
+fact that says the same thing is not written over at all. A question that would be answered by
+a reading from an earlier day asks the service again before it answers, so an answer is today's
+reading and not yesterday's; a reading nothing can fetch again still answers, rather than the
+reader being asked for a fact the session holds.
 
 ```prolog
 has-location(session, place-4f2c) # ipwho.is/lookup 2026-11-21
