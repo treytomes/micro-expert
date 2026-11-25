@@ -158,4 +158,46 @@ run = function(t, rules, h)
 			"another/forecast", "2026-11-23")]
 	h.check("two services answering one reading are two answers",
 		t.proveGoals(readingGoal, services, [], 0).len == 2)
+
+	// ── Backtracking: a failed branch leaves nothing behind ────────────────
+	// The solver walks the facts and the rules in turn, so a branch that binds a variable and
+	// then fails must not carry that binding into the next one. The first fact here fails the
+	// rule's second condition after binding ?x, and the answer has to come from the second.
+	ranks = [spo("one", "has-rank", 1), spo("two", "has-rank", 2)]
+	named = [spo("two", "has-name", "two")]
+	pickedRule = rule(spo(v("x"), "picked", v("n")),
+		[spo(v("x"), "has-rank", v("n")), spo(v("x"), "has-name", v("x"))])
+	pickedGoal = spo(v("x"), "picked", v("n"))
+	picked = t.proveGoals(pickedGoal, ranks + named, [pickedRule], 2)
+	h.check("a binding made on a failing branch does not survive it", picked.len == 1)
+	h.check("and the answer is the candidate that carried through",
+		picked.len == 1 and answerText(pickedGoal, picked[0]) == "picked(two, 2)")
+
+	// The same at the rule level: the first rule meets the goal and fails inside its body, so
+	// the second has to answer - and the failed rule leaves no derivation on the answer.
+	needsBoth = rule(spo(v("x"), "child", v("y")),
+		[spo(v("y"), "parent", v("x")), spo(v("y"), "guardian", v("x"))])
+	childFromParent = rule(spo(v("x"), "child", v("y")), [spo(v("y"), "parent", v("x"))])
+	family = [spo("bill", "parent", "susan"), spo("doris", "guardian", "tim")]
+	childGoal = spo(v("x"), "child", v("y"))
+	children = t.proveGoals(childGoal, family, [needsBoth, childFromParent], 2)
+	h.check("a rule that fails in its body lets the next rule answer", children.len == 1)
+	h.check("the answer cites the rule that succeeded, once",
+		children.len == 1 and children[0].reasons.len == 1 and
+			children[0].reasons[0].rule.text == childFromParent.text)
+	h.check("and it is the fact the succeeding rule reached",
+		children.len == 1 and answerText(childGoal, children[0]) == "child(susan, bill)")
+
+	// An or(...) is backtracking written inside one body: the first alternative finds nothing,
+	// the second answers, and the choice costs no binding of its own.
+	either = t.parseRule("getter(?x, ?w) => or(has-boat(?x, ?w), has-car(?x, ?w))")
+	h.check("an or(...) rule parses", not (either isa error))
+	h.check("with the two alternatives its body holds",
+		not (either isa error) and either.body.len == 1 and either.body[0] isa t.Or and
+			either.body[0].alternatives.len == 2)
+	owns = [spo("zed", "has-car", "bike")]
+	getterGoal = spo(v("x"), "getter", v("w"))
+	getters = t.proveGoals(getterGoal, owns, [either], 2)
+	h.check("the second alternative answers when the first fails",
+		getters.len == 1 and answerText(getterGoal, getters[0]) == "getter(zed, bike)")
 end function
