@@ -119,6 +119,10 @@ loadFactsAt = function(triples, path, types=null)
 	// whole rather than line by line.
 	repeated = uniqueRepeats(types, facts)
 	if repeated isa error then return err(file.name(path) + " " + repeated.message)
+	// Two readings of one variable in two units are a file no rule can compare, so it is refused
+	// before a session reads it rather than mixed silently.
+	units = unitRepeats(triples, facts)
+	if units isa error then return err(file.name(path) + " " + units.message)
 	return facts
 end function
 
@@ -309,6 +313,37 @@ uniqueRepeats = function(types, facts)
 	for at in range(0, facts.len - 1)
 		clash = uniqueClash(types, facts[:at], facts[at])
 		if clash != null then return err(facts[at].text + ": " + clash)
+	end for
+	return null
+end function
+
+// A unit is the one fact that says how a number is read, and nothing in the engine converts one
+// into another: 12.4 km/h and 12.4 mph are one number and two winds. So a session holds one unit
+// per variable, and a second one is refused rather than read beside the first - in a facts file,
+// at the prompt, and in a service's answer alike. The check is about the facts alone, which is why
+// it lives here rather than in any one of those three.
+
+unitClash = function(triples, facts, triple)
+	"The fact that already gives this variable a different unit, or null when this one agrees or is not a unit at all."
+	if triple.predicate != "has-unit" then return null
+	for fact in facts
+		if fact.predicate != "has-unit" then continue
+		if triples.termText(fact.subject) != triples.termText(triple.subject) then continue
+		if triples.termText(fact.object) == triples.termText(triple.object) then continue
+		return fact
+	end for
+	return null
+end function
+
+unitRepeats = function(triples, facts)
+	"A second unit for one variable among these facts, as an error naming both words, or null when each variable has one."
+	for at in range(0, facts.len - 1)
+		clash = unitClash(triples, facts[:at], facts[at])
+		if clash != null then
+			return err(triples.termText(facts[at].subject) + " is " + triples.termText(clash.object) +
+				" and " + triples.termText(facts[at].object) +
+				": one unit per variable, and nothing converts one to another")
+		end if
 	end for
 	return null
 end function

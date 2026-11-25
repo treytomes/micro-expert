@@ -523,4 +523,32 @@ run = function(t, knowledge, h)
 	else
 		env["HOME"] = savedHome
 	end if
+
+	// ── One unit per variable ────────────────────────────────────────────────
+
+	// A unit is how a number is read, and nothing in the engine converts one into another, so
+	// two units for one variable are two scales in one knowledge base rather than a correction.
+	unitFacts = function(lines)
+		return knowledge.parseFacts(t, lines)
+	end function
+	celsius = unitFacts(["has-unit(temperature_2m, celsius)"])
+	both = unitFacts(["has-unit(temperature_2m, celsius)",
+		"has-unit(temperature_2m, fahrenheit)"])
+	saidTwice = unitFacts(["has-unit(temperature_2m, celsius)",
+		"has-unit(temperature_2m, celsius)"])
+	twoVariables = unitFacts(["has-unit(temperature_2m, celsius)",
+		"has-unit(temperature_2m_mean, fahrenheit)"])
+	h.check("one unit for a variable is no repeat", knowledge.unitRepeats(t, celsius) == null)
+	h.check("the same unit twice is one claim, not a repeat",
+		knowledge.unitRepeats(t, saidTwice) == null)
+	h.check("two variables may each have their own unit",
+		knowledge.unitRepeats(t, twoVariables) == null)
+	refusedUnits = knowledge.unitRepeats(t, both)
+	h.check("a second unit for one variable is refused",
+		refusedUnits isa error and
+			refusedUnits.message == "temperature_2m is celsius and fahrenheit: one unit per " +
+				"variable, and nothing converts one to another")
+	h.check("and the clash names the fact that holds the first unit",
+		knowledge.unitClash(t, celsius, both[1]) != null and
+			knowledge.unitClash(t, celsius, both[1]).text == "has-unit(temperature_2m, celsius)")
 end function

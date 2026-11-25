@@ -2,13 +2,13 @@
 // answers by asking a service rather than the reader. geocode.maps.co's two declarations are here
 // too - a search asked by a place's own name and a reverse asked by its coordinates - both read
 // back onto the place the question named rather than onto the OSM object the reply identifies,
-// and Open-Meteo's forecast, asked with a place's coordinates for the next hour's weather.
+// and Open-Meteo's forecast, asked with a place's coordinates for the next day of one variable.
 //
 // No request leaves the program: a client stand-in answers get with the canned Fort Worth reply,
 // the way test/location.ms and test/declared.ms do, and counts what it was asked.
 
 run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocodeMap, openmeteoMap,
-	sessionModule, rules, engineModule, cliLibrary, optionsModule, h)
+	sessionModule, rules, engineModule, cliLibrary, optionsModule, knowledge, h)
 	decl = ipwhoisMap.build()
 
 	// The arguments a run parses, so the session below is built the way a program builds its
@@ -94,7 +94,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		// with are held as they come, which is what these cases are about.
 		session = {"triples": triples, "Rule": rules.Rule, "facts": facts + [], "rules": ruleList,
 			"depth": 8, "verbose": 0, "nlp": 0, "style": null,
-			"paths": {}, "knowledge": null, "providers": registry,
+			"paths": {}, "knowledge": knowledge, "providers": registry,
 			"io": {"read": @reader, "say": @writer}}
 		sessionModule.run(session)
 		return {"session": session, "answers": answers}
@@ -230,7 +230,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	quietStub = stubFor(fortWorth)
 	quietSaid = []
 	grounded = {"triples": triples, "Rule": rules.Rule, "facts": [], "rules": [], "depth": 8,
-		"verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": knowledge,
 		"providers": providers.registry(quietStub, declared, uid, [decl]),
 		"io": {"read": null, "say": function(line)
 			quietSaid.push(line)
@@ -249,7 +249,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	// what the first attempt said rather than making the request again.
 	said = []
 	probe = {"triples": triples, "Rule": rules.Rule, "facts": [], "rules": [], "depth": 8,
-		"verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": knowledge,
 		"providers": providers.registry(unreachable, declared, uid, [decl]),
 		"io": {"read": null, "say": function(line)
 			said.push(line)
@@ -334,7 +334,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	asking = stubFor(searchReply)
 	coordSaid = []
 	coordSession = {"triples": triples, "Rule": rules.Rule, "facts": [namedCity], "rules": [],
-		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": knowledge,
 		"providers": providers.registry(asking, declared, uid, [geoDecl]),
 		"io": {"read": null, "say": function(line)
 			coordSaid.push(line)
@@ -368,7 +368,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	addressSaid = []
 	addressSession = {"triples": triples, "Rule": rules.Rule,
 		"facts": [namedLat, namedLon, namedCity], "rules": [], "depth": 8, "verbose": 0,
-		"nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"nlp": 0, "style": null, "paths": {}, "knowledge": knowledge,
 		"providers": providers.registry(addressed, declared, uid, [geoDecl]),
 		"io": {"read": null, "say": function(line)
 			addressSaid.push(line)
@@ -396,7 +396,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	sparse = stubFor(sparseReply)
 	sparseSession = {"triples": triples, "Rule": rules.Rule, "facts": [namedLat, namedLon],
 		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
-		"knowledge": null, "providers": providers.registry(sparse, declared, uid, [geoDecl]),
+		"knowledge": knowledge, "providers": providers.registry(sparse, declared, uid, [geoDecl]),
 		"io": {"read": null, "say": function(line)
 		end function}}
 	sparseOptions = triples.needsFor(needRoad, sparseSession.facts, [], 8)
@@ -416,7 +416,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	unasked = stubFor(reverseReply)
 	noCoords = {"triples": triples, "Rule": rules.Rule,
 		"facts": [triples.SpoTriple.make(named, "has-fee", "no")], "rules": [],
-		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": knowledge,
 		"providers": providers.registry(unasked, declared, uid, [geoDecl]),
 		"io": {"read": null, "say": function(line)
 		end function}}
@@ -544,7 +544,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	weatherSaid = []
 	weatherSession = {"triples": triples, "Rule": rules.Rule, "facts": [locatedLat, locatedLon],
 		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
-		"knowledge": null, "providers": providers.registry(forecasting, declared, uid, [weatherDecl]),
+		"knowledge": knowledge, "providers": providers.registry(forecasting, declared, uid, [weatherDecl]),
 		"io": {"read": null, "say": function(line)
 			weatherSaid.push(line)
 		end function}}
@@ -594,7 +594,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	weatherUnmet = []
 	unmetSession = {"triples": triples, "Rule": rules.Rule, "facts": [locatedLat, locatedLon],
 		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
-		"knowledge": null,
+		"knowledge": knowledge,
 		"providers": providers.registry(offlineForecast, declared, uid, [weatherDecl]),
 		"io": {"read": null, "say": function(line)
 			weatherUnmet.push(line)
@@ -613,6 +613,31 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 			triples.needsFor(needTemperature, unmetSession.facts, [], 8)) and
 			offlineForecast.calls == 2)
 
+	// Nothing converts one unit into another, so a reply that spells a variable in another unit
+	// than the session holds is refused whole rather than added beside the held readings: two
+	// scales in one knowledge base is the silent mixing the unit facts exist to prevent.
+	fahrenheitReply = weatherReply + {}
+	fahrenheitReply.hourly_units = {"time": "iso8601", "temperature_2m": "°F",
+		"relative_humidity_2m": "%", "precipitation": "mm", "wind_speed_10m": "km/h",
+		"weather_code": "wmo code"}
+	heldCelsius = triples.SpoTriple.make("temperature_2m", "has-unit", "celsius")
+	mixedSaid = []
+	mixedSession = {"triples": triples, "Rule": rules.Rule,
+		"facts": [locatedLat, locatedLon, heldCelsius],
+		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
+		"knowledge": knowledge,
+		"providers": providers.registry(stubFor(fahrenheitReply), declared, uid, [weatherDecl]),
+		"io": {"read": null, "say": function(line)
+			mixedSaid.push(line)
+		end function}}
+	changed = sessionModule.provideMissing(mixedSession,
+		triples.needsFor(needTemperature, mixedSession.facts, [], 8))
+	h.check("a reply in another unit is refused rather than mixed with the held one",
+		not changed and holds(mixedSaid, "could not answer") and
+			holds(mixedSaid, "temperature_2m is celsius and fahrenheit"))
+	h.check("and the session keeps its one unit and gains no readings",
+		mixedSession.facts.len == 3 and not holds(mixedSaid, "added has-temperature-2m("))
+
 	// ── A place known only by name is located before it is asked about ──────
 
 	// The forecast's request needs coordinates the session does not hold. The geocoder's search
@@ -629,7 +654,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	chainSaid = []
 	chainSession = {"triples": triples, "Rule": rules.Rule, "facts": [byNameCity],
 		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
-		"knowledge": null,
+		"knowledge": knowledge,
 		"providers": providers.registry(both, declared, uid, [geoDecl, weatherDecl]),
 		"io": {"read": null, "say": function(line)
 			chainSaid.push(line)
@@ -672,7 +697,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	nowhereSession = {"triples": triples, "Rule": rules.Rule,
 		"facts": [triples.SpoTriple.make(nowhere, "has-road", "Main Street")],
 		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
-		"knowledge": null,
+		"knowledge": knowledge,
 		"providers": providers.registry(both, declared, uid, [geoDecl, weatherDecl]),
 		"io": {"read": null, "say": function(line)
 		end function}}
@@ -705,7 +730,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	needNextLat = triples.SpoTriple.make(nextPlace, "has-latitude", triples.var("lat"))
 	nextSaid = []
 	nextSession = {"triples": triples, "Rule": rules.Rule, "facts": [nextCity], "rules": [],
-		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": knowledge,
 		"providers": providers.registry(secondChance, declared, uid, [geoDecl, weatherDecl]),
 		"io": {"read": null, "say": function(line)
 			nextSaid.push(line)
@@ -734,7 +759,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	idlePlace = uid.of("place", ["Fort Worth first"])
 	idleSession = {"triples": triples, "Rule": rules.Rule,
 		"facts": [triples.SpoTriple.make(idlePlace, "has-city", "Fort Worth")], "rules": [],
-		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": knowledge,
 		"providers": providers.registry(secondIdle, declared, uid, [geoDecl, weatherDecl]),
 		"io": {"read": null, "say": function(line)
 		end function}}
@@ -1100,7 +1125,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	secondRead.source = "geocode.maps.co/search"
 	secondRead.fetched = "2026-11-21"
 	readingSession = {"triples": triples, "Rule": rules.Rule, "facts": [firstRead], "rules": [],
-		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": knowledge,
 		"providers": null, "io": {"read": null, "say": function(line)
 		end function}}
 	changed = sessionModule.addFact(readingSession, secondRead)
@@ -1118,7 +1143,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	typedRead = triples.SpoTriple.make(refetched, "has-latitude", 32.7555)
 	typedSaid = []
 	typedSession = {"triples": triples, "Rule": rules.Rule, "facts": [typedRead], "rules": [],
-		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": knowledge,
 		"providers": null, "io": {"read": null, "say": function(line)
 			typedSaid.push(line)
 		end function}}
@@ -1140,7 +1165,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	offlineStub = stubFor(weatherReply)
 	offlineSession = {"triples": triples, "Rule": rules.Rule, "facts": [locatedLat, locatedLon],
 		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
-		"knowledge": null, "offline": 1,
+		"knowledge": knowledge, "offline": 1,
 		"providers": providers.registry(offlineStub, declared, uid, [weatherDecl]),
 		"io": {"read": null, "say": function(line)
 		end function}}

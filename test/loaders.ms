@@ -222,4 +222,21 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 	file.delete(pairPath)
 	h.check("one value each is what the field asks for",
 		not (oneEach isa error) and oneEach.len == 2)
+
+	// A folder holding one variable in two units mixes two scales, and no rule can convert one
+	// into the other, so the file is refused as it is read rather than as a question notices.
+	unitPath = scratch("units.kb")
+	writeFile(unitPath, ["has-unit(temperature_2m, celsius)", "has-unit(temperature_2m, fahrenheit)"])
+	mixedUnits = factsLoader.build(t, unitPath)
+	file.delete(unitPath)
+	h.check("a facts file with two units for one variable is refused",
+		mixedUnits isa error and
+			mixedUnits.message.indexOf("one unit per variable") != null and
+			mixedUnits.message.indexOf("celsius and fahrenheit") != null)
+	oneUnitPath = scratch("one-unit.kb")
+	writeFile(oneUnitPath, ["has-unit(temperature_2m, celsius)", "has-unit(precipitation, mm)"])
+	oneUnitEach = factsLoader.build(t, oneUnitPath)
+	file.delete(oneUnitPath)
+	h.check("one unit each for two variables is a file to read",
+		not (oneUnitEach isa error) and oneUnitEach.len == 2)
 end function

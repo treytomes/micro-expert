@@ -251,9 +251,14 @@ That is the request's own word rather than the reply's `°C` and `km/h`. The req
 in ASCII - `celsius`, `kmh`, `mm`, `metric` - while `hourly_units` carries `°C`, `W/m²` and `µg/m³`,
 so the fact holds a word a rule can already match and a schema line can list. A symbol the writer does
 not know is not a unit word at all - `weather_code`'s `wmo code` - and writes no fact rather than a
-word no rule could ask for; `%` is written as `percent`. A second unit set for one variable is the
-one thing these facts cannot say, which is what a domain's `has-unit(text, unique(text))` refuses
-when it is written down.
+word no rule could ask for; `%` is written as `percent`.
+
+A second unit set for one variable is the one thing these facts cannot say, and nothing in the engine
+converts one unit into another, so a second one is refused wherever it arrives rather than read
+beside the first: a facts file holding two units for one variable is refused as it loads, naming
+both; a typed second unit is a warning that leaves the first standing; and a service's reply that
+spells a variable the session already holds another way is refused whole, so its numbers are never
+added beside readings in the other scale.
 
 A rule that judges a number asks for the unit first:
 

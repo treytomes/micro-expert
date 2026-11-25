@@ -679,9 +679,17 @@ holdsWord = function(holds)
 end function
 
 addFact = function(session, triple)
-	"Adds a fact to the session's knowledge base, and says which one; nothing is added twice, and a unique(...) field's value is replaced rather than refused."
+	"Adds a fact to the session's knowledge base, and says which one; nothing is added twice, a unique(...) field's value is replaced rather than refused, and a variable keeps the one unit it already has."
 	if refuseConstraint(session, triple) then return false
 	if not fitsSchema(session, triple) then return false
+	// Nothing converts one unit into another, so a second unit for a variable the session already
+	// spells another way is refused rather than left for a rule to compare two scales.
+	clash = session.knowledge.unitClash(session.triples, session.facts, triple)
+	if clash != null then
+		repl.say(session, "warning", "  " + triple.text + " is a second unit for " +
+			session.triples.termText(triple.subject) + ": the session holds " + clash.text)
+		return false
+	end if
 	if alreadyKnown(session, triple) then
 		repl.say(session, "note", "  already known: " + triple.text)
 		return false
@@ -1167,6 +1175,15 @@ askService = function(session, capability, request, need)
 	if not answered.ok then
 		repl.say(session, "warning", "  " + capability.service + " could not answer " +
 			need.text + ": " + answered.error)
+		return false
+	end if
+	// A reply that spells a variable in another unit than the session holds is refused whole: its
+	// numbers beside the held ones would be two unit sets in one knowledge base, which no rule
+	// could then compare.
+	mixed = session.knowledge.unitRepeats(session.triples, session.facts + answered.facts)
+	if mixed isa error then
+		repl.say(session, "warning", "  " + capability.service + " could not answer " +
+			need.text + ": " + mixed.message)
 		return false
 	end if
 	added = 0

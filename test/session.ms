@@ -1188,6 +1188,24 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	file.delete(cleanPath)
 	h.check("a finished save leaves nothing else behind", leftovers == 0)
 
+	// ── One unit per variable ───────────────────────────────────────────────
+	// A typed unit is the same claim as a written one, and nothing converts one unit into
+	// another, so a second unit for a variable is refused here as the loader refuses a file
+	// that holds two.
+	heldUnit = spo("temperature_2m", "has-unit", "celsius")
+	units = startSession([heldUnit], [], ["has-unit(temperature_2m, fahrenheit)",
+		"has-unit(temperature_2m, celsius)", "has-unit(?variable, ?unit)"])
+	h.check("a second unit for a variable is a warning rather than a fact",
+		holds(units.answers.lines, "has-unit(temperature_2m, fahrenheit) is a second unit for temperature_2m") and
+			holds(units.answers.lines, "the session holds has-unit(temperature_2m, celsius)"))
+	h.check("so the variable keeps the unit it had",
+		units.session.facts.len == 1 and
+			t.termText(units.session.facts[0].object) == "celsius")
+	h.check("the same unit again is a claim already known",
+		holds(units.answers.lines, "already known: has-unit(temperature_2m, celsius)"))
+	h.check("and a question about the unit reads the one the session held",
+		printed(units.answers.lines, "  has-unit(temperature_2m, celsius)"))
+
 	// ── The entry's import order ─────────────────────────────────────────────
 	// The library is bound to nothing inside this module: it is read out of the entry's globals
 	// when this file loads, so a program that imports this module first hands it null and every
