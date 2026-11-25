@@ -63,6 +63,12 @@
 // with a second description of them. What a provider's facts are worth - whether the session
 // holds them, and whether it asks again - is the session's business, in src/session.ms.
 //
+// Every fact a service answers carries "# <service>/<endpoint> <day>" in its own line: which
+// service and endpoint gave it, and the day they were asked. A session - or a facts file it
+// saves, since the line is what a file writes - can therefore tell a provider's fact from a
+// typed one, and see how stale it is. The day is the search's own, from triples.dayToday, so a
+// caller that pins today (the suite does) gets the day it pinned.
+//
 // api, declared and uid are handed in rather than imported: a map cannot import, and the caller
 // already loads the three the way the rest of the program does.
 
@@ -249,12 +255,22 @@ answer = function(capability, triples, request=null, subject=null)
 	// A declaration that says which part its reply is about reads the reply onto the place the
 	// question named, so the facts prove that question rather than one about an identity the
 	// service made up.
-	if capability.about == null or subject == null then
-		return {"ok": 1, "facts": reading.facts, "error": null}
+	facts = reading.facts
+	if capability.about != null and subject != null then
+		moved = []
+		for fact in facts
+			moved.push triples.SpoTriple.make(subject, fact.predicate, fact.object, fact.at,
+				fact.confidence)
+		end for
+		facts = moved
 	end if
-	facts = []
-	for fact in reading.facts
-		facts.push triples.SpoTriple.make(subject, fact.predicate, fact.object, fact.at, fact.confidence)
+	// Who answered, and when: the fact says it in its own line, so a saved file keeps it, and a
+	// question that reads the fact back knows where it came from.
+	source = capability.service + "/" + capability.endpoint
+	fetched = triples.dayText(triples.dayToday())
+	for fact in facts
+		fact.source = source
+		fact.fetched = fetched
 	end for
 	return {"ok": 1, "facts": facts, "error": null}
 end function

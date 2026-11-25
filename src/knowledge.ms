@@ -12,11 +12,12 @@
 // own door, since a typed line is read by the solver. Nothing in the search needs it - it
 // is what lets an answer be said, since a sentence is the name with its dashes opened.
 //
-// A fact may carry two annotations after its call, in either order and each at most once:
-// '@' with a date, a time or a span, saying when it holds, and '~' with a percentage from 0
-// to 100, saying how confident we are of it.
+// A fact may carry three annotations after its call, each at most once: '@' with a date, a time
+// or a span, saying when it holds, '~' with a percentage from 0 to 100, saying how confident we
+// are of it, and '#' with the service and endpoint that answered it and the day they were asked.
 //
 //   won-prize(bill, sprint) @ 2002-04-05 ~ 80%
+//   has-latitude(berlin, 52.52) # open-meteo/forecast 2026-11-21
 //
 // The temporal one is any text the reader in temporal.ms takes, so a short shape is read as
 // it is there, and the text is kept on the triple as it was written. A fact with no '@' is
@@ -509,6 +510,8 @@ parseFact = function(triples, text)
 	if read isa error then return read
 	fact.at = read.at
 	fact.confidence = read.confidence
+	fact.source = read.source
+	fact.fetched = read.fetched
 	return fact
 end function
 

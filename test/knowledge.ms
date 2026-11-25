@@ -263,6 +263,17 @@ run = function(t, knowledge, h)
 		annotationsOf("won-prize(bill, sprint)@2002-04-05~80%") ==
 			"at=2002-04-05; confidence=80")
 
+	// What a service's answer carries: which service and endpoint gave the fact, and the day.
+	provenance = annotated("has-location(session, Fort Worth) # ipwho.is/lookup 2026-11-21")
+	h.check("a fact may say which service answered it, and when",
+		provenance != null and provenance.source == "ipwho.is/lookup" and
+			provenance.fetched == "2026-11-21")
+	h.check("and factsLines writes it back as the fact it is",
+		writtenAnnotations("has-location(session, Fort Worth) # ipwho.is/lookup 2026-11-21") ==
+			"has-location(session, Fort Worth) # ipwho.is/lookup 2026-11-21")
+	h.check("while a fact with no '#' names no service",
+		annotated("has-age(walter, 78)").source == null)
+
 	// The annotations come after the call, so a quoted field and a comment beside them are
 	// unaffected.
 	mark = char(34)

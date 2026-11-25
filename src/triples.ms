@@ -174,16 +174,20 @@ end function
 SpoTriple = {}
 
 SpoTriple.make = function(subject, predicate, object, at=null, confidence=100)
-	"Builds a triple from its subject, predicate, and object, with the annotations a fact may carry: when it holds, and how confident we are."
+	"Builds a triple from its subject, predicate, and object, with the annotations a fact may carry: when it holds, how confident we are, and which service answered it and when."
 	t = new SpoTriple
 	t.subject = subject
 	t.predicate = predicate
 	t.object = object
 	// A fact that says nothing about time is not time-bound, and one that says nothing about
 	// its confidence is fully confident. The fields are always there, so a reader never has
-	// to know which of the two an old line carried.
+	// to know which of them an old line carried.
 	t.at = at
 	t.confidence = confidence
+	// A fact a service answered says which service and endpoint gave it and the day it was read;
+	// nothing else sets these, and a typed fact leaves them null.
+	t.source = null
+	t.fetched = null
 	return t
 end function
 
@@ -213,6 +217,8 @@ SpoTriple.parse = function(line)
 	if read isa error then return read
 	triple.at = read.at
 	triple.confidence = read.confidence
+	triple.source = read.source
+	triple.fetched = read.fetched
 	return triple
 end function
 
@@ -225,10 +231,14 @@ SpoTriple.parseBare = function(line)
 end function
 
 // ── A fact's annotations ─────────────────────────────────────────────────────
-// The two signs are read from the text after the call, left to right, and each sign opens one
-// annotation: '@' reads a moment, '~' reads a percentage. Either may come first, each at most
-// once, and nothing else may follow them, since a fact that said more than the form holds
-// would be read as something it does not say.
+// The three signs are read from the text after the call, left to right, and each sign opens one
+// annotation: '@' reads a moment, '~' reads a percentage, and '#' reads who answered the fact and
+// the day it was read. Each may come at most once, and nothing else may follow them, since a
+// fact that said more than the form holds would be read as something it does not say.
+//
+// '#' is what a service's answer carries: a fact that came from a provider names the service and
+// endpoint that gave it and the day they were asked, so it can be told from a typed fact and
+// weighed by how stale it is. A fact nobody was asked for carries neither.
 //
 // A moment is what temporal.ms reads - a date, a time, a datetime, or a span in brackets - and
 // its text is kept as it was written rather than as the value it stands for: '@ 2019-04' stays
@@ -239,26 +249,30 @@ end function
 // so the two cannot drift into accepting different things.
 
 indexOfAnnotation = function(text)
-	"Where the first '@' or '~' stands outside quotes and the call's brackets, or null when there is none."
-	atSign = indexOfOutside(text, "@", true)
-	tilde = indexOfOutside(text, "~", true)
-	if atSign == null then return tilde
-	if tilde == null then return atSign
-	if atSign < tilde then return atSign
-	return tilde
+	"Where the first '@', '~' or '#' stands outside quotes and the call's brackets, or null when there is none."
+	first = null
+	for sign in ["@", "~", "#"]
+		at = indexOfOutside(text, sign, true)
+		if at == null then continue
+		if first == null or at < first then first = at
+	end for
+	return first
 end function
 
 readAnnotations = function(text)
-	"Reads the annotations after a fact, '@ ' and '~ ', into {at, confidence}, or says what is wrong with them."
+	"Reads the annotations after a fact, '@ ', '~ ' and '# ', into {at, confidence, source, fetched}, or says what is wrong with them."
 	at = null
 	confidence = 100
+	source = null
+	fetched = null
 	seenAt = false
 	seenConfidence = false
+	seenSource = false
 	rest = trimSpace(text)
 	while rest != ""
 		sign = rest[:1]
-		if sign != "@" and sign != "~" then
-			return err("a fact's annotations are '@' and '~': " + trimSpace(text))
+		if sign != "@" and sign != "~" and sign != "#" then
+			return err("a fact's annotations are '@', '~' and '#': " + trimSpace(text))
 		end if
 		if sign == "@" then
 			if seenAt then return err("a fact takes one '@': " + trimSpace(text))
@@ -267,17 +281,44 @@ readAnnotations = function(text)
 			if moment isa error then return moment
 			at = moment.text
 			rest = moment.rest
-		else
+		else if sign == "~" then
 			if seenConfidence then return err("a fact takes one '~': " + trimSpace(text))
 			seenConfidence = true
 			percent = readConfidence(rest[1:])
 			if percent isa error then return percent
 			confidence = percent.value
 			rest = percent.rest
+		else
+			if seenSource then return err("a fact takes one '#': " + trimSpace(text))
+			seenSource = true
+			said = readSource(rest[1:])
+			if said isa error then return said
+			source = said.source
+			fetched = said.fetched
+			rest = said.rest
 		end if
 		rest = trimSpace(rest)
 	end while
-	return {"at": at, "confidence": confidence}
+	return {"at": at, "confidence": confidence, "source": source, "fetched": fetched}
+end function
+
+readSource = function(text)
+	"Reads '<service>/<endpoint> <day>' from the front of text, as {source, fetched, rest}, or says what is wrong with it."
+	text = trimSpace(text)
+	stop = 0
+	while stop < text.len and not isSpace(text[stop])
+		stop = stop + 1
+	end while
+	name = text[:stop]
+	if name == "" then
+		return err("'#' needs the service and endpoint that answered, as in '# open-meteo/forecast'")
+	end if
+	if name.indexOf("/") == null then
+		return err("'#' names a service and an endpoint, as in '# open-meteo/forecast': " + name)
+	end if
+	moment = readMoment(text[stop:])
+	if moment isa error then return moment
+	return {"source": name, "fetched": moment.text, "rest": moment.rest}
 end function
 
 readMoment = function(text)
@@ -301,7 +342,7 @@ readMoment = function(text)
 	// whether it is a moment, rather than the piece being guessed at its spaces.
 	last = text.len
 	for at in range(0, text.len - 1)
-		if text[at] == "@" or text[at] == "~" then
+		if text[at] == "@" or text[at] == "~" or text[at] == "#" then
 			last = at
 			break
 		end if
@@ -316,7 +357,7 @@ readConfidence = function(text)
 	"Reads '<number>%' from the front of text, as {value, rest}, or says what is wrong with it."
 	text = trimSpace(text)
 	stop = 0
-	while stop < text.len and not isSpace(text[stop]) and text[stop] != "@" and text[stop] != "~"
+	while stop < text.len and not isSpace(text[stop]) and text[stop] != "@" and text[stop] != "~" and text[stop] != "#"
 		stop = stop + 1
 	end while
 	written = text[:stop]
@@ -366,6 +407,10 @@ SpoTriple.text = function
 		termText(self.object) + ")"
 	if self.at != null then line = line + " @ " + self.at
 	if self.confidence != 100 then line = line + " ~ " + str(self.confidence) + "%"
+	if self.source != null then
+		line = line + " # " + self.source
+		if self.fetched != null then line = line + " " + self.fetched
+	end if
 	return line
 end function
 
@@ -391,6 +436,7 @@ SpoTriple.sentence = function
 		end if
 	end if
 	if self.confidence != 100 then said = said + ", " + str(self.confidence) + "% confident"
+	if self.source != null then said = said + ", according to " + self.source
 	return said
 end function
 
@@ -621,6 +667,15 @@ dayToday = function
 	if today != null then return today
 	parts = _dateStr(_dateVal, "yyyy-MM-dd").split("-")
 	return {"year": val(parts[0]), "month": val(parts[1]), "day": val(parts[2])}
+end function
+
+dayText = function(day)
+	"One day as a fact writes it: yyyy-MM-dd, the month and day padded the way a date is."
+	month = str(day.month)
+	if month.len < 2 then month = "0" + month
+	date = str(day.day)
+	if date.len < 2 then date = "0" + date
+	return str(day.year) + "-" + month + "-" + date
 end function
 
 yearsSince = function(text, on)

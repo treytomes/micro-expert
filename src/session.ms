@@ -823,7 +823,8 @@ end function
 // search answers a named place's coordinates, so a place known only by name or city is located
 // and the weather question comes round with them. One service is asked per pass, so the two hops
 // are two answers, each one change; a field no service declares leaves the question to the reader
-// as before.
+// as before. A fact a service answered carries "# <service>/<endpoint> <day>" in its line, so the
+// session holds who gave it and how stale it is, and a facts file it saves says the same.
 //
 // A service is asked once, and what it answered is kept whether it answered or failed: a question
 // that comes round again, or a second question needing the same fact, reads the first attempt

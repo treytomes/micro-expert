@@ -35,8 +35,9 @@ a character that is not a space or a tab.
                      | <rule>                       ; rules.kb
                      | <schema-line>                ; schema.kb
 
-<fact>             ::= <call> [ <annotation> [ <annotation> ] ]
-                     ; predicate(subject, object), then when it holds and how confident
+<fact>             ::= <call> [ <annotation> [ <annotation> [ <annotation> ] ] ]
+                     ; predicate(subject, object), then when it holds, how confident, and
+                     ; which service answered it and when
 <call>             ::= <name> <field-list>          ; the bare triple: a head, or a condition
 <rule>             ::= <call> "=>" <body>
 <schema-line>      ::= <name> <type-list>           ; predicate(field type, field type)
@@ -64,8 +65,8 @@ a character that is not a space or a tab.
 <field-list>       ::= "(" <field> "," <field> ")"
 <type-list>        ::= "(" <schema-type> "," <schema-type> ")"
 
-<annotation>       ::= <temporal-annotation> | <confidence-annotation>
-                     ; each at most once, in either order
+<annotation>       ::= <temporal-annotation> | <confidence-annotation> | <source-annotation>
+                     ; each at most once, in any order
 
 <temporal-annotation> ::= "@" ( <moment> | <timespan> )
 <moment>           ::= <date> | <time> | <datetime>
@@ -81,6 +82,8 @@ a character that is not a space or a tab.
 
 <confidence-annotation> ::= "~" <number> "%"
                      ; any floating point number from 0 to 100
+<source-annotation> ::= "#" <service> "/" <endpoint> <moment>
+                     ; who answered the fact, and the day they were asked
 
 <field>            ::= <variable> | <number> | <text>
 <variable>         ::= "?" <text>
@@ -198,20 +201,20 @@ that is not a name - a variable stands there - and an answer holding one keeps t
 ## Facts
 
 ```bnf
-<fact>             ::= <call> [ <annotation> [ <annotation> ] ]
+<fact>             ::= <call> [ <annotation> [ <annotation> [ <annotation> ] ] ]
 <call>             ::= <name> <field-list>
 <field-list>       ::= "(" <field> "," <field> ")"
-<annotation>       ::= <temporal-annotation> | <confidence-annotation>
+<annotation>       ::= <temporal-annotation> | <confidence-annotation> | <source-annotation>
 ```
 
 One fact is one triple, `predicate(subject, object)`, and a facts file is one fact per
 entry. Exactly two fields: `is-parent-of(walter)` is refused, and so is a call with nothing in
 its parentheses or a field with no text in it.
 
-After the closing `)` a fact may carry two annotations: when it holds, and how confident we
-are that it does. Both are optional, so a fact may carry neither, either, or both; when it
-carries both they may stand in either order, and each appears at most once. Anything else
-after the `)` is refused rather than read — a second call, a lone `@` or `~`, the same
+After the closing `)` a fact may carry three annotations: when it holds, how confident we are
+that it does, and which service answered it and when. All are optional, so a fact may carry
+any of them or none; they may stand in any order, and each appears at most once. Anything else
+after the `)` is refused rather than read — a second call, a lone `@`, `~` or `#`, the same
 annotation twice.
 
 ```prolog
@@ -279,7 +282,7 @@ floating point number from 0 to 100 — `~ 87.5%` is a confidence — and a numb
 range is refused.
 
 A fact with no `~` is `~ 100%`: we are fully confident of it, which is what saying nothing
-has always meant. The two annotations do not depend on each other, so a fact may be sure of
+has always meant. The annotations do not depend on each other, so a fact may be sure of
 when it holds, unsure, sure of an instant, or neither.
 
 ```prolog
@@ -288,6 +291,27 @@ works-at(tim, school) ~ 80% @ [2019-04-01 09:00:00, 2019-04-01 17:00:00]
 ```
 
 The last two lines are one fact written twice: the annotations may stand in either order.
+
+### Which service answered a fact
+
+```bnf
+<source-annotation> ::= "#" <service> "/" <endpoint> <moment>
+```
+
+`#` followed by the service and endpoint that answered the fact, and the day they were asked,
+says where the fact came from: `open-meteo/forecast`, `geocode.maps.co/search`,
+`ipwho.is/lookup`. The service and the endpoint are one word each, joined by `/`, and the day
+is a moment the date reader takes.
+
+A fact with no `#` is nobody's answer: it was typed, or loaded from a file that had been. A
+fact a service answered carries one, so a session — or a facts file it saves, since a fact's
+line is what a file writes — can tell the two apart, and see how stale the answer is by its
+day.
+
+```prolog
+has-location(session, place-4f2c) # ipwho.is/lookup 2026-11-21
+has-temperature-2m(berlin, 18.4) @ [2026-11-21 09:00:00, 2026-11-21 10:00:00] # open-meteo/forecast 2026-11-21
+```
 
 A fact is known by its whole line, annotations and all, so those two lines are one fact and
 `works-at(tim, school) @ 2002-04-05 ~ 80%` is another. Two facts that differ only in when they

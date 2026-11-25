@@ -175,8 +175,12 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 
 	answered = providers.answer(capability, triples)
 	h.check("the answer is the reply's facts", answered.ok and answered.facts.len == 7)
+	// The line also says which service answered it and when, so the fact is read by its parts.
 	h.check("with the place the reply identifies under the session subject",
-		answered.ok and answered.facts[0].text == "has-location(session, " + place + ")")
+		answered.ok and triples.termText(answered.facts[0].subject) == "session" and
+			answered.facts[0].predicate == "has-location" and
+			triples.termText(answered.facts[0].object) == place and
+			answered.facts[0].text.indexOf("has-location(session, " + place + ")") == 0)
 	h.check("and the declaration's deadline reaching the transport",
 		client.seenTimeout == providers.defaultTimeout)
 
@@ -675,6 +679,41 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	h.check("so the question is answered from the reading the forecast gave",
 		holds(askedWeather.answers.lines, "has-temperature-2m(" + byCity + ", 18.4)") and
 			not holds(askedWeather.answers.lines, "no solution found"))
+
+	// ── A provider's fact says who answered it, and when ────────────────────
+
+	// The day is the host's, so the suite pins one, as the age cases do.
+	savedToday = triples.today
+	triples.today = {"year": 2026, "month": 11, "day": 21}
+	answeredBy = providers.answer(
+		providers.forGoal(providers.registry(stubFor(fortWorth), declared, uid, [decl]), triples,
+			sessionPlace),
+		triples)
+	h.check("a fact a service answered names the service and endpoint that gave it",
+		answeredBy.ok and answeredBy.facts[0].source == "ipwho.is/lookup")
+	h.check("and the day it was read", answeredBy.facts[0].fetched == "2026-11-21")
+	h.check("which the fact's own line carries, so a saved file keeps it",
+		answeredBy.facts[0].text.indexOf(" # ipwho.is/lookup 2026-11-21") != null)
+	readBack = triples.SpoTriple.parse(answeredBy.facts[0].text)
+	h.check("and reads back as the fact it is",
+		not (readBack isa error) and readBack.text == answeredBy.facts[0].text and
+			readBack.source == "ipwho.is/lookup" and readBack.fetched == "2026-11-21")
+	h.check("while a typed fact names no service",
+		triples.SpoTriple.make("tim", "has-age", 17).text == "has-age(tim, 17)")
+	stampedWeather = providers.answer(
+		providers.forGoal(providers.registry(stubFor(weatherReply), declared, uid, [weatherDecl]),
+			triples, needTemperature),
+		triples, providers.requestFor(weatherCap, triples, [locatedLat, locatedLon], located),
+		located)
+	forecastStamps = 0
+	for fact in stampedWeather.facts
+		if fact.source == "open-meteo/forecast" and fact.fetched == "2026-11-21" then
+			forecastStamps = forecastStamps + 1
+		end if
+	end for
+	h.check("and every reading a forecast answered names that endpoint too",
+		stampedWeather.ok and forecastStamps == 5)
+	triples.today = savedToday
 
 	// ── A session given no registry asks nothing ────────────────────────────
 
