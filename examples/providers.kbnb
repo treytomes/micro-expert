@@ -64,7 +64,7 @@
 		{
 			"kind": "code",
 			"language": "micro-expert-kb",
-			"source": "## 3. Open-Meteo - the weather for a located place\n\nThe forecast is asked with the place's coordinates for the one variable a question names, for the next twenty-four hours of it, so the answer is a day of readings - one line an hour, each carrying the hour it covers:"
+			"source": "has-temperature-2m(fort-worth, ?t)"
 		},
 		{
 			"kind": "markdown",
