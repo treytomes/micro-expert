@@ -56,6 +56,12 @@ starting with `/`. `/exit` is refused — the session belongs to the notebook, n
 `Restart Knowledge Session` in the toolbar is what starts a fresh one. A cell of just `/mermaid`
 prints the diagram as a fence and draws the picture beside it.
 
+A notebook has no `--verbose` or `--nlp` flag to start with, so the two commands are how it asks for
+them: a cell of `/verbose` puts the proof tree before each answer from then on, a cell of `/nlp`
+says the answers - and those trees - as sentences, and running either one again turns it off. The
+switch belongs to the session rather than to the cell that set it, so every cell after it reads
+answers the new way.
+
 A cell with a line the engine refuses is marked failed, and the session carries on into the cell
 after it. What was refused is in the cell's own text.
 

@@ -116,6 +116,10 @@ commandTable = function()
 		{"name": "/rules", "note": "list the rules", "run": @listRules},
 		{"name": "/mermaid", "note": "draw the facts as Mermaid, or write them to a file",
 			"parameters": [{"name": "file", "optional": 1}], "run": @mermaidCommand},
+		{"name": "/verbose", "note": "show the proof tree before each answer, or stop showing it",
+			"run": @verboseCommand},
+		{"name": "/nlp", "note": "say answers as sentences, or as the facts they are",
+			"run": @nlpCommand},
 	]
 end function
 
@@ -277,6 +281,36 @@ end function
 depthCommand = function(session, command, argument)
 	"Says how deep the search goes, which --depth set before the loop started."
 	repl.say(session, "note", "  searching to depth " + session.depth)
+	return false
+end function
+
+// ── The two switches a run starts with ──────────────────────────────────────
+// --verbose and --nlp are set before the loop starts, and a reader who wants them for a while
+// rather than for a whole run asks here instead: each is a switch, so the line that turns one
+// on turns it off, and every answer after it reads the new way. A notebook has no flags to
+// start with, so for its session these two lines are also the way in.
+
+verboseCommand = function(session, command, argument)
+	"Turns the proof tree on before each answer, or off when it was on."
+	if session.verbose then
+		session.verbose = 0
+		repl.say(session, "note", "  verbose off: an answer is the fact it proves")
+	else
+		session.verbose = 1
+		repl.say(session, "note", "  verbose on: each answer comes after the tree that reaches it")
+	end if
+	return false
+end function
+
+nlpCommand = function(session, command, argument)
+	"Says each answer as a sentence, or as the fact it is when they were already sentences."
+	if session.nlp then
+		session.nlp = 0
+		repl.say(session, "note", "  nlp off: an answer is the fact it is")
+	else
+		session.nlp = 1
+		repl.say(session, "note", "  nlp on: an answer is said as a sentence")
+	end if
 	return false
 end function
 

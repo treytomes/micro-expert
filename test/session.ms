@@ -189,6 +189,40 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		printed(traced.answers.lines, "  has-location(session, place-1)  => fact") and
 			printed(traced.answers.lines, "  has-latitude(place-1, 32.7555)  => fact"))
 
+	// ── The two switches, asked for while the session runs ────────────────
+	// --verbose and --nlp are set before the loop starts; /verbose and /nlp are the same two
+	// switches asked for later, so a reader can have the tree for a question and leave it. Each
+	// is a switch rather than a switch-on, which is what lets a notebook - no flags at all -
+	// reach both the way a run does.
+
+	turned = startSession(family + [], [], ["/verbose", "/nlp", "is-parent-of(bill, ?p)"])
+	h.check("/verbose says which way the tree is now set",
+		printed(turned.answers.lines, "  verbose on: each answer comes after the tree that reaches it"))
+	h.check("/nlp says which way the sentences are now set",
+		printed(turned.answers.lines, "  nlp on: an answer is said as a sentence"))
+	h.check("and the answer after them is the tree and the sentence it reaches",
+		printed(turned.answers.lines, "  bill is parent of tim  => fact") and
+			printed(turned.answers.lines, "  bill is parent of tim"))
+	h.check("the two are the session's, where the run's flags would have put them",
+		turned.session.verbose == 1 and turned.session.nlp == 1)
+
+	// Asked again, each goes back to where the run started it: no tree, and the fact itself.
+	back = startSession(family + [], [], ["/verbose", "/nlp", "/verbose", "/nlp",
+		"is-parent-of(bill, ?p)"])
+	h.check("/verbose again turns the tree off",
+		printed(back.answers.lines, "  verbose off: an answer is the fact it proves") and
+			not printed(back.answers.lines, "  is-parent-of(bill, tim)  => fact"))
+	h.check("/nlp again turns the sentences off",
+		printed(back.answers.lines, "  nlp off: an answer is the fact it is") and
+			not printed(back.answers.lines, "  bill is parent of tim"))
+	h.check("so the answer is the fact it proves, said once",
+		printed(back.answers.lines, "  is-parent-of(bill, tim)"))
+	h.check("with both switches back where the run started them",
+		back.session.verbose == 0 and back.session.nlp == 0)
+	h.check("/help lists both of them",
+		holds(startSession(family + [], [], ["/help"]).answers.lines, "  /verbose") and
+			holds(startSession(family + [], [], ["/help"]).answers.lines, "  /nlp"))
+
 	// A predicate's name has a shape, and the prompt is the other door into the knowledge
 	// base: a typed line is refused there in the words the file reader uses, since both read
 	// through the solver's one check.
@@ -472,7 +506,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	// the library's and the notes are this host's, so this is where the two meet - a change to
 	// either shows up here, rather than only in a run someone happens to be watching.
 	pinned = startSession([], [], ["/help", "q"])
-	h.check("the program's greeting and /help block are exactly these fifteen lines",
+	h.check("the program's greeting and /help block are exactly these seventeen lines",
 		pinned.answers.lines == [
 		"Type a fact, a question or a rule as 'head => conditions', or a value to see how it reads. /help lists the commands; /exit leaves.",
 		"  /exit  leave the session",
@@ -482,6 +516,8 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		"  /facts  list the facts",
 		"  /rules  list the rules",
 		"  /mermaid [FILE]  draw the facts as Mermaid, or write them to a file",
+		"  /verbose  show the proof tree before each answer, or stop showing it",
+		"  /nlp  say answers as sentences, or as the facts they are",
 		"  /save-facts [FILE]  write the facts to their file, or to one named",
 		"  /load-facts [FILE]  replace the facts with a file's",
 		"  /save-rules [FILE]  write the rules to their file, or to one named",

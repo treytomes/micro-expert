@@ -175,6 +175,8 @@ A line that starts with `/` is a session command. The ones worth knowing now:
 | `/facts` | Lists the facts the session holds, in writing form |
 | `/rules` | Lists the rules the session holds, as `head => conditions` |
 | `/depth` | Says how deep the search goes |
+| `/verbose` | Shows the proof tree before each answer, or stops showing it |
+| `/nlp` | Says answers as sentences, or as the facts they are |
 | `/exit` | Leaves the session |
 
 `/facts` and `/rules` show what is in memory, including anything you added this session, and nothing
