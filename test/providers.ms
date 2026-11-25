@@ -341,6 +341,27 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	h.check("and a second pass over that need reads the first attempt",
 		sessionModule.provideMissing(addressSession, roadOptions) == false and addressed.calls == 1)
 
+	// A one-fact answer is one change like any other, and it remembers its request the same way:
+	// taken back, the reverse is asked again rather than the address being left to the reader.
+	sparseReply = {"osm_type": "way", "osm_id": 77, "address": {"road": "Main Street"}}
+	sparse = stubFor(sparseReply)
+	sparseSession = {"triples": triples, "Rule": rules.Rule, "facts": [namedLat, namedLon],
+		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
+		"knowledge": null, "providers": providers.registry(sparse, declared, uid, [geoDecl]),
+		"io": {"read": null, "say": function(line)
+		end function}}
+	sparseOptions = triples.needsFor(needRoad, sparseSession.facts, [], 8)
+	changed = sessionModule.provideMissing(sparseSession, sparseOptions)
+	h.check("a one-fact answer is one change that remembers its request",
+		changed and sparseSession.changes.len == 1 and
+			sparseSession.changes[0].kind == "add" and sparseSession.changes[0].attempt != null)
+	takenBack = sessionModule.undo(sparseSession)
+	h.check("/undo forgets a one-fact answer's request too",
+		takenBack and sparseSession.facts.len == 2 and sparseSession.providerCalls.len == 0)
+	changed = sessionModule.provideMissing(sparseSession, sparseOptions)
+	h.check("so the reverse is asked again rather than prompting",
+		changed and sparse.calls == 2)
+
 	// A place with nothing to ask by is left to the reader, not asked about.
 	unasked = stubFor(reverseReply)
 	noCoords = {"triples": triples, "Rule": rules.Rule, "facts": [namedCity], "rules": [],
@@ -497,6 +518,14 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	h.check("saying it once, with the service that answered",
 		countOf(weatherSaid, "took back 5 facts open-meteo answered") == 1 and
 			not holds(weatherSaid, "took back has-temperature-2m("))
+	// The request went with the answer: a session that no longer holds what the forecast said
+	// asks it again rather than the reader.
+	h.check("and /undo forgets the request that answer made",
+		weatherSession.providerCalls.len == 0)
+	changed = sessionModule.provideMissing(weatherSession,
+		triples.needsFor(needTemperature, weatherSession.facts, [], 8))
+	h.check("so the question asks the forecast again rather than the reader",
+		changed and forecasting.calls == 2)
 
 	// A forecast that cannot answer leaves the fact to the reader, and the place's next weather
 	// fact reads the same failed attempt rather than making a second request.

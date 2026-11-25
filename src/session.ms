@@ -132,8 +132,10 @@ end function
 // it happens, and the record is what /undo reads: an add drops the last fact, a replacement
 // swaps the old one back into the place it stood in, and a retraction puts its fact back
 // where it was. A service's answer is one change too, holding the changes its several facts
-// made, so /undo takes a whole answer back rather than a fact at a time. The list is why
-// nothing has to compare against a starting length.
+// made, so /undo takes a whole answer back rather than a fact at a time; the change also
+// remembers the request that answered it, so taking it back lets the question ask that service
+// again rather than falling to the reader. The list is why nothing has to compare against a
+// starting length.
 
 noteChange = function(session, step)
 	"Records a change /undo can reverse."
@@ -166,7 +168,8 @@ undo = function(session)
 end function
 
 undoStep = function(session, step, quiet=false)
-	"Puts back what one recorded change did, saying what it put back unless the caller is saying the whole answer."
+	"Puts back what one recorded change did, saying what it put back unless the caller is saying the whole answer; a change a service's answer made also forgets that request."
+	if step.hasIndex("attempt") then forgetAttempt(session, step.attempt)
 	if step.kind == "replace" then
 		session.facts[step.at] = step.held
 		if not quiet then
@@ -182,6 +185,14 @@ undoStep = function(session, step, quiet=false)
 	end if
 	session.facts.pop
 	if not quiet then repl.say(session, "added", "  took back " + step.added.text)
+end function
+
+forgetAttempt = function(session, key)
+	"Lets a request an undone change was answered with be made again, so the question it answered can ask the service once more."
+	if key == null then return
+	if not session.hasIndex("providerCalls") then return
+	if session.providerCalls == null then return
+	if session.providerCalls.hasIndex(key) then session.providerCalls.remove(key)
 end function
 
 // ── Retracting a fact ───────────────────────────────────────────────────────
@@ -814,8 +825,9 @@ end function
 // that comes round again, or a second question needing the same fact, reads the first attempt
 // rather than making the same request again. What is remembered is the request - the endpoint and
 // the fields it was sent - so two places are two requests, and two facts about one place are one.
-// A failure is a warning and nothing more - the fact falls through to the prompt, which is where a
-// session with no registry would have started.
+// Taking that change back with /undo forgets the request, so the question asks the service again
+// rather than the reader. A failure is a warning and nothing more - the fact falls through to the
+// prompt, which is where a session with no registry would have started.
 
 provideMissing = function(session, options)
 	"Lets a declared service answer the first missing fact one can supply, adding what it says; says whether the session now holds more than it did."
@@ -854,7 +866,7 @@ provideMissing = function(session, options)
 				if addFact(session, fact) then added = added + 1
 			end for
 			if added > 0 then
-				groupAnswer(session, before, capability)
+				groupAnswer(session, before, capability, key)
 				return true
 			end if
 		end for
@@ -862,9 +874,13 @@ provideMissing = function(session, options)
 	return false
 end function
 
-groupAnswer = function(session, from, capability)
-	"One service's answer as one change /undo takes back whole, when the facts it added made more than one; a single fact is already one step."
+groupAnswer = function(session, from, capability, key)
+	"One service's answer as one change /undo takes back whole, when the facts it added made more than one; a single fact is already one step. Each change remembers the request, so taking the answer back forgets it."
 	steps = session.changes[from:]
+	if steps.len == 0 then return
+	for step in steps
+		step.attempt = key
+	end for
 	if steps.len < 2 then return
 	session.changes = session.changes[:from]
 	session.changes.push({"kind": "batch", "steps": steps, "service": capability.service,
