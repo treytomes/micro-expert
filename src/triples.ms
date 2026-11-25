@@ -529,11 +529,14 @@ unifyTerms = function(left, right, binds)
 	left = deref(left, binds)
 	right = deref(right, binds)
 	if left == right then return binds
-	// Once deref has followed the aliases, a variable stands for itself, so there is no value
-	// here that holds it. Binding it to a variable already naming it - possible only through a
-	// map holding a cycle, or through a Var that compares by something other than its name -
-	// would walk that cycle again, so the variable is refused and the bindings left as they are.
-	if left isa Var and right isa Var and left.name == right.name then return binds
+	if left isa Var and right isa Var then
+		// Binding one variable to another is how a rule's fresh variable meets the question's,
+		// so it is what most unifications end in. What it must not do is extend a map that
+		// holds a cycle: deref stops on a variable that is still a key only when the alias leads
+		// back to itself, and naming it again would hand the next walk the same ring.
+		if binds.hasIndex(left.name) or binds.hasIndex(right.name) then return binds
+		return withBinding(binds, left.name, right)
+	end if
 	if left isa Var then return withBinding(binds, left.name, right)
 	if right isa Var then return withBinding(binds, right.name, left)
 	return null
@@ -546,16 +549,20 @@ deref = function(term, binds)
 	// level of a query derefs a goal's predicate with null binds (candidateFacts,
 	// predicatesMeet), and only a variable predicate ever reaches this line.
 	if binds == null then return term
-	// The solver binds only after dereferencing both sides, so the map it builds is a forest.
-	// A map built by hand can hold a variable bound to itself or around a ring of them, which
-	// walking would never resolve: a variable met twice is taken to stand for itself, so the
-	// walk ends where it started instead of overflowing the stack.
-	seen = {}
-	current = term
-	while current isa Var and binds.hasIndex(current.name)
+	if not binds.hasIndex(term.name) then return term
+	current = binds[term.name]
+	if not (current isa Var) then return current
+	if not binds.hasIndex(current.name) then return current
+	// Two hops in, the map can be holding a cycle, so the names walked are kept from here on:
+	// a variable met twice is taken to stand for itself, and the walk ends where it started
+	// instead of overflowing the stack. A single hop never builds the map, since the solver's
+	// own bindings are a forest and one hop is where most of them end.
+	seen = {term.name: 1, current.name: 1}
+	while binds.hasIndex(current.name)
+		current = binds[current.name]
+		if not (current isa Var) then return current
 		if seen.hasIndex(current.name) then return current
 		seen[current.name] = 1
-		current = binds[current.name]
 	end while
 	return current
 end function

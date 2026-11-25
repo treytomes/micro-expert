@@ -225,6 +225,60 @@ The names are matched exactly, so `Equal` is an ordinary predicate. The `.kb` re
 only see the shape of a line, which is why a facts file could technically store a triple named
 `not-equal`; the prompt is what keeps that out of the session.
 
+## What the search guarantees
+
+"No solution found" is a claim about the search, not only about the knowledge base, so it is worth
+saying what the search promises and where the promise stops.
+
+### Soundness
+
+Every answer is the question with values put in it. It comes from a fact, or from the head of a rule
+whose body proved, and the rule is copied with its own variables before it meets the question, so it
+cannot borrow a name from it. A constraint is checked rather than assumed, `or(...)` explores real
+alternatives, and `not(...)` holds only when its body has no proof at all. Two things are sound by
+convention rather than by logic, and each is said where it is made:
+
+- **Negation as failure.** `not(...)` is sound for a body whose variables the rule has already bound,
+  and only within the depth the search was given. A body that is merely too deep to prove is
+  unprovable, so the negation holds: `is-stranger-to(ann, dana)` is answered at `--depth 2` for two
+  people who are not strangers. That is the price of reading a failed search as a negation.
+- **Annotations.** An answer a rule concludes carries the span, the service and the day of the first
+  readings its body stood on, and the weakest confidence among them. That is a choice about which
+  reading the conclusion speaks for, not something the facts entail.
+
+### Completeness: when every answer is found
+
+All the answers are found when four things hold.
+
+1. **The knowledge base is finite.** Facts and rules are lists, and a query reads one snapshot of
+   them, so there is nothing to find beyond what those hold.
+2. **The depth reaches the longest chain of rules.** Depth counts rule applications, and facts cost
+   none: at `--depth 0` a parent question still answers every child, while a question whose head only
+   a rule concludes says no solution. The default is 8, so a derivation that stacks nine rules is
+   found by neither the search nor the report that explains it.
+3. **No answer needs a goal to re-enter itself on the same chain.** A goal already being proved, with
+   the same values, is refused - which is what stops a rule like `married-to` running both ways from
+   recursing for ever. What that prunes is a derivation that could be shortened anyway, so no answer
+   is lost, although a derivation is.
+4. **Every `not(...)` can be decided within the remaining depth**, with the variables it searches with
+   already bound. A variable left free inside a negation is quantified there: the rule holds when no
+   value satisfies the body.
+
+An answer is a line, so two ways to one answer print once with both derivations kept behind it. If you
+count derivations rather than answers, the proof tree is where that completeness lives.
+
+### Termination
+
+The search always ends for a finite knowledge base. Depth is a number that goes down by one per rule,
+the chain above stops a goal re-entering itself, a negation or an alternative is a shorter body each
+time, and unification ends because a fact's fields are values rather than terms built out of other
+terms - there is no `f(?x)` to bind into, and a variable met twice while following bindings is taken
+to stand for itself.
+
+What it does not promise is speed. A chain of diamonds under an `ancestor` rule doubles the derivations
+per step while the answers grow by one, so a query can take seconds for a handful of answers, and
+`--depth` can be set as high as you like: finite, and effectively endless.
+
 ## Try it
 
 Start a fresh session for each group, so the changes do not accumulate.

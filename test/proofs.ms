@@ -265,8 +265,11 @@ run = function(t, rules, h)
 	refused = t.unifyTerms(t.var("x"), t.var("x"), selfBound)
 	h.check("unifying a variable with itself leaves the map as it was",
 		refused != null and refused["x"] isa t.Var and refused["x"].name == "x")
+	aliased = {"x": t.var("x")}
+	refusedAlias = t.unifyTerms(t.var("x"), t.var("y"), aliased)
 	h.check("a variable is not bound to an alias it already stands for",
-		t.unifyTerms(t.var("x"), t.var("y"), {"x": t.var("x")}) != null)
+		refusedAlias != null and refusedAlias.indexes.len == 1 and refusedAlias.hasIndex("x") and
+			not refusedAlias.hasIndex("y"))
 	// A question asked under a hand-built cycle still answers: the binding derefs to the
 	// variable itself, which the fact then settles.
 	cycleFacts = [spo("zed", "has-rank", 1)]
