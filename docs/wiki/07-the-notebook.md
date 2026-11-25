@@ -37,7 +37,8 @@ A result with no city in its address is judged by the name it is called, so `Sao
 comes back with coordinates and no city - is confirmed rather than taken unchecked.
 
 `examples/explore.kbnb` is the tour: a rule's answer, a question that needs a value, the fact that
-answer added, a rule typed in a cell, and `/mermaid`. `examples/providers.kbnb` is the services
+answer added, a rule typed in a cell, one question read as a proof tree and as a sentence by
+`/verbose` and `/nlp` and then back as the fact it is, and `/mermaid`. `examples/providers.kbnb` is the services
 one: ipwho.is locating the session, `geocode.maps.co` locating a place by name and reading back an
 address from its coordinates, and Open-Meteo forecasting for it.
 

@@ -17,6 +17,31 @@
 			"source": "That answer is not stored anywhere: `data/rules.kb` says a grandma is a female parent of one of your parents, and the engine followed it back through the facts."
 		},
 		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "An answer is the fact it proves, and that is one of three ways to read it. `/verbose` puts the proof tree before each answer - the rule that reached it and the facts behind it - and `/nlp` says the answer and that tree as sentences. They are the `--verbose` and `--nlp` a run is started with, asked for from a cell instead, so a notebook reads an answer both ways without being restarted."
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "/verbose\n/nlp"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "is-grandma-of(?x, tim)"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "The same question as the first cell, said the other way: `doris is grandma of tim` comes first as the rule that reached it, then the three facts under that rule, then the answer itself in words. Each switch is a switch, so running the two again puts both back the way the tour started, and the cells after this one read the fact form."
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "/verbose\n/nlp"
+		},
+		{
 			"kind": "code",
 			"language": "micro-expert-kb",
 			"source": "is-child-of(tim, ?p)"
