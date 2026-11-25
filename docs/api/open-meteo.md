@@ -190,7 +190,10 @@ place, and refuses the reply when the service's own word for the field disagrees
 place's own word for itself, and a place asked about by its city is asked by the name that city has,
 which is why `has-city` is checked against it: a session that falls through here from
 `geocode.maps.co` lands on the same refusal when the geocoder finds another town, and the reader is
-asked for the value rather than a forecast computed for a namesake. A predicate the session holds no
+asked for the value rather than a forecast computed for a namesake. What counts as the same naming
+is `samePlace` in `src/spike/declared.ms`, the words of a name once case, accents, punctuation,
+initials, abbreviations and the administrative words are set aside: this geocoder's `New York`
+confirms a city typed `New York City`, and its `Newark` does not. A predicate the session holds no
 fact under, and a field the reply leaves out, are nothing to disagree with.
 
 Five of those spellings are the geocoder's, not this service's - `has-name`, `has-latitude`,

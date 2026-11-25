@@ -284,6 +284,19 @@ run = function(declared, openmeteoMap, apiClient, triples, uid, schemaLoader, h)
 		declared.read(triples, uid, decl, "geocoding", namesakePlace, {"name": "Springfield"},
 			[]).ok == 1)
 
+	// The geocoder names a place its own way, and a city typed short is the same place: a result
+	// named "New York" confirms a place whose city the session typed "New York City".
+	cityShort = {"results": [{"id": 11, "name": "New York", "latitude": 40.7143,
+		"longitude": -74.0060, "country": "United States"}]}
+	h.check("a result named shorter than the city asked about is the same place",
+		declared.read(triples, uid, decl, "geocoding", cityShort, {"name": "New York City"},
+			[triples.SpoTriple.make("place-1", "has-city", "New York City")]).ok == 1)
+	h.check("while a result named another town is still another town",
+		declared.read(triples, uid, decl, "geocoding", {"results": [{"id": 12,
+			"name": "Newark", "latitude": 40.7357, "longitude": -74.1724,
+			"country": "United States"}]}, {"name": "New York City"},
+			[triples.SpoTriple.make("place-1", "has-city", "New York City")]).ok == 0)
+
 	looked = declared.read(triples, uid, decl, "geocoding-lookup", places.results[0], {"id": 1})
 	h.check("the lookup reads the one place it answers with",
 		looked.ok and looked.facts.len == 6 and looked.subject == "Berlin")

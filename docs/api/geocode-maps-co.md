@@ -477,7 +477,14 @@ search's reply block names the fields that make it so:
 `"confirm": {"has-city": "address.city", "has-country": "address.country"}`.
 `src/spike/declared.ms` looks each of those predicates up among the facts the session already
 holds about that place and refuses the reply when the service's own word for the field disagrees
-- in any case but its own - so a search for Fort Worth that comes back with another Springfield
-is a warning naming both cities, and those coordinates are not read onto this place. A field the
+- a service's capitals, its accents, its abbreviations and the words a name may carry are the
+same naming, so a search for `Washington, D.C.` is answered by a result that says `Washington`,
+and one for `New York` by `City of New York` - so a search for Fort Worth that comes back with
+another Springfield is a warning naming both cities, and those coordinates are not read onto this
+place. What counts as the same naming is `samePlace` in `src/spike/declared.ms`: the words of a
+name once case, accents, punctuation, one-letter initials and the administrative words are set
+aside, with `St.` read as `Saint` and `Ft.` as `Fort`. Only that: `Newark` is not `New York City`,
+`Paso` is not `El Paso`, and a name in another script that this cannot spell is compared as it
+stands. A field the
 session holds no fact under, or that the reply leaves out, is nothing to disagree with: the
 declaration says which fields it can check, not that every reply must carry them.

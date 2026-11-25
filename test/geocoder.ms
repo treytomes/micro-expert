@@ -230,6 +230,18 @@ run = function(declared, geocodeMap, apiClient, triples, uid, schemaLoader, h)
 		mismatch.error == "the first result is not the place asked about: its city is " +
 			"Springfield, not Paris")
 
+	// The same through a reply: a search for Washington, D.C. whose result calls it Washington is
+	// the place asked about, and its facts are read.
+	washington = {"osm_type": "relation", "osm_id": 5396194, "lat": "38.89511",
+		"lon": "-77.03637", "name": "Washington",
+		"address": {"city": "Washington", "country": "United States"}}
+	askedDC = [triples.SpoTriple.make("place-2", "has-city", "Washington, D.C."),
+		triples.SpoTriple.make("place-2", "has-country", "United States")]
+	district = declared.read(triples, uid, decl, "search", [washington], {"q": "Washington, D.C."},
+		askedDC)
+	h.check("a result that calls Washington, D.C. just Washington is read",
+		district.ok == 1 and district.facts.len > 0)
+
 	wrongCountry = {"osm_type": "node", "osm_id": 2, "lat": "48.8583", "lon": "2.2945",
 		"name": "Paris", "address": {"city": "Paris", "country": "Canada"}}
 	h.check("and another country is refused by its own name",
@@ -241,6 +253,22 @@ run = function(declared, geocodeMap, apiClient, triples, uid, schemaLoader, h)
 		"name": "PARIS", "address": {"city": "PARIS", "country": "france"}}
 	h.check("a name in other capitals is the same name",
 		declared.read(triples, uid, decl, "search", [shouted], {"q": "Paris"}, held).ok == 1)
+
+	// A city is often typed under a spelling its official name differs from, and the service's
+	// word for it is the service's: the words are what make two namings one place.
+	for pair in [["Washington, D.C.", "Washington"], ["Washington, D.C.", "Washington, D.C."],
+		["New York", "City of New York"], ["New York City", "City of New York"],
+		["St. Louis", "Saint Louis"], ["Ft. Worth", "Fort Worth"],
+		["Sao Paulo", "São Paulo"], ["Berlin", "Berlín"],
+		["Salt Lake City", "Salt Lake City"]]
+		h.check(pair[0] + " is the same place as " + pair[1], declared.samePlace(pair[0], pair[1]))
+	end for
+	// And a loosening is only a loosening where the words are: another town stays another town.
+	for pair in [["Springfield", "Fort Worth"], ["Paso", "El Paso"],
+		["Kansas City", "Los Angeles"], ["Berlin", "Berne"], ["Москва", "Moscow"]]
+		h.check(pair[0] + " is not the same place as " + pair[1],
+			not declared.samePlace(pair[0], pair[1]))
+	end for
 
 	h.check("a place the session holds no city or country for is read as it comes",
 		declared.read(triples, uid, decl, "search", [eiffel], {"q": "Eiffel Tower"}, []).ok == 1)

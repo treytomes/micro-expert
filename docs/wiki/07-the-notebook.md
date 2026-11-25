@@ -30,7 +30,9 @@ map also refuses a reply whose own city or country is not the place's: the other
 the cell shows that warning and the answer it did reach rather than a forecast for a namesake. The
 map it falls through to checks its own first result the same way - against the name the reply gives
 the place and its country - so a geocoder that finds the wrong town on either side leaves the value
-asked for in the box under the cell.
+asked for in the box under the cell. "The same name" is the same words rather than the same
+letters: `Washington, D.C.` is confirmed by a reply that says `Washington`, `New York` by `City of
+New York`, and `St. Louis` by `Saint Louis`, while another town's name is still another town's.
 
 `examples/explore.kbnb` is the tour: a rule's answer, a question that needs a value, the fact that
 answer added, a rule typed in a cell, and `/mermaid`. `examples/providers.kbnb` is the services

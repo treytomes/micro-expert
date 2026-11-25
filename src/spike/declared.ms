@@ -52,9 +52,11 @@
 // A search sends limit=1 and is read as what came back, so an agreement is what stops a result
 // for another Fort Worth being read as this one: each named predicate is looked for in the facts
 // the session holds about the place (read is handed them, and providers.answer takes them from
-// the session), and a reply whose own word for that field disagrees - in any case but its own -
-// is refused with the reason. A predicate the session holds no fact for is not checked, and a
-// field the reply leaves out says nothing to disagree with.
+// the session), and a reply whose own word for that field names another place is refused with the
+// reason. Two namings are the same place's when their words are (`samePlace` below): a reply may
+// say Washington for Washington, D.C., Saint Louis for St. Louis, or City of New York for New
+// York, because what a city is called is the service's to spell. A predicate the session holds no
+// fact for is not checked, and a field the reply leaves out says nothing to disagree with.
 //
 // The request half takes three per-service clauses as well: "key" names the parameter a key
 // travels as, "keyEnv" the environment variable the key is read from, and "redact" the
@@ -488,6 +490,76 @@ readSeries = function(triples, uid, reply, json, asked)
 end function
 
 
+// A place's naming as the words it is made of, so a reply's word for a place and the session's can
+// be compared as namings rather than as strings. Lower case and accents are spelling, punctuation
+// splits, a one-letter step is an initial rather than a word (Washington, D.C.), the abbreviations
+// an official name is commonly typed short as are written out (St. Louis is Saint Louis), and the
+// words a name may carry without changing which place it is are set aside: a city may be "New
+// York" or "City of New York", and both are the same place.
+folding = {"á": "a", "à": "a", "â": "a", "ã": "a", "ä": "a", "å": "a", "ā": "a",
+	"æ": "ae", "ç": "c", "é": "e", "è": "e", "ê": "e", "ë": "e", "ē": "e",
+	"í": "i", "ì": "i", "î": "i", "ï": "i", "ī": "i", "ñ": "n", "ó": "o",
+	"ò": "o", "ô": "o", "õ": "o", "ö": "o", "ø": "o", "ō": "o", "œ": "oe",
+	"ú": "u", "ù": "u", "û": "u", "ü": "u", "ū": "u", "ý": "y", "ÿ": "y",
+	"ß": "ss"}
+spelledOut = {"st": "saint", "ste": "sainte", "ft": "fort", "mt": "mount", "pt": "point"}
+administrative = {"the": 1, "of": 1, "city": 1, "town": 1, "village": 1, "municipality": 1,
+	"district": 1, "county": 1}
+
+
+words = function(text)
+	"A place's naming as the words it is made of: lower case, folded, split on anything that is not a letter or a digit, initials and administrative words dropped, sorted and deduplicated."
+	plain = ""
+	for c in str(text).lower
+		if folding.hasIndex(c) then
+			plain = plain + folding[c]
+		else
+			plain = plain + c
+		end if
+	end for
+	tokens = []
+	buffer = ""
+	for i in plain.indexes
+		c = plain[i]
+		if (c >= "a" and c <= "z") or (c >= "0" and c <= "9") then
+			buffer = buffer + c
+		else
+			tokens.push buffer
+			buffer = ""
+		end if
+	end for
+	tokens.push buffer
+	kept = []
+	for token in tokens
+		if token == "" then continue
+		if spelledOut.hasIndex(token) then token = spelledOut[token]
+		if administrative.hasIndex(token) then continue
+		if token.len == 1 then continue
+		kept.push token
+	end for
+	kept.sort
+	unique = []
+	for token in kept
+		if unique.len > 0 and unique[unique.len - 1] == token then continue
+		unique.push token
+	end for
+	return unique
+end function
+
+
+samePlace = function(said, other)
+	"Whether two namings are the same place's: the same words once spelling, initials, abbreviations and the words a name may carry are set aside."
+	mine = words(said)
+	theirs = words(other)
+	if mine.len == 0 or theirs.len == 0 then
+		// A naming with no word this can read is compared as it stands: two scripts it cannot
+		// spell are not the same place just because neither left a word behind.
+		return trimText(said).lower == trimText(other).lower
+	end if
+	return mine == theirs
+end function
+
+
 disagreement = function(triples, reply, first, held)
 	"The reason the object the request asked for is not the place the session holds, or null when it is - or when the reply names no field to check, or the session holds none of them."
 	if held == null or not (held isa list) then return null
@@ -501,8 +573,9 @@ disagreement = function(triples, reply, first, held)
 		if said == null then continue
 		said = trimText(said)
 		if said == "" then continue
-		// A name is the same name in another case: a service's capitals are its own.
-		if said.lower == wanted.lower then continue
+		// A name is the same name in another case, another spelling, or with the words a name may
+		// carry: a service's capitals are its own, and so are its abbreviations.
+		if samePlace(said, wanted) then continue
 		return "the first result is not the place asked about: its " +
 			fieldWord(reply.confirm[predicate]) + " is " + said + ", not " + wanted
 	end for
