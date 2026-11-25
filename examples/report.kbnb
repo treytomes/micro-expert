@@ -89,7 +89,7 @@
 		{
 			"kind": "code",
 			"language": "micro-expert-kb",
-			"source": "and(has-location(session, ?place), has-temperature-2m(?place, ?t) @ ?when, hours-from-now(?when, 9))"
+			"source": "and(has-location(session, ?place), has-temperature-2m(?place, ?t) @ add-hours(has-time(session, ?now), 9))"
 		}
 	]
 }

@@ -1262,19 +1262,29 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		printed(whenBody.answers.lines, "  has-temperature-2m(berlin, 9.8) @ " + whenHour))
 
 	// ── The clock asked as an offset ───────────────────────────────────────
-	// A question names the hour as "three hours from now", and hours-from-now reads the moment
-	// each reading holds for. The clock is pinned, as the day is elsewhere, so it cannot drift.
-	t.clock = "2026-11-22 17:45:00"
+	// A question names its hour as a call: the clock, nine hours on, is the reading the span
+	// covers. The clock is pinned, as the day is elsewhere, so it cannot drift.
+	t.clock = "2026-11-22 11:45:00"
 	offsetFacts = [
 		t.SpoTriple.make("berlin", "has-temperature-2m", 7.3, "[2026-11-22 17:00, 2026-11-22 18:00]"),
 		t.SpoTriple.make("berlin", "has-temperature-2m", 9.8, "[2026-11-22 20:00, 2026-11-22 21:00]")]
 	offsetTypes = {"has-temperature-2m": ["text", "number"]}
 	offsetAsked = startSession(offsetFacts, [],
-		["and(has-temperature-2m(berlin, ?t) @ ?when, hours-from-now(?when, 3))"], null, 0, offsetTypes)
-	h.check("a question asks for the reading three hours from now",
+		["and(has-temperature-2m(berlin, ?t) @ add-hours(has-time(session, ?now), 9))"], null, 0, offsetTypes)
+	h.check("a question asks for the reading its clock call reaches",
 		printed(offsetAsked.answers.lines,
 			"  has-temperature-2m(berlin, 9.8) @ [2026-11-22 20:00, 2026-11-22 21:00]") and
 			not printed(offsetAsked.answers.lines,
 				"  has-temperature-2m(berlin, 7.3) @ [2026-11-22 17:00, 2026-11-22 18:00]"))
+	// The time is not a fact a session keeps, so a line that would store it is refused.
+	clockStored = startSession([], [], ["has-time(session, 2026-11-22 11:45:00)"], null, 0, {})
+	refusedClock = null
+	for line in clockStored.answers.lines
+		if line[:24] == "  refused: has-time(sess" then refusedClock = line
+	end for
+	h.check("the clock is refused as a fact to store",
+		refusedClock != null and refusedClock.indexOf("reads the clock") != null and
+			clockStored.session.facts.len == 0)
+	t.clock = null
 	t.clock = null
 end function

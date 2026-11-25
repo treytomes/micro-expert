@@ -1,18 +1,18 @@
 # The built-in constraints
 
 A rule body is mostly goals — facts to prove by search — and a constraint is the other kind
-of condition: something checked against the bindings the goals have already made. The eight
+of condition: something checked against the bindings the goals have already made. The seven
 names below are built in and reserved, and they are written as calls so a body keeps one
 shape whether a condition is proved or checked.
 
 `docs/kb-grammar.md` says where a constraint sits in a `.kb` file. This note says what each
 one does, what it does with a variable that is still unbound, and what it refuses.
 
-## The eight names
+## The seven names
 
 ```bnf
 <constraint>       ::= <constraint-name> "(" <term> "," <term> ")"
-<constraint-name>  ::= "not-equal" | "equal" | "years-since" | "hours-from-now"
+<constraint-name>  ::= "not-equal" | "equal" | "years-since"
                      | "less-than" | "less-than-or-equal"
                      | "greater-than" | "greater-than-or-equal"
 ```
@@ -22,13 +22,12 @@ one does, what it does with a variable that is still unbound, and what it refuse
 | `not-equal` | identity | the two fields are not the same term | no |
 | `equal` | identity | the two fields are the same term | yes |
 | `years-since` | calendar | the first field is a date, and the second is the whole years since it | yes, the years |
-| `hours-from-now` | clock | the first field is a moment or span of a reading, and it covers the clock plus the second field's hours | no |
 | `less-than` | comparison | both are numbers and the left is smaller | no |
 | `less-than-or-equal` | comparison | both are numbers and the left is smaller or the same | no |
 | `greater-than` | comparison | both are numbers and the left is larger | no |
 | `greater-than-or-equal` | comparison | both are numbers and the left is larger or the same | no |
 
-All eight take exactly two fields, and both have to be non-empty. The shape is the one a fact
+All seven take exactly two fields, and both have to be non-empty. The shape is the one a fact
 has, and the fields go through the same term reader, so `?x` is a variable, a plain number is
 a number, and everything else is text.
 
@@ -226,6 +225,7 @@ puts the line number in front, the same way it reports any other broken entry. I
 | File | What it holds |
 | --- | --- |
 | `src/triples.ms` | the constraints section: the seven names, `NotEqual`, `Equal`, `YearsSince`, `Comparison`, `comparisonHolds`, `holdsConstraint`, `applyConstraint`, `renameConstraint` |
+| `src/triples.ms` | `Call`, `evaluate`, `momentNow` and `beginQuestion`: the clock and the hour arithmetic a question writes in its `@` |
 | `src/knowledge.ms` | `parseCondition` and `constraintOf`, which read a constraint call out of a rule body |
 | `src/temporal.ms` | the date, time and datetime types, and the calendar `years-since` counts on |
 | `src/session.ms` | `refuseConstraint`, which keeps a constraint's name from being stored or asked at the prompt |

@@ -686,6 +686,7 @@ end function
 addFact = function(session, triple)
 	"Adds a fact to the session's knowledge base, and says which one; nothing is added twice, a unique(...) field's value is replaced rather than refused, and a variable keeps the one unit it already has."
 	if refuseConstraint(session, triple) then return false
+	if refuseClock(session, triple) then return false
 	if not fitsSchema(session, triple) then return false
 	// Nothing converts one unit into another, so a second unit for a variable the session already
 	// spells another way is refused rather than left for a rule to compare two scales.
@@ -737,6 +738,14 @@ refuseConstraint = function(session, triple)
 	if not session.triples.isConstraint(triple.predicate) then return false
 	repl.say(session, "warning", "  refused: " + triple.text +
 		": the predicate is a constraint, checked in a rule body rather than stored or asked")
+	return true
+end function
+
+refuseClock = function(session, triple)
+	"Says a call's name is not a predicate a line stores, and whether it was one: the time is asked for rather than kept, since it changes."
+	if not session.triples.isCallName(triple.predicate) then return false
+	repl.say(session, "warning", "  refused: " + triple.text + ": " + triple.predicate +
+		" reads the clock, so it is not a fact a session holds - a question names it in '@'")
 	return true
 end function
 
@@ -807,6 +816,9 @@ end function
 
 askQuestion = function(session, question)
 	"Answers a question - a goal, or a body with no head - asking for the variables that would complete a missing fact."
+	// The clock is read once for the whole question: every condition of it and every fact it
+	// tries then measure against one moment, so two answers cannot come from two different nows.
+	session.triples.beginQuestion()
 	printed = null
 	shape = null
 	// What has been given for this question already, by the label the report shows each

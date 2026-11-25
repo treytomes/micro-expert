@@ -94,20 +94,19 @@ make an absence true.
 ## Constraints
 
 A constraint is checked against the bindings instead of proved by search. It is written as a call,
-so a body keeps one shape. Eight names are built in and reserved:
+so a body keeps one shape. Seven names are built in and reserved:
 
 | Name | Holds when | Binds |
 | --- | --- | --- |
 | `not-equal(a, b)` | the two fields are not the same term | no |
 | `equal(a, b)` | the two fields are the same term | yes |
 | `years-since(date, years)` | `date` is a date; `years` is the whole years since it | yes, the years |
-| `hours-from-now(moment, hours)` | `moment` is a reading's `@`, and it covers the clock plus `hours` | no |
 | `less-than(a, b)` | both are numbers and `a < b` | no |
 | `less-than-or-equal(a, b)` | both are numbers and `a <= b` | no |
 | `greater-than(a, b)` | both are numbers and `a > b` | no |
 | `greater-than-or-equal(a, b)` | both are numbers and `a >= b` | no |
 
-All eight take exactly two non-empty fields. [The built-in constraints](constraints.md) is the full
+All seven take exactly two non-empty fields. [The built-in constraints](constraints.md) is the full
 reference; these are the parts that matter while writing rules:
 
 - **`equal` binds.** It is unification with the bindings kept: a side that is still a variable takes
@@ -121,12 +120,6 @@ reference; these are the parts that matter while writing rules:
 - **`years-since` counts.** It reads `YYYY-MM-DD` and binds the whole years since that date, or
   checks a number given to it. The count is as of the day the search runs, unless `triples.today` is
   pinned (the tests pin it, so a birthday cannot change a test's answer).
-- **`hours-from-now` reads the clock.** It takes the moment a reading's `@` settled and asks whether
-  it covers now plus a number of hours - which is how a question asks for "the hour three hours from
-  now" instead of writing the instant out. It binds nothing, so it goes after the reading. The clock
-  is the machine's, and a moment is compared in the frame it was written in: a service that writes
-  UTC is ahead of a machine that is not, so `TZ=UTC` puts the clock in the service's frame. The tests
-  pin `triples.clock` so an offset check cannot drift.
 
 The shipped rules use each of these:
 

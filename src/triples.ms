@@ -162,7 +162,40 @@ isVar = function(term)
 	return term isa Var
 end function
 
+// A term can be a call. 'add-hours(has-time(session, ?now), 9)' is the moment nine hours from
+// now, and it stands where a moment stands - after a question's '@'. The names are reserved:
+// a call is a value rather than a condition, so a body line called 'add-hours' is refused
+// rather than proved, and neither name is ever stored as a fact. The two build the moment
+// arithmetic a question needs, and nothing about the clock is kept - the time is different the
+// next time it is asked.
+Call = {}
+
+Call.make = function(name, args)
+	"Builds a call: the name it is written under, and its arguments as terms."
+	c = new Call
+	c.name = name
+	c.args = args
+	return c
+end function
+
+Call.text = function
+	"Writes the call the way it was read: add-hours(has-time(session, ?now), 9)."
+	written = []
+	for arg in self.args
+		written.push(termText(arg))
+	end for
+	return self.name + "(" + written.join(", ") + ")"
+end function
+
+callNames = {"has-time": 1, "add-hours": 1}
+
+isCallName = function(name)
+	"Says whether a name is a call's, which reads the clock rather than a fact."
+	return name isa string and callNames.hasIndex(name) != 0
+end function
+
 termText = function(term)
+	if term isa Call then return term.text
 	"Renders one term: a Var as '?x', a value in quotes when it needs them, and anything else as it is."
 	if term isa Var then return term.text
 	if needsQuotes(term) then return quoteChar + term + quoteChar
@@ -332,8 +365,30 @@ readSource = function(text)
 end function
 
 readAtTerm = function(text)
-	"Reads what follows '@' in a question or a fact: a moment as readMoment reads one, or a variable standing for one - the form a question names the hour with."
+	"Reads what follows '@' in a question or a fact: a moment as readMoment reads one, a variable standing for one, or a call that works one out - the forms a question names the hour with."
 	text = trimSpace(text)
+	// A call stands where a moment stands, and its arguments can hold the variables a moment
+	// cannot: add-hours(has-time(session, ?now), 9) is nine hours after the clock.
+	for name in callNames.indexes
+		if text[:name.len + 1] == name + "(" then
+			depth = 0
+			endAt = null
+			for at in range(0, text.len - 1)
+				c = text[at]
+				if c == "(" then
+					depth = depth + 1
+				else if c == ")" then
+					depth = depth - 1
+					if depth == 0 then
+						endAt = at
+						break
+					end if
+				end if
+			end for
+			if endAt == null then return err("'@' needs the call to close: " + text)
+			return {"text": termOf(text[:endAt + 1]), "rest": text[endAt + 1:]}
+		end if
+	end for
 	if text[:1] != "?" then return readMoment(text)
 	// A variable ends at the first space or at the next annotation's sign, so '@ ?when ~ 80%'
 	// would still be two annotations rather than one name with a sign in it.
@@ -577,9 +632,19 @@ unifyAt = function(pattern, fact, binds)
 	if pattern.at == null then return binds
 	if fact.at == null then return null
 	if pattern.at isa Var then return withBinding(binds, pattern.at.name, fact.at)
-	// A stored moment is text and is compared as the text it was written as; termText would
-	// quote a span, since a span holds a comma of its own.
-	asked = pattern.at
+	// A call works out the moment it stands for, and what it settled - the clock it read - comes
+	// with it, so a question can name the hour as an offset from now.
+	if pattern.at isa Call then
+		evaluated = evaluate(pattern.at, binds)
+		if evaluated == null then return null
+		binds = evaluated.binds
+		asked = evaluated.value
+		if not (asked isa string) then return null
+	else
+		// A stored moment is text and is compared as the text it was written as; termText would
+		// quote a span, since a span holds a comma of its own.
+		asked = pattern.at
+	end if
 	if asked == fact.at then return binds
 	// A question about an instant is asking for the reading that covers it: three hours from
 	// now lands on the hour whose span holds it, not on a line that says the same thing.
@@ -634,8 +699,15 @@ substitute = function(term, binds)
 		// The moment can be a variable in a question - '@ ?when' - so it is resolved here with
 		// the fields; a fact's moment is text, and deref leaves it as it is.
 		return SpoTriple.make(deref(term.subject, binds), deref(term.predicate, binds),
-			deref(term.object, binds), deref(term.at, binds), term.confidence, term.source,
+			deref(term.object, binds), substitute(term.at, binds), term.confidence, term.source,
 			term.fetched)
+	end if
+	if term isa Call then
+		args = []
+		for arg in term.args
+			args.push(substitute(arg, binds))
+		end for
+		return Call.make(term.name, args)
 	end if
 	return deref(term, binds)
 end function
@@ -653,8 +725,8 @@ end function
 // A rule body is a list of goals, and it may also hold constraints: conditions that are
 // checked against the bindings rather than proved by search. They are written as calls
 // like everything else - not-equal(?x, ?y), equal(?n, 18), less-than-or-equal(?n, 18),
-// years-since(?b, ?n), hours-from-now(?when, 3) - and their names are reserved, so no fact and
-// no question can use one as a predicate.
+// years-since(?b, ?n) - and their names are reserved, so no fact and no question can use one
+// as a predicate.
 
 // not-equal and equal read their two terms as they are, whatever type they hold: not-equal
 // asks that they differ, equal that they are the same one. Their names are reserved like a
@@ -804,73 +876,88 @@ yearsSinceBinds = function(constraint, binds)
 	return binds
 end function
 
-// hours-from-now is the clock beside years-since's calendar: it reads the moment a reading
-// holds for and says whether that moment covers now plus a number of hours. It is what lets a
-// question ask for the hour three hours ahead instead of writing the instant out by hand, and
-// like years-since it reads its terms rather than searching them - a moment still a variable
-// cannot be enumerated, and neither can a number.
-//
-// The clock is the host's, pinning it for the suite the way today is pinned:
-//
-//   triples.clock = "2026-11-25 17:45:00"
+// The clock is the machine's, read to the second and advancing with the process: _dateVal is
+// fixed when the program starts, so the time since then is added to it rather than trusting the
+// constant. A caller may pin the moment - triples.clock - the way triples.today pins the day,
+// and the session pins one for the length of a question, so two conditions of one question
+// cannot straddle a second and answer from two different nows.
 
-clockName = "hours-from-now"
+startedAt = time
+clock = null         // the moment a caller pinned, as the suite does
+questionClock = null // the moment the question being answered runs at
 
-clock = null
+hostNow = function
+	"The machine's clock now, to the second."
+	return _dateStr(_dateVal + (time - startedAt), "yyyy-MM-dd HH:mm:ss")
+end function
 
 momentNow = function
-	"The moment a search runs at: the one a caller pinned, or the host's clock to the second."
+	"The moment a search runs at: the one pinned, the one its question began at, or the clock now."
 	if clock != null then return clock
-	return _dateStr(_dateVal, "yyyy-MM-dd HH:mm:ss")
+	if questionClock != null then return questionClock
+	return hostNow()
 end function
 
-HoursFromNow = {}
-
-HoursFromNow.make = function(when, hours)
-	"Builds a 'the moment @ holds covers this many hours from now' constraint."
-	c = new HoursFromNow
-	c.when = when
-	c.hours = hours
-	return c
+beginQuestion = function
+	"Fixes the moment this question runs at, so every condition of it reads one clock."
+	questionClock = hostNow()
 end function
 
-HoursFromNow.text = function
-	"Says how the constraint reads: hours-from-now(?when, 3)."
-	return clockName + "(" + termText(self.when) + ", " + termText(self.hours) + ")"
-end function
+// A call is worked out when a moment is needed: '@' evaluates it, and the moment it yields
+// matches a fact's the way a written one does. The clock is a value rather than a fact -
+// has-time writes the moment in the field it is given, add-hours shifts one - so neither is
+// stored, saved, or listed as a fact the session holds.
 
-coversFromNow = function(held, hours)
-	"Says whether a moment or span a fact holds for covers now plus that many hours: a span by holding the instant, a single moment by the hour it names."
-	if not (held isa string) then return false
-	now = temporal.DateTime.receive(momentNow())
-	if now isa error then return false
-	target = now.addSeconds(hours * 3600)
-	if held[:1] == "[" then
-		span = temporal.TimeSpan.receive(held)
-		if span isa error then return false
-		return span.contains(target) == true
+evaluate = function(term, binds)
+	"The bindings a term leaves and the value it stands for, or null when it cannot be read yet: a call is worked out, and a variable still free is waiting."
+	if binds == null then binds = {}
+	if term isa Var then
+		value = deref(term, binds)
+		if value isa Var then return null
+		return {"binds": binds, "value": value}
 	end if
-	moment = temporal.DateTime.receive(held)
-	if moment isa error then return false
-	if moment.kind != "datetime" then return false
-	return target.value >= moment.value and target.value < moment.value + 3600
+	if not (term isa Call) then return {"binds": binds, "value": term}
+	if term.name == "has-time" then
+		// has-time(session, ?now) is the time it is: the second field takes the moment, and one
+		// already holding a moment asks whether that is the time.
+		if term.args.len != 2 then return null
+		subject = evaluate(term.args[0], binds)
+		if subject == null then return null
+		if subject.value != "session" then return null
+		moment = momentNow()
+		held = deref(term.args[1], subject.binds)
+		if held isa Var then
+			return {"binds": withBinding(subject.binds, held.name, moment), "value": moment}
+		end if
+		if held == moment then return {"binds": subject.binds, "value": moment}
+		return null
+	end if
+	if term.name == "add-hours" then
+		// add-hours(moment, hours) is the moment that many hours later.
+		if term.args.len != 2 then return null
+		from = evaluate(term.args[0], binds)
+		if from == null then return null
+		by = evaluate(term.args[1], from.binds)
+		if by == null or not (by.value isa number) then return null
+		return {"binds": by.binds, "value": shiftMoment(from.value, by.value)}
+	end if
+	return null
 end function
 
-hoursFromNowBinds = function(constraint, binds)
-	"The bindings the constraint leaves, or null when the branch ends: the moment a reading holds for is read, and the hours are read."
-	held = substitute(constraint.when, binds)
-	hours = substitute(constraint.hours, binds)
-	if held isa Var or held == null then return null
-	if not (hours isa number) then return null
-	if coversFromNow(held, hours) then return binds
-	return null
+shiftMoment = function(held, hours)
+	"The moment that many hours later, or null when the value is not one."
+	if not (held isa string) or held[:1] == "[" then return null
+	moment = temporal.DateTime.receive(held)
+	if moment isa error then return null
+	if moment.kind != "datetime" then return null
+	return moment.addSeconds(hours * 3600).str("yyyy-MM-dd HH:mm:ss")
 end function
 
 isConstraint = function(term)
 	"Says whether a term names a constraint, which a body checks rather than a line storing or asking it."
 	if not (term isa string) then return false
 	return term == notEqualName or term == equalName or term == sinceName or
-		term == clockName or comparisonNames.hasIndex(term) != 0
+		comparisonNames.hasIndex(term) != 0
 end function
 
 comparisonHolds = function(constraint, binds)
@@ -887,12 +974,6 @@ end function
 holdsConstraint = function(constraint, binds)
 	"Says whether a constraint holds under the current bindings."
 	if constraint isa Comparison then return comparisonHolds(constraint, binds)
-	if constraint isa HoursFromNow then
-		held = substitute(constraint.when, binds)
-		hours = substitute(constraint.hours, binds)
-		if not (hours isa number) then return false
-		return coversFromNow(held, hours)
-	end if
 	if constraint isa NotEqual then
 		return substitute(constraint.left, binds) != substitute(constraint.right, binds)
 	end if
@@ -913,7 +994,6 @@ applyConstraint = function(constraint, binds)
 	"The bindings a constraint leaves, or null when the branch ends: the ones it was given, unless it bound something."
 	if constraint isa Equal then return equalBinds(constraint, binds)
 	if constraint isa YearsSince then return yearsSinceBinds(constraint, binds)
-	if constraint isa HoursFromNow then return hoursFromNowBinds(constraint, binds)
 	if holdsConstraint(constraint, binds) then return binds
 	return null
 end function
@@ -932,7 +1012,6 @@ constraintFrom = function(triple)
 	if name == equalName then return Equal.make(triple.subject, triple.object)
 	if name == notEqualName then return NotEqual.make(triple.subject, triple.object)
 	if name == sinceName then return YearsSince.make(triple.subject, triple.object)
-	if name == clockName then return HoursFromNow.make(triple.subject, triple.object)
 	if comparisonNames.hasIndex(name) == 0 then return null
 	return Comparison.make(comparisonNames[name], triple.subject, triple.object)
 end function
@@ -1034,6 +1113,13 @@ end function
 renameTerm = function(term, suffix)
 	"Copies a term, renaming every variable: ?x becomes ?x_3."
 	if term isa Var then return var(term.name + suffix)
+	if term isa Call then
+		args = []
+		for arg in term.args
+			args.push(renameTerm(arg, suffix))
+		end for
+		return Call.make(term.name, args)
+	end if
 	return term
 end function
 
@@ -1051,10 +1137,6 @@ renameConstraint = function(constraint, suffix)
 	if constraint isa YearsSince then
 		return YearsSince.make(renameTerm(constraint.date, suffix),
 			renameTerm(constraint.years, suffix))
-	end if
-	if constraint isa HoursFromNow then
-		return HoursFromNow.make(renameTerm(constraint.when, suffix),
-			renameTerm(constraint.hours, suffix))
 	end if
 	if constraint isa Equal then
 		return Equal.make(renameTerm(constraint.left, suffix),
@@ -1127,6 +1209,15 @@ proveGoals = function(goal, facts, rules, depth, binds=null, open=null, index=nu
 	path = enterGoal(goal, binds, open)
 	if path == null then return []
 	results = emptyResults()
+	// A call's name is answered by the clock rather than by a fact, so the time itself can be
+	// asked - has-time(session, ?now) - the same way a moment is worked out inside a question.
+	if isCallName(goal.predicate) then
+		evaluated = evaluate(Call.make(goal.predicate, [goal.subject, goal.object]), binds)
+		if evaluated != null then
+			mergeAnswer(results, goal, evaluated.binds, {"rule": null, "conditions": []})
+		end if
+		return results.list
+	end if
 	// A fact is a derivation on its own; a rule is one derivation per way its body
 	// proves, so both are collected from their matches and merged the same way.
 	for matched in matchingFacts(goal, facts, binds, index)
@@ -1396,6 +1487,8 @@ needsFor = function(goal, facts, rules, depth, binds=null, open=null)
 	"Every way goal could still be answered: the facts it needs, and the rule that would use them; asked only for a goal the search could not prove."
 	path = enterGoal(goal, binds, open)
 	if path == null then return []
+	// A call's name is read from the clock, so nothing can be added that would answer it.
+	if isCallName(goal.predicate) then return []
 	// One more fact, shaped like the goal, would answer it outright.
 	options = []
 	if matchingFacts(goal, facts, binds).len == 0 then
@@ -1554,7 +1647,6 @@ end function
 constraintTerms = function(constraint)
 	"The fields a constraint must have settled before it can be judged: years-since binds its second field, so only its date has to be read."
 	if constraint isa YearsSince then return [constraint.date]
-	if constraint isa HoursFromNow then return [constraint.when, constraint.hours]
 	return [constraint.left, constraint.right]
 end function
 
@@ -1596,8 +1688,7 @@ extendVars = function(newVars, needs)
 	"The variables these missing facts would bind, added to the ones already promised: a moment asked as a variable is one of them, so the constraint reading it waits on this fact."
 	terms = []
 	for need in needs
-		terms = terms + need.triple.parts
-		if need.triple.at isa Var then terms.push(need.triple.at)
+		terms = terms + need.triple.parts + varsIn(need.triple.at)
 	end for
 	return promiseVars(newVars, terms)
 end function
@@ -1612,13 +1703,26 @@ promiseVars = function(newVars, terms)
 end function
 
 unboundVars = function(triple)
-	"The fields of a triple that are still variables, in order, and a moment asked as a variable after them."
+	"The fields of a triple that are still variables, in order, and the moment asked for after them - which may be a call holding variables of its own."
 	vars = []
 	for part in triple.parts
 		if part isa Var then vars.push(part)
 	end for
-	if triple.at isa Var then vars.push(triple.at)
+	vars = vars + varsIn(triple.at)
 	return vars
+end function
+
+varsIn = function(term)
+	"The variables a term holds, a call's arguments included: ?now inside add-hours(has-time(session, ?now), 9) is one the question still has to settle."
+	if term isa Var then return [term]
+	if term isa Call then
+		found = []
+		for arg in term.args
+			found = found + varsIn(arg)
+		end for
+		return found
+	end if
+	return []
 end function
 
 hasUnknowns = function(triple)
@@ -1657,8 +1761,7 @@ reportVarNames = function(options)
 	seen = {}
 	for option in options
 		for need in option.needs
-			terms = need.triple.parts
-			if need.triple.at isa Var then terms = terms + [need.triple.at]
+			terms = need.triple.parts + varsIn(need.triple.at)
 			for part in terms
 				if part isa Var and seen.hasIndex(part.name) == 0 then
 					seen[part.name] = 1
@@ -1884,6 +1987,17 @@ termOf = function(text)
 	if isQuoted(text) then return bareText(text)
 	if text[:1] == "?" then return Var.make(text)
 	if isNumber(text) then return val(text)
+	// A call stands where a value stands, and only a call's own name is read that way: any
+	// other parentheses in a field stay the text they were written as.
+	for name in callNames.indexes
+		if text[:name.len + 1] == name + "(" and text[-1:] == ")" then
+			args = []
+			for arg in splitOutside(text[name.len + 1:-1], ",", true)
+				args.push(termOf(trimSpace(arg)))
+			end for
+			return Call.make(name, args)
+		end if
+	end for
 	return text
 end function
 
@@ -2005,7 +2119,6 @@ constraintOf = function(text)
 	if name == equalName then return Equal.make(termOf(left), termOf(right))
 	if name == notEqualName then return NotEqual.make(termOf(left), termOf(right))
 	if name == sinceName then return YearsSince.make(termOf(left), termOf(right))
-	if name == clockName then return HoursFromNow.make(termOf(left), termOf(right))
 	return Comparison.make(comparisonNames[name], termOf(left), termOf(right))
 end function
 

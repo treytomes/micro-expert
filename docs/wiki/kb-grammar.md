@@ -236,7 +236,10 @@ A question may name the moment it wants, which is the one part of a fact's annot
 also part of a search. `has-temperature-2m(berlin, ?t) @ ?when` takes the moment of each reading
 into `?when`, so a day of readings comes back with each answer's hour; `... @ 2026-11-22 20:30`
 takes only a reading whose span holds that instant, which is how a question asks for one hour out
-of a day. The rest stay a stored fact's own: `~` and `#` are refused on a question rather than
+of a day. '@' may also hold a call that works the moment out rather than naming it:
+`add-hours(has-time(session, ?now), 9)` is nine hours after the clock, and the reading whose span
+covers that moment is the one that answers. `has-time` reads the time it is and `add-hours` moves
+it; neither is a fact, so neither is stored, saved, or listed among the facts a session holds. The rest stay a stored fact's own: `~` and `#` are refused on a question rather than
 answered with them dropped, a constraint line takes none at all, and a rule's head and every
 condition are written bare, so an annotation on either is refused wherever the rule is read.
 

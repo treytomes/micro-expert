@@ -311,49 +311,42 @@ run = function(t, rules, h)
 	h.check("while a rule body keeps its conditions bare",
 		t.parseBodyPart("has-temperature-2m(?p, ?t) @ ?when", "a rule line") isa error)
 
-	// ── The clock: a question asks for the hour an offset names ─────────────
-	// hours-from-now reads '@' as the moment a reading holds for and checks that it covers the
-	// clock plus a number of hours, so the instant does not have to be written out by hand. The
-	// clock is pinned here the way the day is pinned elsewhere, so the check cannot drift.
-	t.clock = "2026-11-25 17:45:00"
+	// ── The clock: a moment worked out from the time it is ──────────────────
+	// A question names its hour as a call: has-time reads the clock into ?now, add-hours moves
+	// it, and the moment that comes out matches the reading whose span holds it. The clock is
+	// pinned here the way the day is pinned elsewhere, so the check cannot drift.
+	t.clock = "2026-11-25 11:45:00"
 	clockFacts = [
 		t.SpoTriple.make("berlin", "has-temperature-2m", 7.3, "[2026-11-25 17:00, 2026-11-25 18:00]"),
 		t.SpoTriple.make("berlin", "has-temperature-2m", 9.8, "[2026-11-25 20:00, 2026-11-25 21:00]"),
 		t.SpoTriple.make("berlin", "has-temperature-2m", 10.1, "[2026-11-25 21:00, 2026-11-25 22:00]")]
-	clockGoal = t.SpoTriple.parse("has-temperature-2m(berlin, ?t) @ ?when")
-	reached = function(hours)
-		"Every reading whose moment covers the clock plus that many hours, said as its line."
-		found = []
-		for answer in t.proveGoals(clockGoal, clockFacts, [], 0)
-			settled = t.applyConstraint(t.HoursFromNow.make(t.var("when"), hours), answer.binds)
-			if settled != null then found.push t.substitute(clockGoal, answer.binds).text
-		end for
-		return found
-	end function
-	h.check("the constraint says how it reads",
-		t.HoursFromNow.make(t.var("when"), 3).text == "hours-from-now(?when, 3)")
-	h.check("zero hours is the hour the clock is in",
-		reached(0).len == 1 and reached(0)[0] == "has-temperature-2m(berlin, 7.3) @ [2026-11-25 17:00, 2026-11-25 18:00]")
-	h.check("three hours ahead is the reading that covers it",
-		reached(3).len == 1 and reached(3)[0] == "has-temperature-2m(berlin, 9.8) @ [2026-11-25 20:00, 2026-11-25 21:00]")
-	h.check("an offset past the last reading reaches nothing", reached(5).len == 0)
-	h.check("a moment still a variable is not searched",
-		t.applyConstraint(t.HoursFromNow.make(t.var("when"), 3), {}) == null)
-	// A line with every field a value is checked where it stands, the way years-since is.
-	h.check("a settled line is checked rather than searched",
-		t.settledHolds(t.constraintFrom(spo("[2026-11-25 20:00, 2026-11-25 21:00]", "hours-from-now", 3))) and
-			not t.settledHolds(t.constraintFrom(spo("[2026-11-25 20:00, 2026-11-25 21:00]", "hours-from-now", 0))))
-	direction = t.parseBodyPart("and(has-temperature-2m(?p, ?t) @ ?when, hours-from-now(?when, 3))",
-		"a question written as a body", 1)
-	h.check("a question body holds the clock constraint beside the reading",
-		not (direction isa error) and direction.len == 2 and direction[1] isa t.HoursFromNow)
-	// The moment variable is one the reading would settle, so a body asked with no facts yet
-	// still asks for the reading rather than reporting nothing to ask for.
-	coldBody = t.parseBodyPart("and(has-temperature-2m(berlin, ?t) @ ?when, hours-from-now(?when, 9))",
+	clockGoal = t.SpoTriple.parse("has-temperature-2m(berlin, ?t) @ add-hours(has-time(session, ?now), 9)")
+	h.check("a question names its hour as a call",
+		clockGoal.at isa t.Call and
+			clockGoal.at.text == "add-hours(has-time(session, ?now), 9)")
+	clockAnswers = t.proveGoals(clockGoal, clockFacts, [], 0)
+	h.check("nine hours from the clock is the reading that covers it",
+		clockAnswers.len == 1 and clockAnswers[0].binds["t"] == 9.8 and
+			clockAnswers[0].binds["now"] == "2026-11-25 11:45:00")
+	h.check("a moment a call reaches is matched where no span holds it",
+		t.proveGoals(t.SpoTriple.parse("has-temperature-2m(berlin, ?t) @ add-hours(has-time(session, ?now), 2)"),
+			clockFacts, [], 0).len == 0)
+	// The clock is a value, not a fact: asking it answers, and it is never something to add.
+	h.check("the time can be asked for on its own",
+		len(t.proveGoals(t.SpoTriple.parse("has-time(session, ?now)"), [], [], 8)) == 1)
+	h.check("a clock question asks for no fact at all",
+		t.needsFor(t.SpoTriple.parse("has-time(session, ?now)"), [], [], 8).len == 0)
+	h.check("a call is not a constraint a rule body checks",
+		not t.isConstraint("add-hours") and not t.isConstraint("has-time"))
+	h.check("add-hours moves a moment, day and all",
+		t.evaluate(t.Call.make("add-hours", ["2026-11-25 20:00:00", 6]), {}).value == "2026-11-26 02:00:00")
+	// A body asked with no facts yet still asks for the reading, whose call promises ?now.
+	coldBody = t.parseBodyPart("and(has-temperature-2m(berlin, ?t) @ add-hours(has-time(session, ?now), 9))",
 		"a cold question", 1)
 	coldNeeds = t.needsConditions(coldBody, [], [], 8)
-	h.check("a cold body asks for the reading its moment constraint waits on",
+	h.check("a cold body asks for the reading the call settles",
 		coldNeeds.len == 1 and coldNeeds[0].needs.len == 1 and
-			coldNeeds[0].needs[0].triple.text == "has-temperature-2m(berlin, ?t) @ ?when")
+			coldNeeds[0].needs[0].triple.text == "has-temperature-2m(berlin, ?t) @ add-hours(has-time(session, ?now), 9)")
+	t.clock = null
 	t.clock = null
 end function
