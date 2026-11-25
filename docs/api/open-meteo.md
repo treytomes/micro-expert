@@ -182,6 +182,17 @@ Only the last line needs a date, and only when `timezone=auto` asks for local ti
 is a property of the place, and how far it is from UTC is a property of the place on that date,
 because the offset moves twice a year, so the date is on the fact's `@`.
 
+A geocoding search is asked with `count=1` and read as what comes back, so the reply block names
+the fields that make the result the place asked about:
+`"confirm": {"has-name": "name", "has-city": "name", "has-country": "country"}`.
+`src/spike/declared.ms` holds each of them against the facts the session already has about that
+place, and refuses the reply when the service's own word for the field disagrees. The `name` is the
+place's own word for itself, and a place asked about by its city is asked by the name that city has,
+which is why `has-city` is checked against it: a session that falls through here from
+`geocode.maps.co` lands on the same refusal when the geocoder finds another town, and the reader is
+asked for the value rather than a forecast computed for a namesake. A predicate the session holds no
+fact under, and a field the reply leaves out, are nothing to disagree with.
+
 Five of those spellings are the geocoder's, not this service's - `has-name`, `has-latitude`,
 `has-longitude`, `has-country` and `has-country-code` - written here exactly as they are on its
 page on purpose, and with the same field types, so a folder holding both a search result and a

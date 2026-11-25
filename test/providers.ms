@@ -805,6 +805,35 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 			namesakeLatitude != null and namesakeLatitude.source == "open-meteo/geocoding" and
 			not holds(namesakeSession.answers.asked, "  ?lat = "))
 
+	// The map a session falls through to takes its first result the same way, so it says the
+	// same thing about it: when both geocoders find another town, both are warnings and the value
+	// is asked for, rather than the second map's namesake passing where the first map's failed.
+	bothNamesakes = splitStub([
+		{"host": "geocode.maps.co", "json": [{"osm_type": "relation", "osm_id": 998,
+			"lat": "32.7555", "lon": "-97.3308", "name": "Fort Worth",
+			"address": {"city": "Springfield", "country": "United States"}}]},
+		{"host": "geocoding-api.open-meteo.com", "json": {"results": [{"id": 7,
+			"name": "Springfield", "latitude": 39.7984, "longitude": -89.6440,
+			"country": "United States"}]}},
+	])
+	bothPlace = uid.of("place", ["Fort Worth both namesakes"])
+	bothSession = startSession(
+		providers.registry(bothNamesakes, declared, uid, [geoDecl, weatherDecl]),
+		["has-latitude(" + bothPlace + ", ?lat)"],
+		[triples.SpoTriple.make(bothPlace, "has-city", "Fort Worth")])
+	bothLines = bothSession.answers.lines
+	h.check("the map a search falls through to refuses a namesake of its own, naming both",
+		printed(bothLines, "  open-meteo could not answer has-latitude(" + bothPlace +
+			", ?lat): the first result is not the place asked about: its name is Springfield, " +
+			"not Fort Worth"))
+	h.check("after both geocoders were asked", bothNamesakes.calls.len == 2)
+	bothLatitude = null
+	for readFact in bothSession.session.facts
+		if readFact.predicate == "has-latitude" then bothLatitude = readFact
+	end for
+	h.check("so neither reading is held and the value is asked for instead",
+		bothLatitude == null and holds(bothSession.answers.asked, "  ?lat = "))
+
 	// ── A weather question answered through the prompt ──────────────────
 
 	// The whole loop rather than one pass: a question about a place the session knows only by

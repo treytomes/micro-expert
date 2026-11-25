@@ -193,6 +193,11 @@ build = function
 		["has-population", "?place", "$.population as number"],
 		["has-feature-code", "?place", "$.feature_code"],
 	]
+	// A search is asked with count=1 and read as what comes back, so its first result has to be
+	// the place the session holds: `name` is the place's own word for itself, which for a place
+	// asked about by its city is the city's name, and `country` its country. A session that falls
+	// through from geocode.maps.co gets the same refusal here as there when the geocoder finds
+	// another town, rather than a forecast computed for a namesake.
 	searchReply = {
 		"each": "$.results",
 		"refuse": {"when": "error", "is": true, "message": "reason"},
@@ -200,6 +205,7 @@ build = function
 		"subject": {"name": "place", "from": ["name"]},
 		"request": ["name"],
 		"facts": placeFacts + [["was-answer-to", "?place", "?name"]],
+		"confirm": {"has-name": "name", "has-city": "name", "has-country": "country"},
 	}
 	lookupReply = {
 		"refuse": {"when": "error", "is": true, "message": "reason"},

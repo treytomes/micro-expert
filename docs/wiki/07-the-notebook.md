@@ -27,7 +27,10 @@ refuses rather than attaching anything. A service that needs a key reads it from
 the run - `GEOCODE_MAPS_API_KEY` for `geocode.maps.co` - and a run without it says which variable
 is missing rather than sending the call. The search takes the first result `limit=1` offers, so its
 map also refuses a reply whose own city or country is not the place's: the other map is asked, and
-the cell shows that warning and the answer it did reach rather than a forecast for a namesake.
+the cell shows that warning and the answer it did reach rather than a forecast for a namesake. The
+map it falls through to checks its own first result the same way - against the name the reply gives
+the place and its country - so a geocoder that finds the wrong town on either side leaves the value
+asked for in the box under the cell.
 
 `examples/explore.kbnb` is the tour: a rule's answer, a question that needs a value, the fact that
 answer added, a rule typed in a cell, and `/mermaid`. `examples/providers.kbnb` is the services

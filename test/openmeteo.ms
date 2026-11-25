@@ -260,6 +260,30 @@ run = function(declared, openmeteoMap, apiClient, triples, uid, schemaLoader, h)
 	h.check("and records the name that asked",
 		factAbout(geocoded.facts, "was-answer-to").object == "Berlin")
 
+	// The geocoder's first result is the one count=1 asked for, so it has to be the place the
+	// session holds: its name - which for a place asked about by its city is the city's - and
+	// its country are the reply's own words for it.
+	heldPlace = [triples.SpoTriple.make("place-1", "has-city", "Berlin"),
+		triples.SpoTriple.make("place-1", "has-country", "Germany")]
+	h.check("a geocoder result whose name and country are the place's own is read",
+		declared.read(triples, uid, decl, "geocoding", places, {"name": "Berlin"},
+			heldPlace).ok == 1)
+	namesakePlace = {"results": [{"id": 9, "name": "Springfield", "latitude": 39.7984,
+		"longitude": -89.6440, "country": "Germany"}]}
+	namesakeReading = declared.read(triples, uid, decl, "geocoding", namesakePlace,
+		{"name": "Berlin"}, heldPlace)
+	h.check("a first result that is another name is refused, naming both",
+		namesakeReading.ok == 0 and namesakeReading.error ==
+			"the first result is not the place asked about: its name is Springfield, not Berlin")
+	h.check("and another country is refused by its own name",
+		declared.read(triples, uid, decl, "geocoding", {"results": [{"id": 10,
+			"name": "Berlin", "latitude": 52.5, "longitude": 13.4, "country": "Canada"}]},
+			{"name": "Berlin"}, heldPlace).error ==
+			"the first result is not the place asked about: its country is Canada, not Germany")
+	h.check("while a place the session holds neither name nor country for is read as it comes",
+		declared.read(triples, uid, decl, "geocoding", namesakePlace, {"name": "Springfield"},
+			[]).ok == 1)
+
 	looked = declared.read(triples, uid, decl, "geocoding-lookup", places.results[0], {"id": 1})
 	h.check("the lookup reads the one place it answers with",
 		looked.ok and looked.facts.len == 6 and looked.subject == "Berlin")
