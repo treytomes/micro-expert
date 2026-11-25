@@ -59,7 +59,7 @@
 		{
 			"kind": "markdown",
 			"language": "markdown",
-			"source": "## 3. Open-Meteo - the weather for a located place\n\nThe forecast is asked with the place's coordinates, and one reply carries every hourly variable it was asked for, so the next weather question about that place is answered without another request:"
+			"source": "## 3. Open-Meteo - the weather for a located place\n\nThe forecast is asked with the place's coordinates for the one variable a question names, for the next twenty-four hours of it, so a weather question is answered with a day of readings rather than with one:"
 		},
 		{
 			"kind": "code",
@@ -74,7 +74,7 @@
 		{
 			"kind": "markdown",
 			"language": "markdown",
-			"source": "Both readings carry the hour they describe as their `@` and the day they were fetched in their annotation. Fetch the same fact again on another day and the newer reading replaces the line the earlier one stood on; a question that finds only an earlier day's reading asks the service again, and says which day it answered from when nothing can refresh it.\n\nTwo maps declare a place's coordinates - `geocode.maps.co`'s search and Open-Meteo's geocoder - so the one that cannot answer leaves the other to try before you are asked.\n\n`/facts` lists what the session holds now, provider facts and their annotations included:"
+			"source": "Every reading carries the hour it describes as its `@` and the day it was fetched in its annotation, and each variable's unit is a fact of the session beside them - `has-unit(temperature_2m, celsius)` - since a number alone does not say which unit it is in. Fetch the same fact again on another day and the newer reading replaces the line the earlier one stood on; a question that finds only an earlier day's reading asks the service again, and says which day it answered from when nothing can refresh it.\n\nTwo maps declare a place's coordinates - `geocode.maps.co`'s search and Open-Meteo's geocoder - so the one that cannot answer leaves the other to try before you are asked.\n\n`/facts` lists what the session holds now, provider facts and their annotations included:"
 		},
 		{
 			"kind": "code",

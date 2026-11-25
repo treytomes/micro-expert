@@ -376,6 +376,23 @@ seriesMoment = function(times, index, kind)
 end function
 
 
+// A reply's units table - hourly_units, daily_units, weekly_units - spells each variable's unit
+// the service's own way: °C, km/h, %. A rule matches words, so the writer turns the ones it knows
+// into the request's ASCII spelling, which is what the unit parameters are named (celsius, kmh,
+// mm). A symbol that is not a unit - weather_code's "wmo code" - writes no fact rather than a
+// word no rule could ask for.
+unitWords = {"°C": "celsius", "°F": "fahrenheit", "km/h": "kmh", "m/s": "ms", "mph": "mph",
+	"kn": "kn", "mm": "mm", "cm": "cm", "inch": "inch", "%": "percent"}
+
+
+unitWord = function(symbol)
+	"The word a fact carries for a unit the reply spelled its own way, or null for a symbol that is not one."
+	if not (symbol isa string) then return null
+	if not unitWords.hasIndex(symbol) then return null
+	return unitWords[symbol]
+end function
+
+
 probabilityOf = function(series, index)
 	"The service's chance of precipitation at one row, as a confidence, or 100 when it sent none."
 	if not series.hasIndex("precipitation_probability") then return 100
@@ -389,7 +406,7 @@ probabilityOf = function(series, index)
 end function
 
 
-appendSeries = function(triples, scope, spec, subject, facts, skipped, wanted={})
+appendSeries = function(triples, scope, spec, subject, facts, skipped, wanted={}, unitsSeen={})
 	"One table's facts, row by row: each row's variables in order, annotated by the row."
 	series = at(scope, spec.path[2:])
 	// A table the reply did not carry is simply no facts: a request that did not ask for it is
@@ -445,6 +462,23 @@ appendSeries = function(triples, scope, spec, subject, facts, skipped, wanted={}
 				seriesMoment(times, i, kind), confidence)
 		end for
 	end for
+	// The unit is a fact about the variable rather than about the number, so it is written once
+	// per reply: has-unit(temperature_2m, celsius). The subject is the variable the reply names,
+	// which is what a question about a variable's unit asks.
+	unitsPath = key + "_units"
+	if scope.hasIndex(unitsPath) then
+		units = scope[unitsPath]
+		if units isa map then
+			for field in names
+				if not units.hasIndex(field) then continue
+				if unitsSeen.hasIndex(field) then continue
+				word = unitWord(units[field])
+				if word == null then continue
+				unitsSeen[field] = 1
+				facts.push triples.SpoTriple.make(field, "has-unit", word)
+			end for
+		end if
+	end if
 	return null
 end function
 
@@ -455,7 +489,17 @@ readSeries = function(triples, uid, reply, json, asked)
 	skipped = []
 	subjects = []
 	wanted = {}
+	unitsSeen = {}
 	if asked.hasIndex("variables") then wanted = asked.variables
+	// A request names the variables it asked for under the table's own name - "hourly": [...] -
+	// rather than under "variables", so the table is read for those and not for the documented
+	// ones a reply was never asked to carry.
+	for spec in reply.series
+		key = spec.path[2:]
+		if not wanted.hasIndex(key) and asked.hasIndex(key) and asked[key] isa list then
+			wanted[key] = asked[key]
+		end if
+	end for
 	items = [json]
 	if reply.hasIndex("each") then
 		if not (json isa list) then
@@ -479,7 +523,8 @@ readSeries = function(triples, uid, reply, json, asked)
 		if one.subject == "" then continue
 		subjects.push one.subject
 		for spec in reply.series
-			problem = appendSeries(triples, item, spec, one.subject, facts, skipped, wanted)
+			problem = appendSeries(triples, item, spec, one.subject, facts, skipped, wanted,
+				unitsSeen)
 			if problem != null then
 				return {"ok": 0, "error": problem, "subject": "", "subjects": subjects,
 					"facts": facts, "skipped": skipped}

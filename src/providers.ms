@@ -292,6 +292,12 @@ answer = function(capability, triples, request=null, subject=null, facts=null)
 	if capability.about != null and subject != null then
 		moved = []
 		for fact in facts
+			// A unit is a fact about the variable the reply named, not about the place it was asked
+			// for: has-unit(temperature_2m, celsius) stays as it was read, so a rule can ask it.
+			if fact.predicate == "has-unit" then
+				moved.push fact
+				continue
+			end if
 			moved.push triples.SpoTriple.make(subject, fact.predicate, fact.object, fact.at,
 				fact.confidence)
 		end for

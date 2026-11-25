@@ -480,11 +480,14 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	// ── A weather service asked about a place the session locates ───────────
 
 	// Open-Meteo's forecast answers a reading per hour about the place the question names, and
-	// is asked with the coordinates the session already holds for it. One request carries the
-	// five documented hourly variables, so the first weather fact a question needs brings the
-	// rest with it and the session does not ask twice.
+	// is asked with the coordinates the session already holds for it. Each of the five
+	// documented hourly variables has a request of its own, for the next day's hours of that
+	// variable: a reply is read as one fact per hour, so a question answers with a day of them.
 	weatherDecl = openmeteoMap.build()
 	weatherReply = {"latitude": 32.7555, "longitude": -97.3308, "timezone": "America/Chicago",
+		"hourly_units": {"time": "iso8601", "temperature_2m": "°C",
+			"relative_humidity_2m": "%", "precipitation": "mm", "wind_speed_10m": "km/h",
+			"weather_code": "wmo code"},
 		"hourly": {"time": ["2026-11-25T09:00"], "temperature_2m": [18.4],
 			"relative_humidity_2m": [62], "precipitation": [0], "wind_speed_10m": [9.7],
 			"weather_code": [1], "precipitation_probability": [10]}}
@@ -507,9 +510,9 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	h.check("the forecast is asked with the coordinates that place's facts hold",
 		weatherRequest != null and weatherRequest.latitude == 32.7555 and
 			weatherRequest.longitude == -97.3308)
-	h.check("and for the next hour's five variables, which is one request",
-		weatherRequest != null and weatherRequest.forecast_hours == 1 and
-			weatherRequest.hourly.len == 5 and weatherRequest.hourly[0] == "temperature_2m")
+	h.check("and for the next day's hours of the one variable it was asked about",
+		weatherRequest != null and weatherRequest.forecast_hours == 24 and
+			weatherRequest.hourly.len == 1 and weatherRequest.hourly[0] == "temperature_2m")
 
 	forecastStub = stubFor(weatherReply)
 	forecastAnswer = providers.answer(
@@ -517,12 +520,16 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 			needTemperature),
 		triples, providers.requestFor(weatherCap, triples, [locatedLat, locatedLon], located),
 		located)
-	h.check("the forecast's answer is one reading per variable, about the place the question named",
-		forecastAnswer.ok and forecastAnswer.facts.len == 5 and
+	h.check("the forecast's answer is the reading the question named, about the place it named",
+		forecastAnswer.ok and forecastAnswer.facts.len == 2 and
 			forecastAnswer.facts[0].predicate == "has-temperature-2m" and
 			triples.termText(forecastAnswer.facts[0].subject) == located)
 	h.check("with the hour the reply covers kept as the fact's span",
-		forecastAnswer.facts.len == 5 and forecastAnswer.facts[0].at != null)
+		forecastAnswer.facts.len == 2 and forecastAnswer.facts[0].at != null)
+	h.check("and the unit the reply gave, as a fact about the variable it asked for",
+		forecastAnswer.facts[1].predicate == "has-unit" and
+			triples.termText(forecastAnswer.facts[1].subject) == "temperature_2m" and
+			triples.termText(forecastAnswer.facts[1].object) == "celsius")
 	// The place is the reading's subject, not a query parameter: the service is asked for what
 	// it can use, and a session's place is named by the coordinates it already held.
 	h.check("and the request carrying the coordinates rather than a place name of its own",
@@ -557,7 +564,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	// than leaving four of its readings behind - and says so once rather than five times.
 	h.check("a service's answer is one change the session records",
 		weatherSession.changes.len == 1 and weatherSession.changes[0].kind == "batch" and
-			weatherSession.changes[0].steps.len == 5)
+			weatherSession.changes[0].steps.len == 2)
 	takenBack = sessionModule.undo(weatherSession)
 	coordinates = 0
 	for fact in weatherSession.facts
@@ -569,7 +576,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		takenBack and weatherSession.facts.len == 2 and coordinates == 2 and
 			weatherSession.changes.len == 0)
 	h.check("saying it once, with the service that answered",
-		countOf(weatherSaid, "took back 5 facts open-meteo answered") == 1 and
+		countOf(weatherSaid, "took back 2 facts open-meteo answered") == 1 and
 			not holds(weatherSaid, "took back has-temperature-2m("))
 	// The request went with the answer: a session that no longer holds what the forecast said
 	// asks it again rather than the reader.
@@ -580,8 +587,9 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	h.check("so the question asks the forecast again rather than the reader",
 		changed and forecasting.calls == 2)
 
-	// A forecast that cannot answer leaves the fact to the reader, and the place's next weather
-	// fact reads the same failed attempt rather than making a second request.
+	// A forecast that cannot answer leaves the fact to the reader. One attempt is one request,
+	// and each variable has a request of its own now, so another variable is a second attempt
+	// rather than the same failed one; the request already made is not made twice.
 	offlineForecast = stubFor(null, 1, "Could not run curl: no such host")
 	weatherUnmet = []
 	unmetSession = {"triples": triples, "Rule": rules.Rule, "facts": [locatedLat, locatedLon],
@@ -598,8 +606,12 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	needRain = triples.SpoTriple.make(located, "has-precipitation", triples.var("v"))
 	changed = sessionModule.provideMissing(unmetSession,
 		triples.needsFor(needRain, unmetSession.facts, [], 8))
-	h.check("and one place's failed weather request is not asked again for its next fact",
-		offlineForecast.calls == 1 and not changed)
+	h.check("and another variable's request is a request of its own, so it is tried",
+		offlineForecast.calls == 2 and not changed)
+	h.check("while the request that already failed is not made twice",
+		not sessionModule.provideMissing(unmetSession,
+			triples.needsFor(needTemperature, unmetSession.facts, [], 8)) and
+			offlineForecast.calls == 2)
 
 	// ── A place known only by name is located before it is asked about ──────
 
@@ -1073,7 +1085,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		end if
 	end for
 	h.check("and every reading a forecast answered names that endpoint too",
-		stampedWeather.ok and forecastStamps == 5)
+		stampedWeather.ok and forecastStamps == 2)
 	triples.today = savedToday
 
 	// ── The same fact, answered again ───────────────────────────────────────

@@ -237,8 +237,9 @@ and its first hour are separate facts and an aggregate never collides with a rea
 `sunrise` is a timestamp rather than a number - `2026-11-22T07:41` - which fits a `text` field and
 does not fit the schema's `time` type, whose one spelling is `07:41:00`.
 
-The unit is a fact about the variable rather than about the number, so it is written once for the
-folder:
+The unit is a fact about the variable rather than about the number, and the writer writes it from the
+reply's own units table - `hourly_units`, `daily_units`, `weekly_units` - once per variable per
+reply:
 
 ```prolog
 has-unit(temperature_2m, celsius)
@@ -248,7 +249,26 @@ has-unit(precipitation, mm)
 
 That is the request's own word rather than the reply's `°C` and `km/h`. The request names every unit
 in ASCII - `celsius`, `kmh`, `mm`, `metric` - while `hourly_units` carries `°C`, `W/m²` and `µg/m³`,
-so the fact holds a word a rule can already match and a schema line can list.
+so the fact holds a word a rule can already match and a schema line can list. A symbol the writer does
+not know is not a unit word at all - `weather_code`'s `wmo code` - and writes no fact rather than a
+word no rule could ask for; `%` is written as `percent`. A second unit set for one variable is the
+one thing these facts cannot say, which is what a domain's `has-unit(text, unique(text))` refuses
+when it is written down.
+
+A rule that judges a number asks for the unit first:
+
+```prolog
+is-frosty(?p, ?t) => and(has-unit(temperature_2m, celsius), has-temperature-2m(?p, ?t), less-than(?t, 0))
+```
+
+A session that fetched `fahrenheit` proves no `is-frosty` at all rather than a wrong one, which is
+the failure the engine is built around: unknown, not false.
+
+The seasonal endpoint's weekly table is the one place where a week is the unit of time rather than an
+hour or a day: one row per week, its date the day that week begins, and a mean over the week. The map
+declares `has-temperature-2m-mean` and `has-precipitation-mean` for it, so a question about a located
+place is answered with five weeks of them rather than asked for. The hour and the week never share a
+predicate, because a mean over a week and a reading of one hour are different claims about a place.
 
 One reply of the example above, named, then reads:
 

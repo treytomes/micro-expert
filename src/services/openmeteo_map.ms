@@ -20,12 +20,20 @@
 // hours holding the same value are two facts, told apart by the span they cover. The subject is
 // the place alone, which is what a question about the place can name.
 //
+// A reply's units table is read as facts of its own: has-unit(temperature_2m, celsius), once per
+// variable, from hourly_units, daily_units and weekly_units. A number does not carry its unit, and
+// a rule cannot convert one, so the unit is the fact a threshold rule checks before it reads the
+// number - a folder asked for fahrenheit then proves no celsius threshold at all rather than a
+// wrong one. docs/api/open-meteo.md says what each unit word is.
+//
 // The forecast also declares what a question may ask it, so a session that holds a place's
 // coordinates is answered with that place's weather rather than the reader: one fact per
-// documented hourly variable, all asked in one request because the reply carries every variable
-// it was asked for, and read back onto the place the question named. The geocoder declares the
-// place's coordinates by the place's own name or city, the same two facts geocode.maps.co's
-// search answers, so a session has a second map to ask when the first cannot answer.
+// documented hourly variable, asked for the next day's hours of that variable alone, and read back
+// onto the place the question named. One variable per request rather than all five at once: every
+// fact a reply adds is printed, so five variables over twenty-four hours would bury the day's
+// twenty-four readings in a hundred and twenty lines of them. The geocoder declares the place's
+// coordinates by the place's own name or city, the same two facts geocode.maps.co's search
+// answers, so a session has a second map to ask when the first cannot answer.
 // src/providers.ms collects the blocks; docs/api/open-meteo.md says what they mean.
 //
 // Each endpoint names its own host, because the service spreads its surface over a dozen of
@@ -228,24 +236,23 @@ build = function
 
 	// ── What a question may ask ─────────────────────────────────────────
 	// A session holding a place's coordinates can be answered with that place's weather rather
-	// than the reader. One declaration per documented hourly variable, all with the same
-	// request: the reply carries every variable it was asked for, so the first weather fact a
-	// question needs brings the rest, and the session's one-attempt memory reads that reply for
-	// the others rather than asking again. The next hour alone is what is asked for, so each
-	// variable has one reading to answer with. "about" says the reply is read onto the place the
-	// question named - the reply names that place by nothing but the coordinates it was asked
-	// with - and "from" names the facts those coordinates are filled from.
+	// than the reader. One declaration per documented hourly variable, each asking for the next
+	// day's hours of the one variable its question names: the reply is read as one reading per
+	// hour, so the answer is a day of them, and nothing the question did not ask for is added to
+	// the session beside it. "about" says the reply is read onto the place the question named -
+	// the reply names that place by nothing but the coordinates it was asked with - and "from"
+	// names the facts those coordinates are filled from.
 	weatherFacts = ["has-temperature-2m", "has-relative-humidity-2m", "has-precipitation",
 		"has-wind-speed-10m", "has-weather-code"]
 	weatherVariables = ["temperature_2m", "relative_humidity_2m", "precipitation",
 		"wind_speed_10m", "weather_code"]
 	weatherProvides = []
-	for predicate in weatherFacts
+	for i in weatherVariables.indexes
 		weatherProvides.push({
-			"fact": [predicate, "?place", "?value"],
+			"fact": [weatherFacts[i], "?place", "?value"],
 			"about": "?place",
 			"from": {"latitude": "has-latitude", "longitude": "has-longitude"},
-			"request": {"hourly": weatherVariables, "forecast_hours": 1},
+			"request": {"hourly": [weatherVariables[i]], "forecast_hours": 24},
 		})
 	end for
 	forecast = weather("https://api.open-meteo.com", "/v1/forecast",
@@ -253,6 +260,22 @@ build = function
 			[models, cell] + output,
 		[hourSeries, daySeries, currentSeries, minutelySeries])
 	forecast.provides = weatherProvides
+
+	// The seasonal forecast publishes its own weekly table: one row a week, its date the day the
+	// week begins, and a mean over that week rather than a reading of it. Five weeks is the month
+	// a weekly report is made of, so the request asks for thirty days of them.
+	seasonal = weather("https://seasonal-api.open-meteo.com", "/v1/seasonal",
+		location + [elevation] + [hourly, daily, weekly, monthly] + units + time +
+			[pastDays, forecastDays(210)] + dates + [models, cell] + output,
+		[hourSeries, daySeries, weekSeries, monthSeries])
+	seasonal.provides = [
+		{"fact": ["has-temperature-2m-mean", "?place", "?value"], "about": "?place",
+			"from": {"latitude": "has-latitude", "longitude": "has-longitude"},
+			"request": {"weekly": ["temperature_2m_mean"], "forecast_days": 30}},
+		{"fact": ["has-precipitation-mean", "?place", "?value"], "about": "?place",
+			"from": {"latitude": "has-latitude", "longitude": "has-longitude"},
+			"request": {"weekly": ["precipitation_mean"], "forecast_days": 30}},
+	]
 
 	return {
 		"service": "open-meteo",
@@ -280,10 +303,7 @@ build = function
 				location + [elevation, tilt, azimuth, hourly, daily] + units + time +
 					[pastDays, forecastDays(35)] + dates + [modelsRequired, cell] + output,
 				[hourSeries, daySeries]),
-			"seasonal": weather("https://seasonal-api.open-meteo.com", "/v1/seasonal",
-				location + [elevation] + [hourly, daily, weekly, monthly] + units + time +
-					[pastDays, forecastDays(210)] + dates + [models, cell] + output,
-				[hourSeries, daySeries, weekSeries, monthSeries]),
+			"seasonal": seasonal,
 			"climate": weather("https://climate-api.open-meteo.com", "/v1/climate",
 				location + [startDateRequired, endDateRequired, dailyRequired, modelsRequired] +
 					units + [cell] + output,

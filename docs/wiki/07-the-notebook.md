@@ -38,7 +38,11 @@ comes back with coordinates and no city - is confirmed rather than taken uncheck
 
 `examples/explore.kbnb` is the tour: a rule's answer, a question that needs a value, the fact that
 answer added, a rule typed in a cell, one question read as a proof tree and as a sentence by
-`/verbose` and `/nlp` and then back as the fact it is, and `/mermaid`. `examples/providers.kbnb` is the services
+`/verbose` and `/nlp` and then back as the fact it is, and `/mermaid`. `examples/report.kbnb` is the weather
+report from where the machine is: a place from `ipwho.is`, the next twenty-four hours of one variable
+as a line per hour, the rule a unit fact lets run, and five weeks of the seasonal forecast's weekly
+table - a report that would be unreadable without `has-unit` saying which unit each number is in.
+`examples/providers.kbnb` is the services
 one: ipwho.is locating the session, `geocode.maps.co` locating a place by name and reading back an
 address from its coordinates, and Open-Meteo forecasting for it.
 

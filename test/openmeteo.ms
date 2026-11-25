@@ -65,8 +65,14 @@ run = function(declared, openmeteoMap, apiClient, triples, uid, schemaLoader, h)
 		"has-weather-code(berlin, 3) @ [2026-11-22 01:00, 2026-11-22 02:00]",
 		"has-relative-humidity-2m(berlin, 85) @ 2026-11-22 02:00",
 		"has-precipitation(berlin, 0.1) @ 2026-11-22 02:00 ~ 55%",
-		"has-wind-speed-10m(berlin, 10.2) @ 2026-11-22 02:00",
+				"has-wind-speed-10m(berlin, 10.2) @ 2026-11-22 02:00",
 		"has-weather-code(berlin, 61) @ 2026-11-22 02:00",
+		// The units table, as facts about the variables: the reply's °C and km/h are the
+		// request's celsius and kmh, and weather_code's "wmo code" is no unit at all.
+		"has-unit(temperature_2m, celsius)",
+		"has-unit(relative_humidity_2m, percent)",
+		"has-unit(precipitation, mm)",
+		"has-unit(wind_speed_10m, kmh)",
 	]
 
 	linesOf = function(facts)
@@ -104,8 +110,8 @@ run = function(declared, openmeteoMap, apiClient, triples, uid, schemaLoader, h)
 
 	reading = declared.read(triples, uid, decl, "forecast", forecast, {"place": "berlin"})
 	h.check("a declared forecast is ok", reading.ok)
-	h.check("and writes the fourteen lines the page names",
-		reading.facts.len == 14 and linesOf(reading.facts) == expected)
+	h.check("and writes the fourteen lines the page names, and a unit for each variable that has one",
+		reading.facts.len == 18 and linesOf(reading.facts) == expected)
 	h.check("the subject is the place the caller named, once per place",
 		reading.subject == "berlin" and reading.subjects.join(",") == "berlin")
 	unread = 0
@@ -155,6 +161,21 @@ run = function(declared, openmeteoMap, apiClient, triples, uid, schemaLoader, h)
 		end if
 	end for
 	h.check("and no other fact is less than fully confident", others == 0)
+
+	// The unit is the fact a number cannot carry: one per variable, in the request's own word,
+	// and none for a symbol that is not a unit.
+	units = []
+	for fact in reading.facts
+		if fact.predicate == "has-unit" then units.push fact.text
+	end for
+	h.check("a unit is one fact per variable, in the word the request parameters use",
+		units.len == 4 and units[0] == "has-unit(temperature_2m, celsius)" and
+			units[1] == "has-unit(relative_humidity_2m, percent)")
+	h.check("and a variable whose unit is not one - the weather code - gets no unit fact",
+		factAbout(reading.facts, "has-unit") != null and
+			units.join("\n").indexOf("weather_code") == null)
+	h.check("a unit fact is about the variable, so it carries no hour",
+		reading.facts[14].subject == "temperature_2m" and reading.facts[14].at == null)
 
 	// ── The other shapes a forecast answers with ────────────────────────
 

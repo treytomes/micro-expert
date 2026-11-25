@@ -1,0 +1,85 @@
+{
+	"version": 1,
+	"cells": [
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "# A day, then five weeks\n\nTwo reports from one session: the next twenty-four hours where this machine is, and the weeks its seasonal forecast covers. Every cell is a question the facts alone cannot answer, so the engine asks the service that declares the fact. Nothing reaches the network until `/online` is run, and with no services a cell asks you for the value instead.\n"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "## 0. Ask for the services\n\nA notebook never sends a request nobody asked for, so `/online` is a cell of its own: it attaches the registry the service maps declare, and one cell is enough for the rest.\n"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "/online"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "## 1. Where this machine is\n\n`ipwho.is`'s lookup declares `has-location(session, ?place)`, and the question is the whole request: the place comes back with its continent, country, region, city and coordinates attached, so the weather questions after it have the coordinates they are asked with.\n"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "has-location(session, ?place)"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "## 2. The next twenty-four hours\n\nThe forecast answers a reading per hour about the place a question names. `has-temperature-2m(?place, ?t)` is asked with that place's coordinates, and the reply's twenty-four hours are read back onto the place, each reading carrying the hour it covers as its `@`. Only the variable the question names is asked for, so the day's readings are not buried under the four other variables the forecast could also carry.\n"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "and(has-location(session, ?place), has-temperature-2m(?place, ?t))"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "One of the lines the forecast added is its unit: `has-unit(temperature_2m, celsius)`, read from the reply's own `hourly_units` and written as a fact about the variable rather than about any one number. That is the difference between a legible report and a guess - 9.8 means nothing until something says celsius, and no rule in this engine can convert one unit into another.\n\nIt is also what lets a rule say which numbers it is willing to judge. This one asks for celsius before it compares anything, so a session that fetched fahrenheit proves no `is-cold` at all rather than a wrong one:\n"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "is-cold(?p, ?t) => and(has-unit(temperature_2m, celsius), has-temperature-2m(?p, ?t), less-than(?t, 10))"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "The hours of the day above that the rule calls cold, each beside the reading that made it one. The rule names no temperature at all unless the session holds the celsius fact, so a fahrenheit folder answers nothing here rather than answering wrongly:\n"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "and(has-location(session, ?place), has-temperature-2m(?place, ?t), is-cold(?place, ?t))"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "## 3. The weeks ahead\n\nThe seasonal forecast keeps a weekly table of its own: one row a week, dated the day that week begins, and a mean over the week rather than a reading of it. Five weeks is the month the request asks for, and the weekly variable is `temperature_2m_mean`, so its fact is `has-temperature-2m-mean` - a different predicate from the hourly reading, because a mean over a week and an hour's reading are different things to say about a place.\n"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "and(has-location(session, ?place), has-temperature-2m-mean(?place, ?t))"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "The weekly table's other mean is precipitation, in millimetres over the week:\n"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "and(has-location(session, ?place), has-precipitation-mean(?place, ?t))"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "## 4. What the session holds now\n\nEvery line so far is in the session: a day of hourly readings, five weekly means of two variables, the unit of each variable it fetched, and `# open-meteo/...` with the day it was asked on each fact a service answered - which is what a saved file keeps.\n\nNothing here is written to disk, so `data/facts.kb` and `data/rules.kb` are as they were; **Restart Knowledge Session** starts again from them. A reading from an earlier day is not today's: ask again the next day and the service is asked rather than yesterday's number reported.\n"
+		}
+	]
+}
