@@ -381,5 +381,41 @@ run = function(t, rules, h)
 		t.constraintOf("equal(?x, add-hours(1))") isa error and
 			t.parseBodyPart("and(has-temperature-2m(berlin, ?t) @ add-hours(1))", "a bad call", 1) isa error)
 	t.clock = null
-	t.clock = null
+
+	// ── Number arithmetic is a call too ─────────────────────────────────
+	// add, subtract, multiply and divide work out a number where a value is wanted, which is a
+	// constraint field: '@' holds a moment, so a conversion is written beside the reading it
+	// converts rather than in its place.
+	arithmetic = function(name, a, b)
+		called = t.evaluate(t.Call.make(name, [a, b]), {})
+		if called == null then return null
+		return called.value
+	end function
+	h.check("the four arithmetic calls work out their two fields",
+		arithmetic("add", 2, 3) == 5 and arithmetic("subtract", 2, 3) == -1 and
+			arithmetic("multiply", 2, 3) == 6 and arithmetic("divide", 6, 4) == 1.5)
+	h.check("and nest, which is how a conversion is written",
+		arithmetic("add", arithmetic("divide", arithmetic("multiply", 10.4, 9), 5), 32) == 50.72)
+	h.check("a field that is not a number has no value at all",
+		arithmetic("add", "berlin", 2) == null and
+			arithmetic("multiply", "2026-11-25 20:00:00", 2) == null)
+	h.check("and a division by zero is no value rather than an infinity",
+		arithmetic("divide", 1, 0) == null)
+	h.check("arithmetic is not a constraint a body checks, nor a fact a line stores",
+		not t.isConstraint("add") and t.isCallName("add") and
+			t.callProblem(t.Call.make("add", [1])) != null)
+	conversion = t.parseRule("has-fahrenheit-value(?p, ?f) => has-temperature-2m(?p, ?c), " +
+		"equal(?f, add(divide(multiply(?c, 9), 5), 32))")
+	reading = t.SpoTriple.make("berlin", "has-temperature-2m", 10.4,
+		"[2026-11-25 15:00, 2026-11-25 16:00]")
+	converted = t.proveGoals(t.SpoTriple.parse("has-fahrenheit-value(berlin, ?f)"),
+		[reading], [rule(conversion.head, conversion.body)], 2)
+	h.check("a rule converts through arithmetic, and the value is a number to compare",
+		converted.len == 1 and converted[0].binds["f"] == 50.72)
+	back = t.parseRule("has-celsius-value(?p, ?c) => has-fahrenheit-value(?p, ?f), " +
+		"equal(?c, divide(multiply(subtract(?f, 32), 5), 9))")
+	roundTrip = t.proveGoals(t.SpoTriple.parse("has-celsius-value(berlin, ?c)"),
+		[spo("berlin", "has-fahrenheit-value", 50.72)], [rule(back.head, back.body)], 2)
+	h.check("and the rule back again lands a floating hair from the reading it started from",
+		roundTrip.len == 1 and abs(roundTrip[0].binds["c"] - 10.4) < 0.000001)
 end function

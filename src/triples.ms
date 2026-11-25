@@ -187,9 +187,14 @@ Call.text = function
 	return self.name + "(" + written.join(", ") + ")"
 end function
 
-callNames = {"has-time": 1, "add-hours": 1}
+// A call is a value, never a fact: has-time reads the clock into a field, add-hours moves a
+// moment by hours, and the four arithmetic names work out a number - which is what a conversion
+// between units is written with, in the constraint field that compared it.
+callNames = {"has-time": 1, "add-hours": 1, "add": 1, "subtract": 1, "multiply": 1, "divide": 1}
 
-callFields = {"has-time": 2, "add-hours": 2}
+callFields = {"has-time": 2, "add-hours": 2, "add": 2, "subtract": 2, "multiply": 2, "divide": 2}
+
+arithmeticNames = {"add": 1, "subtract": 1, "multiply": 1, "divide": 1}
 
 callProblem = function(term)
 	"Says what is wrong with a call's shape, or null when it is written as its name takes it."
@@ -984,6 +989,29 @@ evaluate = function(term, binds)
 		by = evaluate(term.args[1], from.binds)
 		if by == null or not (by.value isa number) then return null
 		return {"binds": by.binds, "value": shiftMoment(from.value, by.value)}
+	end if
+	if arithmeticNames.hasIndex(term.name) != 0 then
+		// add(a, b) is the sum, and the other three are as they are named. Both fields must
+		// already be numbers - a moment or a word is not one, so a call that mixes them has no
+		// value rather than a surprising one - and a division by zero has no value either, since
+		// nothing here could compare or print the infinity it would stand for.
+		if term.args.len != 2 then return null
+		left = evaluate(term.args[0], binds)
+		if left == null or not (left.value isa number) then return null
+		right = evaluate(term.args[1], left.binds)
+		if right == null or not (right.value isa number) then return null
+		value = null
+		if term.name == "add" then
+			value = left.value + right.value
+		else if term.name == "subtract" then
+			value = left.value - right.value
+		else if term.name == "multiply" then
+			value = left.value * right.value
+		else if right.value != 0 then
+			value = left.value / right.value
+		end if
+		if value == null then return null
+		return {"binds": right.binds, "value": value}
 	end if
 	return null
 end function
