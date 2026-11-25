@@ -834,6 +834,34 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	h.check("so neither reading is held and the value is asked for instead",
 		bothLatitude == null and holds(bothSession.answers.asked, "  ?lat = "))
 
+	// A reply with no city in its address is the shape Sao Paulo and Mexico City come back in,
+	// and the name it is called confirms it: the session answers from the search with nothing said,
+	// where a namesake in the same shape is the warning above.
+	cityless = splitStub([
+		{"host": "geocode.maps.co", "json": [{"osm_type": "relation", "osm_id": 298285,
+			"lat": "-23.55065", "lon": "-46.63338", "name": "São Paulo",
+			"address": {"country": "Brasil"}}]},
+		{"host": "geocoding-api.open-meteo.com", "json": geocoderReply},
+	])
+	citylessPlace = uid.of("place", ["Sao Paulo by city"])
+	citylessSession = startSession(
+		providers.registry(cityless, declared, uid, [geoDecl, weatherDecl]),
+		["has-latitude(" + citylessPlace + ", ?lat)"],
+		[triples.SpoTriple.make(citylessPlace, "has-city", "Sao Paulo")])
+	citylessLines = citylessSession.answers.lines
+	citylessLatitude = null
+	for readFact in citylessSession.session.facts
+		if readFact.predicate == "has-latitude" then citylessLatitude = readFact
+	end for
+	h.check("a search reply with a name and no city is confirmed by that name",
+		citylessLatitude != null and citylessLatitude.source == "geocode.maps.co/search" and
+			printed(citylessLines, "  has-latitude(" + citylessPlace + ", -23.55065)"))
+	h.check("with nothing said against it",
+		not holds(citylessLines, "could not answer") and
+			not holds(citylessSession.answers.asked, "  ?lat = "))
+	h.check("and the map that declares the fact again is not asked",
+		cityless.calls.len == 1 and cityless.calls[0].indexOf("geocode.maps.co") != null)
+
 	// ── A weather question answered through the prompt ──────────────────
 
 	// The whole loop rather than one pass: a question about a place the session knows only by
