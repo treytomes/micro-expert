@@ -44,6 +44,13 @@
 // with no fact to fill it leaves the capability unusable for that question, and the session asks
 // the reader instead.
 //
+// "about" also tells the reading which place it was asked about. A reply such as a forecast's
+// names the place by nothing but the coordinates the request carried, and its reading wants the
+// place as its subject, so the part the declaration reads onto - "?place" - is bound to that
+// place for the reading, under the part's own name. It is given to the reading rather than
+// sent, so the request holds only the fields the declaration fills and names, and the service is
+// never asked a field it has no use for.
+//
 // The reading is the map's own: declared.read turns the reply into facts, the same lines the
 // reply always writes, so a provider answers with the facts the service declares rather than
 // with a second description of them. What a provider's facts are worth - whether the session
@@ -184,6 +191,16 @@ requestText = function(request)
 end function
 
 
+askedFor = function(capability, request, subject)
+	"One request as its reply is read: a declaration that reads its reply onto the question's part also binds that part to the place the question named, for a reply that names the place by nothing else."
+	asked = request + {}
+	if capability.about == null or subject == null then return asked
+	name = capability.about[1:]
+	if not asked.hasIndex(name) then asked[name] = subject
+	return asked
+end function
+
+
 answer = function(capability, triples, request=null, subject=null)
 	"One provider's answer, as the facts its endpoint maps: ok with them, or ok 0 and the reason there are none."
 	declared = capability.declared
@@ -197,7 +214,7 @@ answer = function(capability, triples, request=null, subject=null)
 		return {"ok": 0, "facts": [], "error": "the service did not answer with JSON"}
 	end if
 	reading = declared.read(triples, capability.uid, capability.decl, capability.endpoint,
-		result.json, request)
+		result.json, askedFor(capability, request, subject))
 	if not reading.ok then
 		return {"ok": 0, "facts": [], "error": reading.error}
 	end if

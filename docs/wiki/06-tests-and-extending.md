@@ -12,7 +12,7 @@ shell:
 ```text
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
 ...
-1090 passed, 0 failed
+1102 passed, 0 failed
 ```
 
 On Linux, `"$MINISCRIPT_EXE_PATH"` — a plain shell does not read `.env`, so export it or paste the
@@ -135,13 +135,13 @@ birthday cannot change them — so the focused run is a shortcut, not the final 
 
 ## The suite's own shape
 
-The 1090 checks cover the program itself, split by area: display and parsing (71), the knowledge data
+The 1102 checks cover the program itself, split by area: display and parsing (71), the knowledge data
 format (141), the predicate schema (50), the date and time types (79), the loaders (21), proofs and
 explanations (23), the missing-fact report (34), recursion and cycle handling (13), relations
 including the family rules (104), the session at the prompt (202), the notebook's cells (31), the
 notes example on the repl library (1), the command line (6), the domain (10), the Mermaid diagram
 (49), the id generator (21), the location module (15), the declared writer (29), the provider
-registry (53), the geocode mapping (27), the Open-Meteo mapping (33), and the API layer's
+registry (65), the geocode mapping (27), the Open-Meteo mapping (33), and the API layer's
 argument split, parameter engine and .env reader (77).
 
 Three of the components are separate repositories with suites of their own:

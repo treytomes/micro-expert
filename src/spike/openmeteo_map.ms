@@ -20,6 +20,12 @@
 // hours holding the same value are two facts, told apart by the span they cover. The subject is
 // the place alone, which is what a question about the place can name.
 //
+// The forecast also declares what a question may ask it, so a session that holds a place's
+// coordinates is answered with that place's weather rather than the reader: one fact per
+// documented hourly variable, all asked in one request because the reply carries every variable
+// it was asked for, and read back onto the place the question named. src/providers.ms collects
+// the block; docs/api/open-meteo.md says what it means.
+//
 // Each endpoint names its own host, because the service spreads its surface over a dozen of
 // them. The geocoder answers with a list of places rather than a table of readings, and the
 // elevation endpoint with nothing but its heights, so those two carry their own reply shape.
@@ -212,14 +218,39 @@ build = function
 		"facts": [["has-elevation", "?place", "$.elevation[i] as number"]],
 	}
 
+	// ── What a question may ask ─────────────────────────────────────────
+	// A session holding a place's coordinates can be answered with that place's weather rather
+	// than the reader. One declaration per documented hourly variable, all with the same
+	// request: the reply carries every variable it was asked for, so the first weather fact a
+	// question needs brings the rest, and the session's one-attempt memory reads that reply for
+	// the others rather than asking again. The next hour alone is what is asked for, so each
+	// variable has one reading to answer with. "about" says the reply is read onto the place the
+	// question named - the reply names that place by nothing but the coordinates it was asked
+	// with - and "from" names the facts those coordinates are filled from.
+	weatherFacts = ["has-temperature-2m", "has-relative-humidity-2m", "has-precipitation",
+		"has-wind-speed-10m", "has-weather-code"]
+	weatherVariables = ["temperature_2m", "relative_humidity_2m", "precipitation",
+		"wind_speed_10m", "weather_code"]
+	weatherProvides = []
+	for predicate in weatherFacts
+		weatherProvides.push({
+			"fact": [predicate, "?place", "?value"],
+			"about": "?place",
+			"from": {"latitude": "has-latitude", "longitude": "has-longitude"},
+			"request": {"hourly": weatherVariables, "forecast_hours": 1},
+		})
+	end for
+	forecast = weather("https://api.open-meteo.com", "/v1/forecast",
+		location + [elevation, tilt, azimuth] + variables + units + time + window + dates +
+			[models, cell] + output,
+		[hourSeries, daySeries, currentSeries, minutelySeries])
+	forecast.provides = weatherProvides
+
 	return {
 		"service": "open-meteo",
 		"base": "https://api.open-meteo.com",
 		"endpoints": {
-			"forecast": weather("https://api.open-meteo.com", "/v1/forecast",
-				location + [elevation, tilt, azimuth] + variables + units + time + window + dates +
-					[models, cell] + output,
-				[hourSeries, daySeries, currentSeries, minutelySeries]),
+			"forecast": forecast,
 			"historical": weather("https://archive-api.open-meteo.com", "/v1/archive",
 				location + [elevation, tilt, azimuth, startDateRequired, endDateRequired,
 					hourly, daily] + units + time + [models, cell] + output,

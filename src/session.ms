@@ -783,7 +783,11 @@ end function
 // takes no parameters, but geocode.maps.co's search is asked by the place's own name or city and
 // its reverse by the place's own coordinates, and both read their reply back onto the place the
 // question named. providers.requestFor fills those fields from the facts the session already
-// holds, and a place without them is one no service is asked about.
+// holds, and a place without them is one no service is asked about. Open-Meteo's forecast does
+// the same for a place's weather: a question needing one of its hourly facts is asked with the
+// coordinates the session already holds, and one reply carries every variable the declaration
+// asked for, so the next weather fact about that place reads the first answer rather than
+// asking again.
 //
 // A service is asked once, and what it answered is kept whether it answered or failed: a question
 // that comes round again, or a second question needing the same fact, reads the first attempt

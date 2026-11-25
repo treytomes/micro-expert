@@ -774,3 +774,34 @@ spans the hour its instant starts, the last hour keeps the moment alone, and
 with a list of places and the elevation endpoint with its heights, so those two endpoints carry
 their own reply shape. A refusal is read as the service's reason and returns `ok: 0` rather
 than facts.
+
+## What a question may ask
+
+The forecast declares what a question can ask it, in the `provides` block `src/providers.ms`
+collects into the session's registry. Five entries, one per documented hourly variable, each
+shaped alike:
+
+```text
+{"fact": ["has-temperature-2m", "?place", "?value"], "about": "?place",
+ "from": {"latitude": "has-latitude", "longitude": "has-longitude"},
+ "request": {"hourly": ["temperature_2m", "relative_humidity_2m", "precipitation",
+            "wind_speed_10m", "weather_code"], "forecast_hours": 1}}
+```
+
+`about` says the reply is read onto the place the question named. The reply names that place by
+nothing but the coordinates it was asked with, so the reading is told the place as well, under
+the same part's name, while the request itself carries only what the service uses. `from` fills
+the request's coordinates from facts the session already holds about that place; a place with no
+coordinates is not asked about, and the question falls through to the prompt as it would with no
+registry at all.
+
+Every entry carries the same request, so they are one request: a reply holds every variable it
+was asked for, so the first weather fact a question needs brings the other four with it, and the
+session's one-attempt memory answers a later weather fact about that place from the reply
+rather than asking again. `forecast_hours=1` asks for the next hour alone, so each variable has
+one reading to answer with, and the hour it covers stays the fact's `@`. The unit is whatever the
+reply's default is - Celsius, km/h, millimetres - since the declaration names no `*_unit`.
+
+Nothing is asked at startup, and no other endpoint declares anything: the archive and the
+model-specific hosts answer about the same place but are not what a question the session cannot
+answer should reach for first.

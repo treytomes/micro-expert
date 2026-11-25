@@ -1,13 +1,14 @@
 // Cases for src/providers.ms: the registry the service maps declare, and a question the session
 // answers by asking a service rather than the reader. geocode.maps.co's two declarations are here
 // too - a search asked by a place's own name and a reverse asked by its coordinates - both read
-// back onto the place the question named rather than onto the OSM object the reply identifies.
+// back onto the place the question named rather than onto the OSM object the reply identifies,
+// and Open-Meteo's forecast, asked with a place's coordinates for the next hour's weather.
 //
 // No request leaves the program: a client stand-in answers get with the canned Fort Worth reply,
 // the way test/location.ms and test/declared.ms do, and counts what it was asked.
 
-run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocodeMap, sessionModule, rules,
-	engineModule, cliLibrary, optionsModule, h)
+run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocodeMap, openmeteoMap,
+	sessionModule, rules, engineModule, cliLibrary, optionsModule, h)
 	decl = ipwhoisMap.build()
 
 	// The arguments a run parses, so the session below is built the way a program builds its
@@ -388,6 +389,101 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		h.check("and refuses none of the facts the answer carried",
 			not holds(shippedSaid, "refused") and not holds(shippedSaid, "could not answer"))
 	end if
+
+	// ── A weather service asked about a place the session locates ───────────
+
+	// Open-Meteo's forecast answers a reading per hour about the place the question names, and
+	// is asked with the coordinates the session already holds for it. One request carries the
+	// five documented hourly variables, so the first weather fact a question needs brings the
+	// rest with it and the session does not ask twice.
+	weatherDecl = openmeteoMap.build()
+	weatherReply = {"latitude": 32.7555, "longitude": -97.3308, "timezone": "America/Chicago",
+		"hourly": {"time": ["2026-11-25T09:00"], "temperature_2m": [18.4],
+			"relative_humidity_2m": [62], "precipitation": [0], "wind_speed_10m": [9.7],
+			"weather_code": [1], "precipitation_probability": [10]}}
+	located = uid.of("place", ["Fort Worth weather"])
+	locatedLat = triples.SpoTriple.make(located, "has-latitude", 32.7555)
+	locatedLon = triples.SpoTriple.make(located, "has-longitude", -97.3308)
+	needTemperature = triples.SpoTriple.make(located, "has-temperature-2m", triples.var("t"))
+
+	weatherRegistry = providers.registry(stubFor(weatherReply), declared, uid, [weatherDecl])
+	h.check("the forecast declares a fact per documented hourly variable",
+		weatherRegistry.len == 5)
+	weatherCap = providers.forGoal(weatherRegistry, triples, needTemperature)
+	h.check("a question needing a located place's temperature finds the forecast",
+		weatherCap != null and weatherCap.endpoint == "forecast")
+	h.check("a place with no coordinates is no forecast's to ask",
+		providers.requestFor(weatherCap, triples, [], located) == null)
+	weatherRequest = providers.requestFor(weatherCap, triples, [locatedLat, locatedLon], located)
+	h.check("the forecast is asked with the coordinates that place's facts hold",
+		weatherRequest != null and weatherRequest.latitude == 32.7555 and
+			weatherRequest.longitude == -97.3308)
+	h.check("and for the next hour's five variables, which is one request",
+		weatherRequest != null and weatherRequest.forecast_hours == 1 and
+			weatherRequest.hourly.len == 5 and weatherRequest.hourly[0] == "temperature_2m")
+
+	forecastStub = stubFor(weatherReply)
+	forecastAnswer = providers.answer(
+		providers.forGoal(providers.registry(forecastStub, declared, uid, [weatherDecl]), triples,
+			needTemperature),
+		triples, providers.requestFor(weatherCap, triples, [locatedLat, locatedLon], located),
+		located)
+	h.check("the forecast's answer is one reading per variable, about the place the question named",
+		forecastAnswer.ok and forecastAnswer.facts.len == 5 and
+			forecastAnswer.facts[0].predicate == "has-temperature-2m" and
+			triples.termText(forecastAnswer.facts[0].subject) == located)
+	h.check("with the hour the reply covers kept as the fact's span",
+		forecastAnswer.facts.len == 5 and forecastAnswer.facts[0].at != null)
+	// The place is the reading's subject, not a query parameter: the service is asked for what
+	// it can use, and a session's place is named by the coordinates it already held.
+	h.check("and the request carrying the coordinates rather than a place name of its own",
+		forecastStub.seenUrl != null and
+			forecastStub.seenUrl.indexOf("latitude=32.7555") != null and
+			forecastStub.seenUrl.indexOf("hourly=temperature_2m") != null and
+			forecastStub.seenUrl.indexOf("place=") == null)
+
+	// A session that holds the place's coordinates asks once, and keeps the readings as that
+	// place's.
+	forecasting = stubFor(weatherReply)
+	weatherSaid = []
+	weatherSession = {"triples": triples, "Rule": rules.Rule, "facts": [locatedLat, locatedLon],
+		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
+		"knowledge": null, "providers": providers.registry(forecasting, declared, uid, [weatherDecl]),
+		"io": {"read": null, "say": function(line)
+			weatherSaid.push(line)
+		end function}}
+	changed = sessionModule.provideMissing(weatherSession,
+		triples.needsFor(needTemperature, weatherSession.facts, [], 8))
+	heldTemperature = null
+	for fact in weatherSession.facts
+		if fact.predicate == "has-temperature-2m" then heldTemperature = fact
+	end for
+	h.check("a session needing a located place's weather asks the forecast once",
+		forecasting.calls == 1 and changed)
+	h.check("and holds the reading it answered as that place's",
+		heldTemperature != null and triples.termText(heldTemperature.subject) == located and
+			heldTemperature.object == 18.4)
+
+	// A forecast that cannot answer leaves the fact to the reader, and the place's next weather
+	// fact reads the same failed attempt rather than making a second request.
+	offlineForecast = stubFor(null, 1, "Could not run curl: no such host")
+	weatherUnmet = []
+	unmetSession = {"triples": triples, "Rule": rules.Rule, "facts": [locatedLat, locatedLon],
+		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
+		"knowledge": null,
+		"providers": providers.registry(offlineForecast, declared, uid, [weatherDecl]),
+		"io": {"read": null, "say": function(line)
+			weatherUnmet.push(line)
+		end function}}
+	changed = sessionModule.provideMissing(unmetSession,
+		triples.needsFor(needTemperature, unmetSession.facts, [], 8))
+	h.check("a forecast that cannot answer is a warning, and nothing is added",
+		not changed and holds(weatherUnmet, "open-meteo could not answer has-temperature-2m("))
+	needRain = triples.SpoTriple.make(located, "has-precipitation", triples.var("v"))
+	changed = sessionModule.provideMissing(unmetSession,
+		triples.needsFor(needRain, unmetSession.facts, [], 8))
+	h.check("and one place's failed weather request is not asked again for its next fact",
+		offlineForecast.calls == 1 and not changed)
 
 	// ── A session given no registry asks nothing ────────────────────────────
 
