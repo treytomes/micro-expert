@@ -57,10 +57,10 @@
   remembered for the whole run, so a single 429 or 5xx costs the question its answer, and
   `providerCalls` has no idea which failures are worth repeating. Effort: small-medium; a retry
   with a short backoff for retryable statuses, plus a per-run call budget.
-* **Notebook parity: `/providers`.** Value: medium. The notebook now asks the same services the
-  prompt does, but no host can list what a session could ask, what it last asked, or how old each
-  reading is - `/facts` is the only way to see a `# source day`. Effort: medium; one command
-  reading `session.providers` and `session.providerCalls`.
+* **Notebook parity: a `/providers` listing.** Value: medium. A notebook asks the maps only after
+  a cell runs `/online` now, but nothing lists what a session could ask, what it has asked, or how
+  old each reading is - `/facts` is the only way to see a `# source day`. Effort: medium; one
+  command reading `session.providers` and `session.providerCalls`.
 * **Persist attempts with the session.** Value: medium, a design decision worth arguing first.
   `providerCalls` lives in the session map and dies with the process, so `/save` then `/load`
   re-asks everything while `/undo` forgets a request only within the run. Effort: medium; a saved

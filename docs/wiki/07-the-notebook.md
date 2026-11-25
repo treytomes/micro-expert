@@ -16,11 +16,14 @@ code --install-extension vscode-knowledge/out/micro-expert-knowledge.vsix
 `vscode-knowledge/out/micro-expert-knowledge.vsix`, which is git-ignored. To work on the extension
 instead of installing it, open the repository in VS Code and press `F5`.
 
-A cell's question may also be answered by a remote service, as a line at the prompt is: the
-notebook builds the same registry of declared services, so a question the facts cannot answer is
-asked of `ipwho.is`, `geocode.maps.co` or Open-Meteo rather than of the box under the cell, and a
-fact one of them answers carries `# <service>/<endpoint> <day>` into the cell. Start the engine
-with `--offline` to refuse every call.
+A cell's question may also be answered by a remote service, as a line at the prompt is - but only
+once a cell asks for it. A notebook is opened to read and to write, so nothing goes out because a
+cell was run: a cell of `/online` attaches the registry the service maps declare, and until then a
+question the facts cannot answer asks the box under the cell, exactly as a notebook with no
+services does. After it, a question the facts cannot answer is asked of `ipwho.is`,
+`geocode.maps.co` or Open-Meteo, and a fact one of them answers carries
+`# <service>/<endpoint> <day>` into the cell. Start the engine with `--offline` and `/online`
+refuses rather than attaching anything.
 
 `examples/explore.kbnb` is the tour: a rule's answer, a question that needs a value, the fact that
 answer added, a rule typed in a cell, and `/mermaid`. `examples/providers.kbnb` is the services

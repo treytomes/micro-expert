@@ -36,13 +36,9 @@
 // would alone.
 savedImportPath = env["MS_IMPORT_PATH"]
 // src/notebook.ms imports the service maps, which reach the API client and the bundled json
-// beside the interpreter - and a src-only path hides that folder. It goes on the path too when
-// the bundled interpreter is where this repository keeps it, so the same load order works here
-// as it does when the notebook is the program.
-env["MS_IMPORT_PATH"] = "src"
-for bundled in ["3rd-party/miniscript-linux/lib", "3rd-party/miniscript-win/lib"]
-	if file.exists(bundled) then env["MS_IMPORT_PATH"] = "src:" + bundled
-end for
+// beside the interpreter, and a src-only path hides that folder: it goes on the path too, so the
+// same load order works here as it does when the notebook is the program.
+env["MS_IMPORT_PATH"] = "src:3rd-party/miniscript-linux/lib"
 import "cli/cli"
 import "repl/repl"
 import "../src/triples"
@@ -315,8 +311,6 @@ geocoderCases.run(declaredModule, geocodeMap, apiClient, triples, uidModule, sch
 openmeteoCases.run(declaredModule, openmeteoMap, apiClient, triples, uidModule, schemaLoader, harness)
 providersCases.run(providersModule, declaredModule, apiClient, triples, uidModule, declaredMap,
 	geocodeMap, openmeteoMap, sessionModule, rules, engineModule, cliLibrary, optionsModule, harness)
-notebookCases.run(notebookModule, engineModule, sessionModule, triples, rules, cliLibrary,
-	optionsModule, apiClient, declaredModule, uidModule,
-	[declaredMap.build(), geocodeMap.build(), openmeteoMap.build()], harness)
+notebookCases.run(notebookModule, engineModule, sessionModule, triples, rules, cliLibrary, optionsModule, harness)
 
 harness.summary()

@@ -92,7 +92,7 @@ DECLINE_START = "<<kbnb:decline:"
 // ── Serving ──────────────────────────────────────────────────────────────────
 
 serve = function(session, read, write)
-	"Serves one notebook: each cell read from read and answered into write, until the input ends."
+	"Serves one notebook: each cell read from read and answered into write, until the input ends. A session carrying askServices has /online; one without has no services to turn on."
 	// The session's own text goes to the notebook, not to a terminal, and a value the prompt
 	// asks for goes there too: what the session reads is this ask, never a cell's lines, so a
 	// question waiting for a value cannot eat the protocol that follows it. The number it
@@ -211,6 +211,20 @@ serveLine = function(session, line)
 		repl.say(session, "warning", "  /exit would end the session; restart it from the notebook instead")
 		return
 	end if
+	// /online is the notebook's own switch: nothing here asks a service until a cell runs it, so a
+	// notebook cannot reach the network because somebody ran a question.
+	if line == "/online" then
+		if session.hasIndex("offline") and session.offline then
+			repl.say(session, "warning", "  --offline refuses every call, so this notebook asks none")
+			return
+		end if
+		if not session.hasIndex("askServices") then
+			repl.say(session, "warning", "  no services to ask in this notebook")
+			return
+		end if
+		session.askServices(session)
+		return
+	end if
 	if line[0] == "/" then
 		repl.runCommand(session, line)
 		return
@@ -261,17 +275,16 @@ drawPicture = function(session, write)
 end function
 
 // ── What a cell's question may ask ──────────────────────────────────────────
-// A notebook is the same session the prompt runs, so its questions ask the same services: the
-// registry is built from the same three maps src/main.ms builds it from, and a question the
-// facts cannot answer is answered by ipwho.is, geocode.maps.co or Open-Meteo rather than the box
-// under the cell. A fact a service answers carries "# <service>/<endpoint> <day>" into the cell,
-// so what came from where is visible there too. --offline is the switch that refuses every call,
-// for a notebook opened where the network is not wanted.
-
-services = function(api, declared, uid, maps)
-	"The registry a cell's question may ask: the services the maps declare, the same ones a line at the prompt asks. Its parts are handed in rather than looked up, since a two-segment import binds no name to look up."
-	return providers.registry(api, declared, uid, maps)
-end function
+// A notebook can ask the same services the prompt does - the registry is built from the same
+// three maps src/main.ms builds it from - but not until a cell says so. A notebook is opened to
+// read and to write, and a question that reached the network because a cell was run would be a
+// request nobody asked for: the registry is attached by /online, and until then a question the
+// facts cannot answer asks the box under the cell, exactly as a notebook with no services does.
+// --offline is the switch that refuses every call, for a notebook opened where the network is
+// not wanted at all: /online says so rather than attaching anything.
+//
+// Once /online has run, a fact a service answers carries "# <service>/<endpoint> <day>" into the
+// cell, so what came from where is visible there too.
 
 
 // ── The program ─────────────────────────────────────────────────────────────
@@ -298,16 +311,25 @@ main = function
 		print "error: " + session.message
 		exit 1
 	end if
-	// --offline refuses every call, so a notebook given it answers from its files and its cells
-	// alone, as a run of the prompt does.
-	if not session.offline then
-		session.providers = services(globals["api/client"], globals["spike/declared"],
-			globals["uid"], [globals["spike/ipwhois_map"].build(),
-				globals["spike/geocode_map"].build(),
-				globals["spike/openmeteo_map"].build()])
-	end if
+	// A function defined inside another cannot see this module's own functions, so the switch is
+	// left on the session the way the writer and the paint are: /online reads it from there. The @
+	// is what keeps it a function - assigning one without it calls it here and then.
+	session.askServices = @enableServices
 	serve(session, @readLine, @sayLine)
 	exit 0
+end function
+
+enableServices = function(session)
+	"What /online does: attaches the registry the maps declare. Whether a call is allowed at all is the serving's business, in serveLine."
+	if session.hasIndex("providers") and session.providers != null then
+		repl.say(session, "note", "  the services are already on")
+		return
+	end if
+	session.providers = providers.registry(globals["api/client"], globals["spike/declared"],
+		globals["uid"], [globals["spike/ipwhois_map"].build(),
+			globals["spike/geocode_map"].build(), globals["spike/openmeteo_map"].build()])
+	repl.say(session, "note", "  services on: " + session.providers.len +
+		" facts a question can ask the maps for")
 end function
 
 readLine = function

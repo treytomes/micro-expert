@@ -8,8 +8,7 @@
 // Nothing here opens a terminal: serve is handed a reader over a script and a writer into a
 // list, which is the same seam main() has, so the whole protocol runs without a pipe.
 
-run = function(notebook, engine, sessionModule, triples, rules, cli, options, apiClient, declared,
-	uid, maps, h)
+run = function(notebook, engine, sessionModule, triples, rules, cli, options, h)
 	"Checks the cell protocol and what a served session answers."
 
 	// The arguments a front end writes, parsed the way notebook.ms parses them, so the
@@ -117,18 +116,37 @@ run = function(notebook, engine, sessionModule, triples, rules, cli, options, ap
 
 	first = startSession()
 	h.check("a notebook's session is the domain's", not (first isa error))
-	// engine.build answers no registry: the notebook program attaches one after the build, so a
-	// cell that asks where the session is reaches ipwho.is rather than the box under the cell.
-	h.check("engine.build leaves the registry to the program",
+	// engine.build answers no registry and the notebook attaches one only when a cell runs
+	// /online, so a cell that asks where the session is prompts rather than reaching the network.
+	h.check("a notebook's session asks no service until it is told to",
 		not (first isa error) and first.providers == null)
 
-	// ── The services a cell may ask ──────────────────────────────────────────
-	// The same three maps the prompt builds its registry from: ipwho.is's lookup, geocode.maps.co's
-	// search and reverse, and Open-Meteo's geocoder and forecast. --offline is what refuses them.
-	services = notebook.services(apiClient, declared, uid, maps)
-	h.check("the program gives its session the services the maps declare",
-		services.len == 12 and services[0].service == "ipwho.is" and
-			services[0].endpoint == "lookup")
+	// ── The services are a cell's choice ────────────────────────────────────
+	// /online is what attaches the registry: a notebook asks nothing until a cell runs it, and a
+	// serving handed no switch, or one told --offline, says so rather than letting a question go
+	// out.
+	// The switch a program hands over is a function over the session, so what it did is what the
+	// session holds afterwards.
+	switchOn = function(session)
+		session.providers = [{"service": "example.com", "endpoint": "answer"}]
+	end function
+	online = startSession()
+	// The program leaves its switch on the session before serving, and the @ is what keeps it a
+	// function rather than calling it, so the cases do the same.
+	online.askServices = @switchOn
+	onlineOut = transcript(online, [["/online"]])
+	h.check("a cell of /online is what attaches the services",
+		online.providers != null and online.providers.len == 1)
+	h.check("and a serving with no switch to turn on says so",
+		holds(textOf(cellsOf(transcript(startSession(), [["/online"]]))[0]),
+			"no services to ask"))
+	offlineSession = startSession()
+	offlineSession.offline = 1
+	offlineSession.askServices = @switchOn
+	offlineOut = transcript(offlineSession, [["/online"]])
+	h.check("while --offline refuses the switch and asks nothing",
+		offlineSession.providers == null and
+			holds(textOf(cellsOf(offlineOut)[0]), "--offline refuses every call"))
 
 	// ── One cell, one marked answer ─────────────────────────────────────────
 

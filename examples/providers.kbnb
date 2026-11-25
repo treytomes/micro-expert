@@ -4,7 +4,17 @@
 		{
 			"kind": "markdown",
 			"language": "markdown",
-			"source": "# Three services, one notebook\n\nEvery cell here is a question the facts alone cannot answer, so the engine asks the service that declares the fact instead of asking you. The cells share one session, so run them in order with **Shift+Enter**.\n\n**These cells reach the network.** Each one is a real request, and each fact a service answers comes back carrying `# <service>/<endpoint> <day>` in its line. Start the engine with `--offline` and the questions ask you instead."
+			"source": "# Three services, one notebook\n\nEvery cell here is a question the facts alone cannot answer, so the engine asks the service that declares the fact instead of asking you. The cells share one session, so run them in order with **Shift+Enter**.\n\nNothing reaches the network until the `/online` cell below is run. Skip it and the same questions ask you for a value instead, which is what a notebook does with no services at all. Once it has run, each question is a real request, and each fact a service answers comes back carrying `# <service>/<endpoint> <day>` in its line. Started with `--offline`, `/online` refuses, and the questions ask you either way."
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "## 0. Ask for the services\n\nA notebook is opened to read and to write, so a cell never sends a request nobody asked for: `/online` is the switch that attaches the registry the service maps declare - twelve facts a question can ask them for. One cell turns it on for the rest."
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "/online"
 		},
 		{
 			"kind": "markdown",
