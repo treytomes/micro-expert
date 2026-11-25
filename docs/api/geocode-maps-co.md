@@ -18,11 +18,13 @@ GET https://geocode.maps.co/search?q=Eiffel+Tower&limit=1&api_key=...
 - Every parameter is a query parameter. The layer URL-encodes names and values, drops empty
   ones, and joins a repeated `--name` with commas, so `--countrycodes de --countrycodes fr`
   becomes `countrycodes=de%2Cfr`.
-- The key is the `api_key` parameter, added to every request. A host reads
-  `GEOCODE_MAPS_API_KEY` from the environment or the nearest `.env` and passes it as an option;
-  the map sends it and keeps it out of any URL it builds. The service's documentation also names
-  an `Authorization: Bearer` header; that path answers `401`, so the parameter is the only one
-  used.
+- The key is the `api_key` parameter, added to every request. The map names the variable it is
+  read from (its `keyEnv`, `GEOCODE_MAPS_API_KEY`), and `src/spike/declared.ms` fills the
+  parameter from the environment - which is where the `.env` beside the run puts it - unless the
+  caller hands a key in itself. The map keeps the key out of any URL it builds. A run with no key
+  in either place refuses the request before it goes out and says which variable to set, since a
+  keyless call can only be a `401`. The service's documentation also names an `Authorization:
+  Bearer` header; that path answers `401`, so the parameter is the only one used.
 - A name the table does not list is passed through untouched. The service adds optional
   parameters between releases, and the layer is not the place to drop one.
 - The free-form and structured fields are alternatives, not a sequence: give `q`, or give
@@ -415,7 +417,8 @@ it.
 
 A missing or wrong key answers `401`, which is the reason the layer does not send the
 `Authorization` header the service's documentation mentions. The parameter is the working
-path.
+path; a key the environment does not hold is refused before the call, so a `401` from here is a
+key that was sent and rejected.
 
 ## How the map reads a result
 

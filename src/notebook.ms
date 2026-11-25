@@ -48,6 +48,9 @@
 // Imported, this file only defines what the suite pins. A run's shellArgs[0] is this file, and
 // a suite's is not, which is what the guard at the end reads.
 
+// The .env beside the run is read before anything that may need a setting: a declaration's key
+// is read from the environment, and importing this is what puts the file there.
+import "dotenv"
 import "cli/cli"
 // The loop comes before the session that reads it from the globals they share; src/session.ms
 // says why.

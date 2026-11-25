@@ -27,6 +27,11 @@
 // coordinates. "about" says the reply is read onto the place the question named - geocode.maps.co
 // hangs its facts on the OSM object, which is its identity rather than the domain's - and "from"
 // names the facts the request's fields are filled from.
+//
+// The service answers 401 without a key, so the map names the variable its key is read from:
+// "keyEnv" is GEOCODE_MAPS_API_KEY, which src/spike/declared.ms takes from the environment - the
+// .env beside the run, read by src/dotenv.ms - when the caller hands no key in. A run with
+// neither refuses the request and says which variable to set.
 
 build = function
 	"geocode.maps.co, as the writer reads it."
@@ -77,6 +82,10 @@ build = function
 	return {
 		"service": "geocode.maps.co",
 		"base": "https://geocode.maps.co",
+		// The service answers 401 without a key, so the map names where the key is read from:
+		// src/spike/declared.ms fills the request's api_key from this variable, and refuses the
+		// request - saying which variable to set - when it holds nothing.
+		"keyEnv": "GEOCODE_MAPS_API_KEY",
 		"endpoints": {
 			"search": {
 				"method": "GET",

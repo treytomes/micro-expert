@@ -23,7 +23,9 @@ question the facts cannot answer asks the box under the cell, exactly as a noteb
 services does. After it, a question the facts cannot answer is asked of `ipwho.is`,
 `geocode.maps.co` or Open-Meteo, and a fact one of them answers carries
 `# <service>/<endpoint> <day>` into the cell. Start the engine with `--offline` and `/online`
-refuses rather than attaching anything.
+refuses rather than attaching anything. A service that needs a key reads it from the `.env` beside
+the run - `GEOCODE_MAPS_API_KEY` for `geocode.maps.co` - and a run without it says which variable
+is missing rather than sending the call.
 
 `examples/explore.kbnb` is the tour: a rule's answer, a question that needs a value, the fact that
 answer added, a rule typed in a cell, and `/mermaid`. `examples/providers.kbnb` is the services

@@ -6,6 +6,9 @@
 // The options are declared in options.ms and the cli library parses the arguments and
 // generates --help and --version from that table; it lives apart so the suite can pin it.
 
+// The .env beside the run is read before anything that may need a setting: a declaration's key
+// is read from the environment, and importing this is what puts the file there.
+import "dotenv"
 import "cli/cli"
 import "triples"
 import "logging/logging"

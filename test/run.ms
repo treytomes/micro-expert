@@ -59,7 +59,11 @@ env["MS_IMPORT_PATH"] = savedImportPath
 // The API layer's client reaches the bundled json and stringUtil libraries, which a src/-only
 // import path hides, so it loads here, with the .env reader beside it.
 import "../src/api/client"
+// Importing the .env reader puts the repository's .env into env; the suite pins the one setting
+// a declaration reads there, so a check never passes on this machine's file and fails on another's.
+// The geocoder's cases set and clear the variable themselves; every other request sees this value.
 import "../src/dotenv"
+env["GEOCODE_MAPS_API_KEY"] = "test-key"
 import "../src/uid"
 import "../src/location"
 // The declared writer and the ipwho.is map it reads; `declared` below is the case module.

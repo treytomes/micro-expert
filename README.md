@@ -99,7 +99,10 @@ located place's weather, and a place the session knows only by name or city is l
 geocoder first - one answer per pass, so the question is answered from two answers rather than
 from the reader. When two maps declare the same fact - both geocoders declare a place's
 coordinates - each is asked in the order the maps are given, so one that cannot answer is a
-warning and the next is tried before the reader. Every fact a service answers carries `# <service>/<endpoint> <day>` in its
+warning and the next is tried before the reader. A service that needs a key says so in its map:
+geocode.maps.co's declaration names `GEOCODE_MAPS_API_KEY`, which `src/spike/declared.ms` reads
+from the environment the `.env` beside the run fills, and a run without it refuses that request
+and says which variable to set rather than sending one the service answers `401` to. Every fact a service answers carries `# <service>/<endpoint> <day>` in its
 line - `has-location(session, place-4f2c) # ipwho.is/lookup 2026-11-21` - so a session, or a
 facts file it saves, can tell a provider's fact from a typed one and see how stale it is. An
 answer fetched again on another day is the same claim, so it takes the place of the line the
@@ -595,7 +598,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-1174 passed, 0 failed
+1180 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -611,8 +614,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 1173 skipped
-##END {"passed":1,"failed":0,"skipped":1173}
+1 passed, 0 failed, 1179 skipped
+##END {"passed":1,"failed":0,"skipped":1179}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -627,12 +630,12 @@ The parser, the logger and the repl library are their own repositories with thei
 by the same interpreter, and this suite imports none of them. It keeps one check about the
 repl library, and that one is about this repository rather than the library: `examples/notes.ms`
 is a whole program written on the library and nothing else, and `test/repl.ms` is what says so.
-The 1174 cover the program itself: display and parsing (71), the knowledge data format (146),
+The 1180 cover the program itself: display and parsing (71), the knowledge data format (146),
 the predicate schema (50), the date and time types (79), the loaders (21), proofs and
 explanations (23), the missing-fact report (34), recursion and cycle handling (13), relations
 including the family rules (104), the session at the prompt (211), the notebook's cells (36),
 the notes example on the repl library (1), the command line (8), the domain (10), the Mermaid
-diagram (49), the id generator (21), the location module (15), the declared writer (29), the provider registry (116), the geocode mapping (27), the Open-Meteo mapping (33), and the API
+diagram (49), the id generator (21), the location module (15), the declared writer (29), the provider registry (116), the geocode mapping (33), the Open-Meteo mapping (33), and the API
 layer's argument split, parameter engine and .env reader (77).
 
 ## Repository layout

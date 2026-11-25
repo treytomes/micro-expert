@@ -231,6 +231,63 @@ run = function(declared, geocodeMap, apiClient, triples, uid, schemaLoader, h)
 		newResult.url.indexOf("test-key") == null and
 			newResult.url.indexOf("api_key=REDACTED") != null)
 
+	// ── The key a declaration names in the environment ──────────────────
+
+	// The map names the variable its key lives in, so a request with no key of its own is sent
+	// with the environment's - the way src/main.ms and src/notebook.ms, having read the .env,
+	// leave it - and a run with neither is refused before anything goes out.
+	keyStub = function(json)
+		fake = {}
+		for name in apiClient.indexes
+			fake[name] = apiClient[name]
+		end for
+		fake.canned = json
+		fake.calls = 0
+		fake.seenUrl = null
+		fake.get = function(url, timeout=null)
+			self.calls = self.calls + 1
+			self.seenUrl = url
+			return {"ok": 1, "status": 200, "body": "", "json": self.canned, "url": url,
+				"error": null}
+		end function
+		return fake
+	end function
+
+	kept = null
+	if env.hasIndex("GEOCODE_MAPS_API_KEY") then kept = env["GEOCODE_MAPS_API_KEY"]
+	env["GEOCODE_MAPS_API_KEY"] = "from-env"
+	envClient = keyStub([eiffel])
+	envResult = declared.fetch(envClient, decl, "search", {"q": "Eiffel Tower", "limit": 1}, 10)
+	h.check("a request with no key of its own is sent with the environment's",
+		envClient.calls == 1 and envClient.seenUrl.indexOf("api_key=from-env") != null)
+	h.check("and the url the result keeps hides it",
+		envResult.url.indexOf("from-env") == null and
+			envResult.url.indexOf("api_key=REDACTED") != null)
+	callerClient = keyStub([eiffel])
+	declared.fetch(callerClient, decl, "search", {"q": "Eiffel Tower", "api_key": "caller"}, 10)
+	h.check("a key the caller hands in wins over the environment's",
+		callerClient.seenUrl.indexOf("api_key=caller") != null and
+			callerClient.seenUrl.indexOf("from-env") == null)
+
+	// A blank setting is absent, the way dotenv reads one, and a key nobody supplies is never a
+	// keyless call: the request stops here, in words that name the variable to set.
+	env["GEOCODE_MAPS_API_KEY"] = "  "
+	blankClient = keyStub([eiffel])
+	blankResult = declared.fetch(blankClient, decl, "search", {"q": "Eiffel Tower"}, 10)
+	h.check("a blank setting counts as none", blankClient.calls == 0 and not blankResult.ok)
+	env.remove("GEOCODE_MAPS_API_KEY")
+	missingClient = keyStub([eiffel])
+	missingResult = declared.fetch(missingClient, decl, "search", {"q": "Eiffel Tower"}, 10)
+	h.check("a declaration whose key is missing refuses the request",
+		not missingResult.ok and missingClient.calls == 0 and missingResult.json == null)
+	h.check("and says which variable to set, and where",
+		missingResult.error == "geocode.maps.co needs a key: set GEOCODE_MAPS_API_KEY in the environment or in the .env beside the run")
+	if kept == null then
+		env.remove("GEOCODE_MAPS_API_KEY")
+	else
+		env["GEOCODE_MAPS_API_KEY"] = kept
+	end if
+
 	// ── What the result is known by ─────────────────────────────────────
 
 	h.check("the label reads the result's display name",

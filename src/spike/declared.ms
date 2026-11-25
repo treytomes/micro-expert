@@ -45,9 +45,17 @@
 // every fact left out is named in the reading's "skipped" list rather than disappearing
 // quietly.
 //
-// The request half takes two per-service clauses as well: "key" names the parameter a key
-// travels as, and "redact" the parameters whose values are hidden in the url a result carries;
-// "boolAs" rewrites true and false the way a service spells them.
+// The request half takes three per-service clauses as well: "key" names the parameter a key
+// travels as, "keyEnv" the environment variable the key is read from, and "redact" the
+// parameters whose values are hidden in the url a result carries; "boolAs" rewrites true and
+// false the way a service spells them.
+//
+// A key is the caller's to pass - api.keyIn reads it from the options - and a map that names
+// "keyEnv" is otherwise read from the environment, which is where src/dotenv.ms puts the .env
+// beside the run. A declaration that names a variable and finds it empty refuses the request
+// and says which variable to set, rather than sending a call the service answers 401 to. A
+// map that names no variable has an optional key - Open-Meteo's apikey - and goes out without
+// one.
 
 
 endpointOf = function(decl, name)
@@ -567,6 +575,27 @@ read = function(triples, uid, decl, endpointName, json, asked={})
 end function
 
 
+keyVariable = function(decl, endpoint)
+	"The environment variable a declaration says its key lives in: the endpoint's own, or the service's - null when it names none, which is how a service with an optional key says so."
+	if endpoint.hasIndex("keyEnv") then return endpoint.keyEnv
+	if decl.hasIndex("keyEnv") then return decl.keyEnv
+	return null
+end function
+
+
+keyFromEnvironment = function(decl, endpoint)
+	"The key the declaration's variable holds, or null when it names none or holds nothing: a blank setting is absent, the way dotenv reads one."
+	name = keyVariable(decl, endpoint)
+	if name == null then return null
+	if not env.hasIndex(name) then return null
+	value = env[name]
+	if value == null then return null
+	value = trimText(value)
+	if value == "" then return null
+	return value
+end function
+
+
 fetch = function(api, decl, endpointName, options={}, timeout=null)
 	"One request to the endpoint the map names, checked and spelled as its params say."
 	endpoint = endpointOf(decl, endpointName)
@@ -589,9 +618,17 @@ fetch = function(api, decl, endpointName, options={}, timeout=null)
 			if value == "false" then params[paramSpec.name] = 0
 		end for
 	end if
-	// A key travels as its own parameter rather than in the table the checks read.
+	// A key travels as its own parameter rather than in the table the checks read. The caller
+	// may hand one in; a declaration that names the variable its key lives in otherwise reads it
+	// from the environment, and a key neither supplies is a refusal rather than a request the
+	// service answers 401 to.
 	if endpoint.hasIndex("key") then
 		key = api.keyIn(options)
+		if key == null then key = keyFromEnvironment(decl, endpoint)
+		if key == null and keyVariable(decl, endpoint) != null then
+			return api.failure(decl.service + " needs a key: set " + keyVariable(decl, endpoint) +
+				" in the environment or in the .env beside the run")
+		end if
 		if key != null then params[endpoint.key] = key
 	end if
 
