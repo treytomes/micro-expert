@@ -80,6 +80,16 @@
 			"kind": "markdown",
 			"language": "markdown",
 			"source": "## 4. What the session holds now\n\nEvery line so far is in the session: a day of hourly readings, five weekly means of two variables, the unit of each variable it fetched, and `# open-meteo/...` with the day it was asked on each fact a service answered - which is what a saved file keeps.\n\nNothing here is written to disk, so `data/facts.kb` and `data/rules.kb` are as they were; **Restart Knowledge Session** starts again from them. A reading from an earlier day is not today's: ask again the next day and the service is asked rather than yesterday's number reported.\n"
+		},
+		{
+			"kind": "markdown",
+			"language": "markdown",
+			"source": "## 5. The hour three hours from now\n\nEvery reading above carries the hour it holds for as its `@`, and a question may name that hour: `@ ?when` binds the moment of each reading, and `hours-from-now(?when, 3)` keeps the one whose hour covers the clock plus three hours. Nothing is typed as an instant, so the question still asks for \"three hours from now\" the next time it runs.\n\nThe clock is this machine's, and the hours the forecast writes are its service's - UTC, six hours ahead of this machine - so three hours from now is nine hours on this clock. `hours-from-now` counts in the frame the moments are written in, which is why the offset is nine and not three.\n"
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "and(has-location(session, ?place), has-temperature-2m(?place, ?t) @ ?when, hours-from-now(?when, 9))"
 		}
 	]
 }

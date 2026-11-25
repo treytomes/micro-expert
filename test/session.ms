@@ -1260,4 +1260,21 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		null, 0, whenTypes)
 	h.check("and a question written as a body names it the same way",
 		printed(whenBody.answers.lines, "  has-temperature-2m(berlin, 9.8) @ " + whenHour))
+
+	// ── The clock asked as an offset ───────────────────────────────────────
+	// A question names the hour as "three hours from now", and hours-from-now reads the moment
+	// each reading holds for. The clock is pinned, as the day is elsewhere, so it cannot drift.
+	t.clock = "2026-11-22 17:45:00"
+	offsetFacts = [
+		t.SpoTriple.make("berlin", "has-temperature-2m", 7.3, "[2026-11-22 17:00, 2026-11-22 18:00]"),
+		t.SpoTriple.make("berlin", "has-temperature-2m", 9.8, "[2026-11-22 20:00, 2026-11-22 21:00]")]
+	offsetTypes = {"has-temperature-2m": ["text", "number"]}
+	offsetAsked = startSession(offsetFacts, [],
+		["and(has-temperature-2m(berlin, ?t) @ ?when, hours-from-now(?when, 3))"], null, 0, offsetTypes)
+	h.check("a question asks for the reading three hours from now",
+		printed(offsetAsked.answers.lines,
+			"  has-temperature-2m(berlin, 9.8) @ [2026-11-22 20:00, 2026-11-22 21:00]") and
+			not printed(offsetAsked.answers.lines,
+				"  has-temperature-2m(berlin, 7.3) @ [2026-11-22 17:00, 2026-11-22 18:00]"))
+	t.clock = null
 end function

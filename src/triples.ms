@@ -653,8 +653,8 @@ end function
 // A rule body is a list of goals, and it may also hold constraints: conditions that are
 // checked against the bindings rather than proved by search. They are written as calls
 // like everything else - not-equal(?x, ?y), equal(?n, 18), less-than-or-equal(?n, 18),
-// years-since(?b, ?n) - and their names are reserved, so no fact and no question can use one
-// as a predicate.
+// years-since(?b, ?n), hours-from-now(?when, 3) - and their names are reserved, so no fact and
+// no question can use one as a predicate.
 
 // not-equal and equal read their two terms as they are, whatever type they hold: not-equal
 // asks that they differ, equal that they are the same one. Their names are reserved like a
@@ -804,11 +804,73 @@ yearsSinceBinds = function(constraint, binds)
 	return binds
 end function
 
+// hours-from-now is the clock beside years-since's calendar: it reads the moment a reading
+// holds for and says whether that moment covers now plus a number of hours. It is what lets a
+// question ask for the hour three hours ahead instead of writing the instant out by hand, and
+// like years-since it reads its terms rather than searching them - a moment still a variable
+// cannot be enumerated, and neither can a number.
+//
+// The clock is the host's, pinning it for the suite the way today is pinned:
+//
+//   triples.clock = "2026-11-25 17:45:00"
+
+clockName = "hours-from-now"
+
+clock = null
+
+momentNow = function
+	"The moment a search runs at: the one a caller pinned, or the host's clock to the second."
+	if clock != null then return clock
+	return _dateStr(_dateVal, "yyyy-MM-dd HH:mm:ss")
+end function
+
+HoursFromNow = {}
+
+HoursFromNow.make = function(when, hours)
+	"Builds a 'the moment @ holds covers this many hours from now' constraint."
+	c = new HoursFromNow
+	c.when = when
+	c.hours = hours
+	return c
+end function
+
+HoursFromNow.text = function
+	"Says how the constraint reads: hours-from-now(?when, 3)."
+	return clockName + "(" + termText(self.when) + ", " + termText(self.hours) + ")"
+end function
+
+coversFromNow = function(held, hours)
+	"Says whether a moment or span a fact holds for covers now plus that many hours: a span by holding the instant, a single moment by the hour it names."
+	if not (held isa string) then return false
+	now = temporal.DateTime.receive(momentNow())
+	if now isa error then return false
+	target = now.addSeconds(hours * 3600)
+	if held[:1] == "[" then
+		span = temporal.TimeSpan.receive(held)
+		if span isa error then return false
+		return span.contains(target) == true
+	end if
+	moment = temporal.DateTime.receive(held)
+	if moment isa error then return false
+	if moment.kind != "datetime" then return false
+	return target.value >= moment.value and target.value < moment.value + 3600
+end function
+
+hoursFromNowBinds = function(constraint, binds)
+	"The bindings the constraint leaves, or null when the branch ends: the moment a reading holds for is read, and the hours are read."
+	held = substitute(constraint.when, binds)
+	hours = substitute(constraint.hours, binds)
+	if held isa Var or held == null then return null
+	if not (hours isa number) then return null
+	if coversFromNow(held, hours) then return binds
+	return null
+end function
+
 isConstraint = function(term)
 	"Says whether a term names a constraint, which a body checks rather than a line storing or asking it."
 	if not (term isa string) then return false
 	return term == notEqualName or term == equalName or term == sinceName or
-		comparisonNames.hasIndex(term) != 0
+		term == clockName or comparisonNames.hasIndex(term) != 0
 end function
 
 comparisonHolds = function(constraint, binds)
@@ -825,6 +887,12 @@ end function
 holdsConstraint = function(constraint, binds)
 	"Says whether a constraint holds under the current bindings."
 	if constraint isa Comparison then return comparisonHolds(constraint, binds)
+	if constraint isa HoursFromNow then
+		held = substitute(constraint.when, binds)
+		hours = substitute(constraint.hours, binds)
+		if not (hours isa number) then return false
+		return coversFromNow(held, hours)
+	end if
 	if constraint isa NotEqual then
 		return substitute(constraint.left, binds) != substitute(constraint.right, binds)
 	end if
@@ -845,6 +913,7 @@ applyConstraint = function(constraint, binds)
 	"The bindings a constraint leaves, or null when the branch ends: the ones it was given, unless it bound something."
 	if constraint isa Equal then return equalBinds(constraint, binds)
 	if constraint isa YearsSince then return yearsSinceBinds(constraint, binds)
+	if constraint isa HoursFromNow then return hoursFromNowBinds(constraint, binds)
 	if holdsConstraint(constraint, binds) then return binds
 	return null
 end function
@@ -863,6 +932,7 @@ constraintFrom = function(triple)
 	if name == equalName then return Equal.make(triple.subject, triple.object)
 	if name == notEqualName then return NotEqual.make(triple.subject, triple.object)
 	if name == sinceName then return YearsSince.make(triple.subject, triple.object)
+	if name == clockName then return HoursFromNow.make(triple.subject, triple.object)
 	if comparisonNames.hasIndex(name) == 0 then return null
 	return Comparison.make(comparisonNames[name], triple.subject, triple.object)
 end function
@@ -981,6 +1051,10 @@ renameConstraint = function(constraint, suffix)
 	if constraint isa YearsSince then
 		return YearsSince.make(renameTerm(constraint.date, suffix),
 			renameTerm(constraint.years, suffix))
+	end if
+	if constraint isa HoursFromNow then
+		return HoursFromNow.make(renameTerm(constraint.when, suffix),
+			renameTerm(constraint.hours, suffix))
 	end if
 	if constraint isa Equal then
 		return Equal.make(renameTerm(constraint.left, suffix),
@@ -1480,6 +1554,7 @@ end function
 constraintTerms = function(constraint)
 	"The fields a constraint must have settled before it can be judged: years-since binds its second field, so only its date has to be read."
 	if constraint isa YearsSince then return [constraint.date]
+	if constraint isa HoursFromNow then return [constraint.when, constraint.hours]
 	return [constraint.left, constraint.right]
 end function
 
@@ -1518,10 +1593,11 @@ coveredBy = function(triple, newVars)
 end function
 
 extendVars = function(newVars, needs)
-	"The variables these missing facts would bind, added to the ones already promised."
+	"The variables these missing facts would bind, added to the ones already promised: a moment asked as a variable is one of them, so the constraint reading it waits on this fact."
 	terms = []
 	for need in needs
 		terms = terms + need.triple.parts
+		if need.triple.at isa Var then terms.push(need.triple.at)
 	end for
 	return promiseVars(newVars, terms)
 end function
@@ -1581,7 +1657,9 @@ reportVarNames = function(options)
 	seen = {}
 	for option in options
 		for need in option.needs
-			for part in need.triple.parts
+			terms = need.triple.parts
+			if need.triple.at isa Var then terms = terms + [need.triple.at]
+			for part in terms
 				if part isa Var and seen.hasIndex(part.name) == 0 then
 					seen[part.name] = 1
 					names.push(part.name)
@@ -1927,6 +2005,7 @@ constraintOf = function(text)
 	if name == equalName then return Equal.make(termOf(left), termOf(right))
 	if name == notEqualName then return NotEqual.make(termOf(left), termOf(right))
 	if name == sinceName then return YearsSince.make(termOf(left), termOf(right))
+	if name == clockName then return HoursFromNow.make(termOf(left), termOf(right))
 	return Comparison.make(comparisonNames[name], termOf(left), termOf(right))
 end function
 
