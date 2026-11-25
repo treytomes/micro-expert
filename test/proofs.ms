@@ -164,9 +164,12 @@ run = function(t, rules, h)
 	// then fails must not carry that binding into the next one. The first fact here fails the
 	// rule's second condition after binding ?x, and the answer has to come from the second.
 	ranks = [spo("one", "has-rank", 1), spo("two", "has-rank", 2)]
-	named = [spo("two", "has-name", "two")]
+	named = [spo("two", "has-name", "second")]
+	// The second condition is a real test of the candidate, not a term meeting itself: only
+	// "two" has a name, and the name rides in its own variable, so the branch stops for want
+	// of a fact.
 	pickedRule = rule(spo(v("x"), "picked", v("n")),
-		[spo(v("x"), "has-rank", v("n")), spo(v("x"), "has-name", v("x"))])
+		[spo(v("x"), "has-rank", v("n")), spo(v("x"), "has-name", v("z"))])
 	pickedGoal = spo(v("x"), "picked", v("n"))
 	picked = t.proveGoals(pickedGoal, ranks + named, [pickedRule], 2)
 	h.check("a binding made on a failing branch does not survive it", picked.len == 1)
@@ -200,4 +203,51 @@ run = function(t, rules, h)
 	getters = t.proveGoals(getterGoal, owns, [either], 2)
 	h.check("the second alternative answers when the first fails",
 		getters.len == 1 and answerText(getterGoal, getters[0]) == "getter(zed, bike)")
+
+	// ── Negation is a test, not a query ─────────────────────────────────────
+	// not(...) is met when its body has no proof, so the body is searched with the bindings
+	// the rule already made and nothing it settles comes back out: a variable that lives only
+	// inside the negation never reaches an answer.
+	people = [spo("walter", "is-parent-of", "bill"), spo("doris", "is-parent-of", "bill"),
+		spo("walter", "is-parent-of", "george"), spo("doris", "is-parent-of", "george"),
+		spo("bill", "is-parent-of", "tim")]
+	siblingOf = t.parseRule("is-sibling-of(?x, ?y) => and(is-parent-of(?p, ?x), " +
+		"is-parent-of(?p, ?y), not-equal(?x, ?y))")
+	onlyChild = t.parseRule("is-only-child-of(?x, ?y) => and(is-parent-of(?y, ?x), " +
+		"not(is-sibling-of(?x, ?q)))")
+	onlyGoal = spo(v("x"), "is-only-child-of", v("y"))
+	only = t.proveGoals(onlyGoal, people, [siblingOf, onlyChild], 3)
+	h.check("an only child is proved by finding no sibling", only.len == 1)
+	h.check("and the variable the negation searched with stays inside it",
+		only.len == 1 and only[0].binds.hasIndex("q") == 0 and
+			answerText(onlyGoal, only[0]) == "is-only-child-of(tim, bill)")
+	// An inner body naming a variable the rule already bound does not overwrite it: ?y inside
+	// the negation is the parent the first condition settled, not a sibling found there.
+	keepsOuter = t.parseRule("is-child-only-of(?x, ?y) => and(is-parent-of(?y, ?x), " +
+		"not(is-sibling-of(?x, ?y)))")
+	keptGoal = spo("tim", "is-child-only-of", v("y"))
+	kept = t.proveGoals(keptGoal, people, [siblingOf, keepsOuter], 3)
+	h.check("a negation does not overwrite a binding the rule already made",
+		kept.len == 1 and answerText(keptGoal, kept[0]) == "is-child-only-of(tim, bill)")
+
+	// ── Running out of depth is not an absence ──────────────────────────────
+	// The negation's body is proved with the depth the rule had, so a chain longer than that
+	// fails to prove and reads as false - the cost of negation as failure, pinned here so it
+	// cannot change quietly.
+	chain = [spo("ann", "is-parent-of", "bill"), spo("bill", "is-parent-of", "casey"),
+		spo("casey", "is-parent-of", "dana")]
+	step = rule(spo(v("a"), "ancestor-of", v("b")), [spo(v("a"), "is-parent-of", v("b"))])
+	stepThen = rule(spo(v("a"), "ancestor-of", v("b")),
+		[spo(v("a"), "is-parent-of", v("m")), spo(v("m"), "ancestor-of", v("b"))])
+	stranger = t.parseRule("is-stranger-to(?a, ?b) => not(ancestor-of(?a, ?b))")
+	strangerGoal = spo("ann", "is-stranger-to", "dana")
+	shallow = t.proveGoals(strangerGoal, chain, [step, stepThen, stranger], 2)
+	h.check("a body that runs out of depth proves nothing, so the negation holds",
+		shallow.len == 1 and answerText(strangerGoal, shallow[0]) == "is-stranger-to(ann, dana)")
+	deep = t.proveGoals(strangerGoal, chain, [step, stepThen, stranger], 5)
+	h.check("and at a depth that reaches the end the same negation fails", deep.len == 0)
+	// A pair with no chain between it is a real absence, so it answers at either depth.
+	absent = t.proveGoals(spo("ann", "is-stranger-to", "zed"), chain,
+		[step, stepThen, stranger], 5)
+	h.check("where nobody is an ancestor the negation holds at any depth", absent.len == 1)
 end function
