@@ -219,6 +219,30 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		printed(back.answers.lines, "  is-parent-of(bill, tim)"))
 	h.check("with both switches back where the run started them",
 		back.session.verbose == 0 and back.session.nlp == 0)
+
+	// A line may name the way it wants, which is what a cell run twice needs: a switch run
+	// twice ends where it began, while /verbose on run twice leaves the tree on.
+	explicit = startSession(family + [], [], ["/verbose on", "/nlp on", "/verbose on", "/nlp on",
+		"is-parent-of(bill, ?p)"])
+	h.check("/verbose on run twice is still on", explicit.session.verbose == 1)
+	h.check("and /nlp on run twice is still on", explicit.session.nlp == 1)
+	h.check("so the answer after both runs is the tree, said, and the sentence",
+		printed(explicit.answers.lines, "  bill is parent of tim  => fact") and
+			printed(explicit.answers.lines, "  bill is parent of tim"))
+	setOff = startSession(family + [], [], ["/verbose off", "/nlp off", "is-parent-of(bill, ?p)"])
+	h.check("/verbose off sets it off when it was already off",
+		setOff.session.verbose == 0 and
+			printed(setOff.answers.lines, "  verbose off: an answer is the fact it proves"))
+	h.check("and /nlp off leaves the answer the fact it is",
+		setOff.session.nlp == 0 and printed(setOff.answers.lines, "  is-parent-of(bill, tim)") and
+			not printed(setOff.answers.lines, "  bill is parent of tim"))
+	// A word that names neither is refused rather than read as a switch, and changes nothing.
+	misworded = startSession(family + [], [], ["/verbose maybe", "/nlp yes", "is-parent-of(bill, ?p)"])
+	h.check("a word that is neither on nor off is refused",
+		holds(misworded.answers.lines, "/verbose takes on or off") and
+			holds(misworded.answers.lines, "/nlp takes on or off"))
+	h.check("and neither switch moved",
+		misworded.session.verbose == 0 and misworded.session.nlp == 0)
 	h.check("/help lists both of them",
 		holds(startSession(family + [], [], ["/help"]).answers.lines, "  /verbose") and
 			holds(startSession(family + [], [], ["/help"]).answers.lines, "  /nlp"))
@@ -516,8 +540,8 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		"  /facts  list the facts",
 		"  /rules  list the rules",
 		"  /mermaid [FILE]  draw the facts as Mermaid, or write them to a file",
-		"  /verbose  show the proof tree before each answer, or stop showing it",
-		"  /nlp  say answers as sentences, or as the facts they are",
+		"  /verbose [ON|OFF]  show the proof tree before each answer, or stop showing it",
+		"  /nlp [ON|OFF]  say answers as sentences, or as the facts they are",
 		"  /save-facts [FILE]  write the facts to their file, or to one named",
 		"  /load-facts [FILE]  replace the facts with a file's",
 		"  /save-rules [FILE]  write the rules to their file, or to one named",

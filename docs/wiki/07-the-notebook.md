@@ -58,10 +58,11 @@ starting with `/`. `/exit` is refused — the session belongs to the notebook, n
 prints the diagram as a fence and draws the picture beside it.
 
 A notebook has no `--verbose` or `--nlp` flag to start with, so the two commands are how it asks for
-them: a cell of `/verbose` puts the proof tree before each answer from then on, a cell of `/nlp`
-says the answers - and those trees - as sentences, and running either one again turns it off. The
-switch belongs to the session rather than to the cell that set it, so every cell after it reads
-answers the new way.
+them: a cell of `/verbose` puts the proof tree before each answer from then on, and a cell of `/nlp`
+says the answers - and those trees - as sentences. Either takes `on` or `off` to say which way it
+goes, and a line naming neither switches what it finds, so a cell that says `on` leaves the session
+on when it is run twice - which a bare switch does not. The setting belongs to the session rather
+than to the cell that set it, so every cell after it reads answers the new way.
 
 A cell with a line the engine refuses is marked failed, and the session carries on into the cell
 after it. What was refused is in the cell's own text.

@@ -117,9 +117,9 @@ commandTable = function()
 		{"name": "/mermaid", "note": "draw the facts as Mermaid, or write them to a file",
 			"parameters": [{"name": "file", "optional": 1}], "run": @mermaidCommand},
 		{"name": "/verbose", "note": "show the proof tree before each answer, or stop showing it",
-			"run": @verboseCommand},
+			"parameters": [{"name": "on|off", "optional": 1}], "run": @verboseCommand},
 		{"name": "/nlp", "note": "say answers as sentences, or as the facts they are",
-			"run": @nlpCommand},
+			"parameters": [{"name": "on|off", "optional": 1}], "run": @nlpCommand},
 	]
 end function
 
@@ -286,30 +286,53 @@ end function
 
 // ── The two switches a run starts with ──────────────────────────────────────
 // --verbose and --nlp are set before the loop starts, and a reader who wants them for a while
-// rather than for a whole run asks here instead: each is a switch, so the line that turns one
-// on turns it off, and every answer after it reads the new way. A notebook has no flags to
-// start with, so for its session these two lines are also the way in.
+// rather than for a whole run asks here instead: each line sets the switch it names, and the
+// answers after it read that way. A notebook has no flags to start with, so for its session
+// these two lines are also the way in.
+//
+// A line may name the way it wants - /verbose on, /verbose off - and one that names neither
+// switches what it finds. The word is why the two are not switches only: a cell of /verbose is
+// run twice easily enough, and a switch run twice ends where it began, while the explicit word
+// leaves the session where the first run put it. The name /help prints is "on|off" for the
+// same reason - it says what words the line takes - and the command reads the word itself.
 
-verboseCommand = function(session, command, argument)
-	"Turns the proof tree on before each answer, or off when it was on."
-	if session.verbose then
-		session.verbose = 0
-		repl.say(session, "note", "  verbose off: an answer is the fact it proves")
-	else
-		session.verbose = 1
+switchRequested = function(parameters, current)
+	"The setting a command line asked for: 1 or 0 when it names one, and the other way when it names neither; null for a word that names neither."
+	if parameters.len == 0 then return 1 - current
+	word = parameters[0].lower
+	if word == "on" then return 1
+	if word == "off" then return 0
+	return null
+end function
+
+verboseCommand = function(session, command, parameters)
+	"Sets the proof tree before each answer: on, off, or the other way when the line names neither."
+	wanted = switchRequested(parameters, session.verbose)
+	if wanted == null then
+		repl.say(session, "warning", "  /verbose takes on or off, or nothing to switch it; not " + parameters[0])
+		return false
+	end if
+	session.verbose = wanted
+	if wanted then
 		repl.say(session, "note", "  verbose on: each answer comes after the tree that reaches it")
+	else
+		repl.say(session, "note", "  verbose off: an answer is the fact it proves")
 	end if
 	return false
 end function
 
-nlpCommand = function(session, command, argument)
-	"Says each answer as a sentence, or as the fact it is when they were already sentences."
-	if session.nlp then
-		session.nlp = 0
-		repl.say(session, "note", "  nlp off: an answer is the fact it is")
-	else
-		session.nlp = 1
+nlpCommand = function(session, command, parameters)
+	"Sets how each answer is said: as a sentence, as the fact it is, or the other way when the line names neither."
+	wanted = switchRequested(parameters, session.nlp)
+	if wanted == null then
+		repl.say(session, "warning", "  /nlp takes on or off, or nothing to switch it; not " + parameters[0])
+		return false
+	end if
+	session.nlp = wanted
+	if wanted then
 		repl.say(session, "note", "  nlp on: an answer is said as a sentence")
+	else
+		repl.say(session, "note", "  nlp off: an answer is the fact it is")
 	end if
 	return false
 end function

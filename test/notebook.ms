@@ -152,15 +152,20 @@ run = function(notebook, engine, sessionModule, triples, rules, cli, options, h)
 	// A notebook has no flags to start with, so a cell is the way in to the tree and to the
 	// sentences: the same two switches --verbose and --nlp set before a prompt's first line.
 	modes = startSession()
-	modeOut = transcript(modes, [["/verbose"], ["/nlp"], ["is-parent-of(?p, tim)"]])
+	// The demo cell names the way it wants - /verbose on - because a cell is run twice easily
+	// enough, and a bare switch run twice would put the tree back the way it found it.
+	modeOut = transcript(modes, [["/verbose on"], ["/nlp on"], ["/verbose on"],
+		["is-parent-of(?p, tim)"]])
 	modeCells = cellsOf(modeOut)
-	h.check("a cell of /verbose turns the tree on for the cells after it",
+	h.check("a cell of /verbose on turns the tree on for the cells after it",
 		modes.verbose == 1 and holds(textOf(modeCells[0]), "verbose on"))
-	h.check("a cell of /nlp turns the sentences on",
+	h.check("a cell of /nlp on turns the sentences on",
 		modes.nlp == 1 and holds(textOf(modeCells[1]), "nlp on"))
+	h.check("and the same cell run a second time leaves it where the first run put it",
+		modes.verbose == 1 and holds(textOf(modeCells[2]), "verbose on"))
 	h.check("so the next cell's answer is the tree, said, and the sentence it reaches",
-		modeCells.len == 3 and holds(textOf(modeCells[2]), "bill is parent of tim  => fact") and
-			holds(textOf(modeCells[2]), "  bill is parent of tim"))
+		modeCells.len == 4 and holds(textOf(modeCells[3]), "bill is parent of tim  => fact") and
+			holds(textOf(modeCells[3]), "  bill is parent of tim"))
 
 	// ── One cell, one marked answer ─────────────────────────────────────────
 
