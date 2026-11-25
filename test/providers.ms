@@ -478,7 +478,9 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 
 	weatherRegistry = providers.registry(stubFor(weatherReply), declared, uid, [weatherDecl])
 	h.check("the forecast declares a fact per documented hourly variable",
-		weatherRegistry.len == 5)
+		countWhere(weatherRegistry, "endpoint", "forecast") == 5)
+	h.check("and the geocoder declares the place's coordinates, as the other map does",
+		countWhere(weatherRegistry, "endpoint", "geocoding") == 2)
 	weatherCap = providers.forGoal(weatherRegistry, triples, needTemperature)
 	h.check("a question needing a located place's temperature finds the forecast",
 		weatherCap != null and weatherCap.endpoint == "forecast")
@@ -656,6 +658,63 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	sessionModule.undo(chainSession)
 	h.check("undoing both answers forgets both requests, so the chain can start over",
 		chainSession.providerCalls.len == 0 and chainSession.facts.len == 1)
+
+	// ── A service that cannot answer leaves the next to try ────────────────
+
+	// Both maps declare a place's coordinates: geocode.maps.co's search and Open-Meteo's
+	// geocoder. The first is asked first, and when it cannot answer the second is asked before
+	// the reader - registry order decides who goes first, not who gets the only chance.
+	geocoderReply = {"results": [{"id": 3394344, "name": "Fort Worth", "latitude": 32.7555,
+		"longitude": -97.3308, "country": "United States", "country_code": "US",
+		"admin1": "Texas", "timezone": "America/Chicago"}]}
+	secondChance = splitStub([
+		{"host": "geocode.maps.co", "fails": 1, "why": "Could not run curl: no such host"},
+		{"host": "geocoding-api.open-meteo.com", "json": geocoderReply},
+	])
+	nextPlace = uid.of("place", ["Fort Worth next"])
+	nextCity = triples.SpoTriple.make(nextPlace, "has-city", "Fort Worth")
+	needNextLat = triples.SpoTriple.make(nextPlace, "has-latitude", triples.var("lat"))
+	nextSaid = []
+	nextSession = {"triples": triples, "Rule": rules.Rule, "facts": [nextCity], "rules": [],
+		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"providers": providers.registry(secondChance, declared, uid, [geoDecl, weatherDecl]),
+		"io": {"read": null, "say": function(line)
+			nextSaid.push(line)
+		end function}}
+	changed = sessionModule.provideMissing(nextSession,
+		triples.needsFor(needNextLat, nextSession.facts, [], 8))
+	h.check("one map that cannot answer is a warning, and the other is asked",
+		changed and secondChance.calls.len == 2 and
+			secondChance.calls[0].indexOf("geocode.maps.co") != null and
+			secondChance.calls[1].indexOf("geocoding-api.open-meteo.com") != null and
+			holds(nextSaid, "geocode.maps.co could not answer"))
+	nextLatitude = null
+	for readFact in nextSession.facts
+		if readFact.predicate == "has-latitude" then nextLatitude = readFact
+	end for
+	h.check("so the coordinate is the one the second map gave",
+		nextLatitude != null and nextLatitude.object == 32.7555 and
+			nextLatitude.source == "open-meteo/geocoding")
+
+	// Which one goes first is registry order, and the first answer is enough: the second map is
+	// not asked once the session holds the fact.
+	secondIdle = splitStub([
+		{"host": "geocode.maps.co", "json": searchReply},
+		{"host": "geocoding-api.open-meteo.com", "json": geocoderReply},
+	])
+	idlePlace = uid.of("place", ["Fort Worth first"])
+	idleSession = {"triples": triples, "Rule": rules.Rule,
+		"facts": [triples.SpoTriple.make(idlePlace, "has-city", "Fort Worth")], "rules": [],
+		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
+		"providers": providers.registry(secondIdle, declared, uid, [geoDecl, weatherDecl]),
+		"io": {"read": null, "say": function(line)
+		end function}}
+	changed = sessionModule.provideMissing(idleSession,
+		triples.needsFor(triples.SpoTriple.make(idlePlace, "has-latitude", triples.var("lat")),
+			idleSession.facts, [], 8))
+	h.check("and a map that can answer leaves the other unasked",
+		changed and secondIdle.calls.len == 1 and
+			secondIdle.calls[0].indexOf("geocode.maps.co") != null)
 
 	// ── A weather question answered through the prompt ──────────────────
 

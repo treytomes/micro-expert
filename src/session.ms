@@ -844,9 +844,15 @@ end function
 // asked for, so the next weather fact about that place reads the first answer rather than
 // asking again. A field the session cannot fill is asked of another service first: the geocoder's
 // search answers a named place's coordinates, so a place known only by name or city is located
-// and the weather question comes round with them. One service is asked per pass, so the two hops
+// and the weather question comes round with them. One answer is added per pass, so the two hops
 // are two answers, each one change; a field no service declares leaves the question to the reader
-// as before. A fact a service answered carries "# <service>/<endpoint> <day>" in its line, so the
+// as before.
+//
+// A fact two services declare - both geocoders declare a place's coordinates - is asked of each
+// in turn, in the order the maps were given: one that cannot answer is a warning, and the next is
+// asked before the reader is.
+//
+// A fact a service answered carries "# <service>/<endpoint> <day>" in its line, so the
 // session holds who gave it and how stale it is, and a facts file it saves says the same.
 //
 // A service is asked once, and what it answered is kept whether it answered or failed: a question
@@ -854,8 +860,9 @@ end function
 // rather than making the same request again. What is remembered is the request - the endpoint and
 // the fields it was sent - so two places are two requests, and two facts about one place are one.
 // Taking that change back with /undo forgets the request, so the question asks the service again
-// rather than the reader. A failure is a warning and nothing more - the fact falls through to the
-// prompt, which is where a session with no registry would have started.
+// rather than the reader. A failure is a warning and nothing more: the next declaration of that
+// fact is asked, and when none answers the fact falls through to the prompt, which is where a
+// session with no registry would have started.
 
 provideMissing = function(session, options)
 	"Lets a declared service answer the first missing fact one can supply, adding what it says; says whether the session now holds more than it did."
@@ -871,17 +878,21 @@ provideMissing = function(session, options)
 			// A fact the session can already prove needs no service, the way withoutHeld drops
 			// it from the report.
 			if not session.triples.hasUnknowns(triple) and proved(session, triple) then continue
-			capability = providers.forGoal(session.providers, session.triples, triple)
-			if capability == null then continue
-			// The request's own fields come from what the session holds about the subject the
-			// question names. A field with no fact behind it is asked of another service first,
-			// and this question comes round with what that one answered.
-			request = providers.requestFor(capability, session.triples, session.facts, triple.subject)
-			if request == null then
-				if provideField(session, capability, triple.subject) then return true
-				continue
-			end if
-			if askService(session, capability, request, triple) then return true
+			// Two services may declare one fact - both geocoders declare a place's coordinates -
+			// so each is asked in the order the maps were given, and one that cannot answer leaves
+			// the next to try before the reader.
+			for capability in providers.fittingTo(session.providers, session.triples, triple)
+				// The request's own fields come from what the session holds about the subject the
+				// question names. A field with no fact behind it is asked of another service first,
+				// and this question comes round with what that one answered.
+				request = providers.requestFor(capability, session.triples, session.facts,
+					triple.subject)
+				if request == null then
+					if provideField(session, capability, triple.subject) then return true
+					continue
+				end if
+				if askService(session, capability, request, triple) then return true
+			end for
 		end for
 	end for
 	return false
@@ -920,11 +931,13 @@ provideField = function(session, capability, subject)
 	for unfilled in providers.unfilledFor(capability, session.triples, session.facts, subject)
 		for predicate in unfilled.predicates
 			need = session.triples.SpoTriple.make(subject, predicate, session.triples.var("value"))
-			found = providers.forGoal(session.providers, session.triples, need)
-			if found == null then continue
-			request = providers.requestFor(found, session.triples, session.facts, subject)
-			if request == null then continue
-			if askService(session, found, request, need) then return true
+			// The field is a fact one service declares, so the same rule as a question's: each
+			// that declares it is tried, and the first that answers fills it.
+			for found in providers.fittingTo(session.providers, session.triples, need)
+				request = providers.requestFor(found, session.triples, session.facts, subject)
+				if request == null then continue
+				if askService(session, found, request, need) then return true
+			end for
 		end for
 	end for
 	return false

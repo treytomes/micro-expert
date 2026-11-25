@@ -10,7 +10,13 @@
 //   registry = providers.registry(api, declared, uid,
 //       [globals["spike/ipwhois_map"].build()])
 //   capability = providers.forGoal(registry, triples, triple)
+//   capabilities = providers.fittingTo(registry, triples, triple)
 //   answer = providers.answer(capability, triples)
+//
+// forGoal names the first service that says it can answer a fact; fittingTo names every one that
+// does, in the order the maps were given. A session asks them in that order and stops at the one
+// that answers, so two maps declaring one fact - both geocoders declare a place's coordinates -
+// is a second chance rather than a silent choice by registry order.
 //
 // A capability is one fact one endpoint can answer:
 //
@@ -133,11 +139,20 @@ end function
 
 
 forGoal = function(registry, triples, triple)
-	"The capability that says it can answer this fact, or null when none does."
+	"The first capability that says it can answer this fact, or null when none does."
+	found = fittingTo(registry, triples, triple)
+	if found.len == 0 then return null
+	return found[0]
+end function
+
+
+fittingTo = function(registry, triples, triple)
+	"Every capability whose declared shape is this fact's, in the order the maps were given - two services may declare one fact, and a session asks each in turn."
+	found = []
 	for capability in registry
-		if fits(capability, triples, triple) then return capability
+		if fits(capability, triples, triple) then found.push capability
 	end for
-	return null
+	return found
 end function
 
 

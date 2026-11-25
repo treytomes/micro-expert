@@ -793,7 +793,7 @@ nothing but the coordinates it was asked with, so the reading is told the place 
 the same part's name, while the request itself carries only what the service uses. `from` fills
 the request's coordinates from facts the session already holds about that place. A place the
 session knows only by name or city has none of them yet, so the geocoder's search is asked for the
-coordinates first and the weather question comes round with them - one service per pass, two
+coordinates first and the weather question comes round with them - one answer per pass, two
 answers. A place with no coordinates and nothing to search it by is not asked about at all, and
 the question falls through to the prompt as it would with no registry at all.
 
@@ -804,6 +804,21 @@ rather than asking again. `forecast_hours=1` asks for the next hour alone, so ea
 one reading to answer with, and the hour it covers stays the fact's `@`. The unit is whatever the
 reply's default is - Celsius, km/h, millimetres - since the declaration names no `*_unit`.
 
-Nothing is asked at startup, and no other endpoint declares anything: the archive and the
-model-specific hosts answer about the same place but are not what a question the session cannot
-answer should reach for first.
+The geocoder declares the place's coordinates as well, asked by the place's own name or city:
+
+```text
+[{"fact": ["has-latitude", "?place", "?lat"], "about": "?place",
+  "from": {"name": ["has-name", "has-city"]}, "request": {"count": 1}},
+ {"fact": ["has-longitude", "?place", "?lon"], "about": "?place",
+  "from": {"name": ["has-name", "has-city"]}, "request": {"count": 1}}]
+```
+
+Both of `geocode.maps.co`'s search and this geocoder declare those two facts, so a question
+needing a place's coordinates by name has two maps that could answer it. The session asks them
+in the order the registry was built - `src/main.ms` lists the geocode map first - and a map that
+cannot answer is a warning rather than the end of the question: the next declaration is asked
+before the reader is.
+
+Nothing is asked at startup, and the archive and the model-specific hosts declare nothing: they
+answer about the same place but are not what a question the session cannot answer should reach
+for first.

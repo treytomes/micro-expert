@@ -23,8 +23,10 @@
 // The forecast also declares what a question may ask it, so a session that holds a place's
 // coordinates is answered with that place's weather rather than the reader: one fact per
 // documented hourly variable, all asked in one request because the reply carries every variable
-// it was asked for, and read back onto the place the question named. src/providers.ms collects
-// the block; docs/api/open-meteo.md says what it means.
+// it was asked for, and read back onto the place the question named. The geocoder declares the
+// place's coordinates by the place's own name or city, the same two facts geocode.maps.co's
+// search answers, so a session has a second map to ask when the first cannot answer.
+// src/providers.ms collects the blocks; docs/api/open-meteo.md says what they mean.
 //
 // Each endpoint names its own host, because the service spreads its surface over a dozen of
 // them. The geocoder answers with a list of places rather than a table of readings, and the
@@ -303,7 +305,17 @@ build = function
 			"geocoding": {"method": "GET", "base": "https://geocoding-api.open-meteo.com",
 				"path": "/v1/search",
 				"params": [placeName, count, geocodingFormat, language, countryCode, apikey],
-				"key": "apikey", "redact": ["apikey"], "reply": searchReply},
+				"key": "apikey", "redact": ["apikey"],
+				// A question needing a place's coordinates, asked by the place's own name or city.
+				// geocode.maps.co's search declares the same two facts, so a session has a second
+				// map to ask when the first cannot answer.
+				"provides": [
+					{"fact": ["has-latitude", "?place", "?lat"], "about": "?place",
+						"from": {"name": ["has-name", "has-city"]}, "request": {"count": 1}},
+					{"fact": ["has-longitude", "?place", "?lon"], "about": "?place",
+						"from": {"name": ["has-name", "has-city"]}, "request": {"count": 1}},
+				],
+				"reply": searchReply},
 			"geocoding-lookup": {"method": "GET", "base": "https://geocoding-api.open-meteo.com",
 				"path": "/v1/get",
 				"params": [locationId, geocodingFormat, language, apikey],

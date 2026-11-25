@@ -457,8 +457,11 @@ The search is also reached from the other direction: when a question needs a pla
 the session holds only that place's name or city, the forecast's request has no coordinates to be
 filled with, so the search is asked for them first and the weather question comes round with them.
 That is the session's doing rather than either map's - `src/providers.ms` says which fields a
-request could not fill, and `src/session.ms` asks one service per pass - and it is why the search's
-two declarations matter beyond a question that names a coordinate outright.
+request could not fill, and `src/session.ms` asks for one answer per pass - and it is why the
+search's two declarations matter beyond a question that names a coordinate outright. The search
+is not the only map declaring them: Open-Meteo's geocoder declares the same two facts, so when
+the search cannot answer, the session asks the geocoder before the reader, in the order the
+registry was built.
 
 Nothing is asked at startup and `/lookup` declares nothing, since it needs an OSM id the session
 has no way to settle on its own. The search sends `limit=1`, because one place's coordinates are
