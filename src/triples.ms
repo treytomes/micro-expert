@@ -1348,7 +1348,14 @@ proveGoals = function(goal, facts, rules, depth, binds=null, open=null, index=nu
 				if fetched == null and proof.fetched != null then fetched = proof.fetched
 				if proof.confidence < confidence then confidence = proof.confidence
 			end for
-			mergeAnswer(results, goal, proved.binds, {"rule": candidate.rule, "conditions": proved.proofs},
+			// The goal's '@' is matched against the conclusion's own moment, which its body's
+			// readings gave it: a question about one hour takes only the derivation that holds
+			// for that hour, the way it takes only the fact whose span covers it - and a
+			// question asking for the moment binds the one the derivation holds for, so a
+			// rule's answer has an hour to show rather than none.
+			matchedAt = unifyAt(goal, {"at": at}, proved.binds)
+			if matchedAt == null then continue
+			mergeAnswer(results, goal, matchedAt, {"rule": candidate.rule, "conditions": proved.proofs},
 				at, confidence, source, fetched)
 		end for
 	end for

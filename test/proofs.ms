@@ -418,4 +418,21 @@ run = function(t, rules, h)
 		[spo("berlin", "has-fahrenheit-value", 50.72)], [rule(back.head, back.body)], 2)
 	h.check("and the rule back again lands a floating hair from the reading it started from",
 		roundTrip.len == 1 and abs(roundTrip[0].binds["c"] - 10.4) < 0.000001)
+	// The hour a rule's answer holds for is matched the way a fact's is: a question about one hour
+	// takes only the derivation whose reading covered it, and ?when takes that hour.
+	hourly = [
+		t.SpoTriple.make("berlin", "has-temperature-2m", 10.4, "[2026-11-25 15:00, 2026-11-25 16:00]"),
+		t.SpoTriple.make("berlin", "has-temperature-2m", 12, "[2026-11-25 16:00, 2026-11-25 17:00]")]
+	conversions = [rule(conversion.head, conversion.body)]
+	t.clock = "2026-11-25 13:30:00"
+	hourOut = t.proveGoals(t.SpoTriple.parse(
+		"has-fahrenheit-value(berlin, ?f) @ add-hours(has-time(session, ?now), 3)"),
+		hourly, conversions, 2)
+	h.check("a question about one hour takes only the conversion whose reading covers it",
+		hourOut.len == 1 and hourOut[0].binds["f"] == 53.6)
+	spanned = t.proveGoals(t.SpoTriple.parse("has-fahrenheit-value(berlin, ?f) @ ?when"),
+		hourly, conversions, 2)
+	h.check("and ?when takes the hour the reading it converted held for",
+		spanned.len == 2 and spanned[0].binds["when"] == "[2026-11-25 15:00, 2026-11-25 16:00]")
+	t.clock = null
 end function

@@ -254,7 +254,8 @@ conversion needs: `equal(?f, add(divide(multiply(?c, 9), 5), 32))` in a constrai
 in Fahrenheit, which is the only place a number is compared, since '@' holds a moment, and
 `data/rules.kb` carries that pair as `has-fahrenheit-value` and `has-celsius-value`: each reads the
 other's predicate and works the value out, so the reading in one unit answers the other and the
-hour the reading covers comes through with it. Both fields
+hour the reading covers comes through with it: a question that asks for one hour takes only the
+conversion whose reading covered it, and the hour is what `@ ?when` takes. Both fields
 must be numbers already - a word or a moment has no value, so the call settles nothing rather than
 something surprising - and a division by zero has no value either. They are floating point, so a
 conversion and its reverse print the same number without being the same one: a round trip lands a
