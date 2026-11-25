@@ -1,7 +1,7 @@
 // Cases for src/location.ms: the facts a session starts with, read from ipwho.is's map.
 //
 // No request leaves the program: a client stand-in answers get with the canned Fort Worth
-// reply, and src/spike/declared.ms reads it through src/spike/ipwhois_map.ms. Fort Worth is
+// reply, and src/services/declared.ms reads it through src/services/ipwhois_map.ms. Fort Worth is
 // the answer throughout, because that is what ipwho.is answers this machine with, and its id
 // is the one the facts carry.
 

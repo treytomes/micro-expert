@@ -6,7 +6,7 @@
 //   3. Arguments        the cli library's declarations, and the split into options and words
 //
 // geocode.maps.co's three endpoints, Open-Meteo's twenty-three and ipwho.is's one are maps in
-// src/spike/geocode_map.ms, src/spike/openmeteo_map.ms and src/spike/ipwhois_map.ms. A map
+// src/services/geocode_map.ms, src/services/openmeteo_map.ms and src/services/ipwhois_map.ms. A map
 // cannot import this file - this interpreter discards the imports of an imported module - so a
 // host imports both and hands the map this module's map, which it calls through: api.validate,
 // api.get. The endpoint tables are still the whole surface of each service; validate passes a

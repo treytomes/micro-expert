@@ -67,10 +67,10 @@ env["GEOCODE_MAPS_API_KEY"] = "test-key"
 import "../src/uid"
 import "../src/location"
 // The declared writer and the ipwho.is map it reads; `declared` below is the case module.
-import "../src/spike/declared"
-import "../src/spike/ipwhois_map"
-import "../src/spike/geocode_map"
-import "../src/spike/openmeteo_map"
+import "../src/services/declared"
+import "../src/services/ipwhois_map"
+import "../src/services/geocode_map"
+import "../src/services/openmeteo_map"
 // The registry the service maps declare their capabilities in.
 import "../src/providers"
 
@@ -166,18 +166,18 @@ uidCases = globals["uid"]
 // module for it, named away from the session module the cases must not be confused with.
 locationModule = globals["../src/location"]
 locationCases = globals["location"]
-// src/spike/declared.ms is the shared writer and src/spike/ipwhois_map.ms is ipwho.is as the
+// src/services/declared.ms is the shared writer and src/services/ipwhois_map.ms is ipwho.is as the
 // map it reads; `declared` is this suite's case module for both.
-declaredModule = globals["../src/spike/declared"]
-declaredMap = globals["../src/spike/ipwhois_map"]
+declaredModule = globals["../src/services/declared"]
+declaredMap = globals["../src/services/ipwhois_map"]
 declaredCases = globals["declared"]
-// src/spike/geocode_map.ms is geocode.maps.co as the same writer reads it; `geocoder` is this
+// src/services/geocode_map.ms is geocode.maps.co as the same writer reads it; `geocoder` is this
 // suite's case module for it.
-geocodeMap = globals["../src/spike/geocode_map"]
+geocodeMap = globals["../src/services/geocode_map"]
 geocoderCases = globals["geocoder"]
-// src/spike/openmeteo_map.ms is Open-Meteo's endpoints as the same writer reads them;
+// src/services/openmeteo_map.ms is Open-Meteo's endpoints as the same writer reads them;
 // `openmeteo` is this suite's case module for it.
-openmeteoMap = globals["../src/spike/openmeteo_map"]
+openmeteoMap = globals["../src/services/openmeteo_map"]
 openmeteoCases = globals["openmeteo"]
 // src/providers.ms is the registry of what those maps say they can answer; `providers` is this
 // suite's case module for it.
@@ -234,19 +234,19 @@ if locationModule == null or locationModule.hasIndex("sessionFacts") == 0 then
 	exit 1
 end if
 if declaredModule == null or declaredModule.hasIndex("read") == 0 then
-	print "error: could not import ../src/spike/declared"
+	print "error: could not import ../src/services/declared"
 	exit 1
 end if
 if declaredMap == null or declaredMap.hasIndex("build") == 0 then
-	print "error: could not import ../src/spike/ipwhois_map"
+	print "error: could not import ../src/services/ipwhois_map"
 	exit 1
 end if
 if geocodeMap == null or geocodeMap.hasIndex("build") == 0 then
-	print "error: could not import ../src/spike/geocode_map"
+	print "error: could not import ../src/services/geocode_map"
 	exit 1
 end if
 if openmeteoMap == null or openmeteoMap.hasIndex("build") == 0 then
-	print "error: could not import ../src/spike/openmeteo_map"
+	print "error: could not import ../src/services/openmeteo_map"
 	exit 1
 end if
 

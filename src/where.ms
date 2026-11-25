@@ -1,6 +1,6 @@
 // where.ms — prints where this session is, as `.kb` facts.
 //
-// src/location.ms answers the place through src/spike/ipwhois_map.ms and the declared writer; it
+// src/location.ms answers the place through src/services/ipwhois_map.ms and the declared writer; it
 // imports nothing and reads no globals, so the maps it works from are loaded here and passed in.
 // This script sits in src/ so that every import resolves the same way: an import is resolved
 // against the entry script's folder, and triples.ms imports "temporal" itself, so run from
@@ -16,15 +16,15 @@
 
 
 import "api/client"
-import "spike/declared"
-import "spike/ipwhois_map"
+import "services/declared"
+import "services/ipwhois_map"
 import "triples"
 import "uid"
 import "location"
 
 api = globals["api/client"]
-declared = globals["spike/declared"]
-decl = globals["spike/ipwhois_map"].build()
+declared = globals["services/declared"]
+decl = globals["services/ipwhois_map"].build()
 triples = globals["triples"]
 uid = globals["uid"]
 location = globals["location"]

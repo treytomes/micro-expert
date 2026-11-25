@@ -1,4 +1,4 @@
-// Cases for src/spike/openmeteo_map.ms, Open-Meteo's endpoints as the writer reads them:
+// Cases for src/services/openmeteo_map.ms, Open-Meteo's endpoints as the writer reads them:
 // one canned forecast written as docs/api/open-meteo.md's vocabulary with the hour and the
 // probability on each fact, the other shapes a reply can answer with, and the request half
 // beside the map's own request half.

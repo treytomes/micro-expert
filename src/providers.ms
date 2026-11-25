@@ -1,6 +1,6 @@
 // providers.ms — the services a session can ask for a fact it needs.
 //
-// A service is a map (src/spike/ipwhois_map.ms and its neighbours), and an endpoint that can
+// A service is a map (src/services/ipwhois_map.ms and its neighbours), and an endpoint that can
 // answer a fact says so in its own "provides" block. This module collects those declarations
 // into one registry and runs the one that can supply a fact the facts and rules did not. Nothing
 // here knows a service by name: a capability exists because a map declares it.
@@ -8,7 +8,7 @@
 //   import "providers"
 //
 //   registry = providers.registry(api, declared, uid,
-//       [globals["spike/ipwhois_map"].build()])
+//       [globals["services/ipwhois_map"].build()])
 //   capability = providers.forGoal(registry, triples, triple)
 //   capabilities = providers.fittingTo(registry, triples, triple)
 //   answer = providers.answer(capability, triples)

@@ -62,10 +62,10 @@ import "session"
 import "mermaid"
 import "options"
 import "api/client"
-import "spike/declared"
-import "spike/ipwhois_map"
-import "spike/geocode_map"
-import "spike/openmeteo_map"
+import "services/declared"
+import "services/ipwhois_map"
+import "services/geocode_map"
+import "services/openmeteo_map"
 import "uid"
 import "providers"
 
@@ -328,9 +328,9 @@ enableServices = function(session)
 		repl.say(session, "note", "  the services are already on")
 		return
 	end if
-	session.providers = providers.registry(globals["api/client"], globals["spike/declared"],
-		globals["uid"], [globals["spike/ipwhois_map"].build(),
-			globals["spike/geocode_map"].build(), globals["spike/openmeteo_map"].build()])
+	session.providers = providers.registry(globals["api/client"], globals["services/declared"],
+		globals["uid"], [globals["services/ipwhois_map"].build(),
+			globals["services/geocode_map"].build(), globals["services/openmeteo_map"].build()])
 	repl.say(session, "note", "  services on: " + session.providers.len +
 		" facts a question can ask the maps for")
 end function

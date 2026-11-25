@@ -1,7 +1,7 @@
 # The geocode.maps.co API surface
 
 geocode.maps.co is a small geocoder over OpenStreetMap data: an address in, coordinates and a
-display name out, and the reverse. It has three GET endpoints, and `src/spike/geocode_map.ms`
+display name out, and the reverse. It has three GET endpoints, and `src/services/geocode_map.ms`
 holds all three with every parameter each one takes and the facts a result becomes.
 
 This document is the remote surface written out: what a request looks like, what comes back,
@@ -19,7 +19,7 @@ GET https://geocode.maps.co/search?q=Eiffel+Tower&limit=1&api_key=...
   ones, and joins a repeated `--name` with commas, so `--countrycodes de --countrycodes fr`
   becomes `countrycodes=de%2Cfr`.
 - The key is the `api_key` parameter, added to every request. The map names the variable it is
-  read from (its `keyEnv`, `GEOCODE_MAPS_API_KEY`), and `src/spike/declared.ms` fills the
+  read from (its `keyEnv`, `GEOCODE_MAPS_API_KEY`), and `src/services/declared.ms` fills the
   parameter from the environment - which is where the `.env` beside the run puts it - unless the
   caller hands a key in itself. The map keeps the key out of any URL it builds. A run with no key
   in either place refuses the request before it goes out and says which variable to set, since a
@@ -79,7 +79,7 @@ A result looks like this (one entry of a `/search` reply, trimmed):
 
 `lat` and `lon` are strings, not numbers, which is worth knowing before doing arithmetic on
 them. The layer hands the parsed JSON through as the service sent it, so they stay strings.
-`src/spike/declared.ms` reads each result through the map instead: the three endpoints share one
+`src/services/declared.ms` reads each result through the map instead: the three endpoints share one
 facts list, the subject is the OSM object (`way/5013364`), and a search adds the query that asked
 for it.
 
@@ -304,9 +304,9 @@ parenthesis, and no `//`. That rules out some of the reply outright:
 
 ### From a reply to a facts file
 
-The map writes triples: `src/spike/geocode_map.ms` says one fact per property, subject from
+The map writes triples: `src/services/geocode_map.ms` says one fact per property, subject from
 `osm_type` and `osm_id`, `val` on the two coordinates because the reply writes them as strings,
-and no fact at all for a field that is absent; `src/spike/declared.ms` turns those facts into
+and no fact at all for a field that is absent; `src/services/declared.ms` turns those facts into
 `.kb` text. Keeping `was-answer-to` makes a file's join reversible: it says which query produced
 it, and a second run of the same query can be compared rather than merged.
 
@@ -422,13 +422,13 @@ key that was sent and rejected.
 
 ## How the map reads a result
 
-`src/spike/geocode_map.ms` declares the three endpoints and one facts list: a result's name,
+`src/services/geocode_map.ms` declares the three endpoints and one facts list: a result's name,
 coordinates and bounding box, its OSM class and type, its address and its extra tags. The subject
 is `osm_type`/`osm_id` joined with `/`, so the same OSM object is the same term whichever endpoint
 sent it; a lookup result that carries a GeoJSON centroid instead of `lat` and `lon` names both
 paths, longitude first. Only a search records `was-answer-to`, because only a search has a query.
 
-`src/spike/declared.ms` reads a list reply (`/search`, `/lookup`) one result at a time and a
+`src/services/declared.ms` reads a list reply (`/search`, `/lookup`) one result at a time and a
 single-object reply (`/reverse`) as one, and leaves out a field the reply did not carry rather
 than writing an empty term.
 
@@ -475,13 +475,13 @@ the first match's and a second answer would only be a second opinion.
 The first match is worth the coordinates only if it is the place that was asked about, so the
 search's reply block names the fields that make it so:
 `"confirm": {"has-city": ["address.city", "name"], "has-country": "address.country"}`.
-`src/spike/declared.ms` looks each of those predicates up among the facts the session already
+`src/services/declared.ms` looks each of those predicates up among the facts the session already
 holds about that place and refuses the reply when the service's own word for the field disagrees
 - a service's capitals, its accents, its abbreviations and the words a name may carry are the
 same naming, so a search for `Washington, D.C.` is answered by a result that says `Washington`,
 and one for `New York` by `City of New York` - so a search for Fort Worth that comes back with
 another Springfield is a warning naming both cities, and those coordinates are not read onto this
-place. What counts as the same naming is `samePlace` in `src/spike/declared.ms`: the words of a
+place. What counts as the same naming is `samePlace` in `src/services/declared.ms`: the words of a
 name once case, accents, punctuation, one-letter initials and the administrative words are set
 aside, with `St.` read as `Saint` and `Ft.` as `Fort`. Only that: `Newark` is not `New York City`,
 `Paso` is not `El Paso`, and a name in another script that this cannot spell is compared as it

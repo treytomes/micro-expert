@@ -24,10 +24,10 @@ import "options"
 // registry: src/providers.ms reads what each map's endpoints declare they can answer, so a
 // question needing a fact one of them supplies asks that service rather than the reader.
 import "api/client"
-import "spike/declared"
-import "spike/ipwhois_map"
-import "spike/geocode_map"
-import "spike/openmeteo_map"
+import "services/declared"
+import "services/ipwhois_map"
+import "services/geocode_map"
+import "services/openmeteo_map"
 import "uid"
 import "providers"
 
@@ -156,7 +156,7 @@ if engineSession isa error then
 end if
 
 // ── The services a question may ask ──────────────────────────────────────────
-// The maps in src/spike/ declare three services, and an endpoint says in its own "provides"
+// The maps in src/services/ declare three services, and an endpoint says in its own "provides"
 // block which fact it can answer: ipwho.is's lookup answers has-location(session, ?place), so
 // the prompt's has-location(session, ?p) asks the service when it needs to and the domain's is-a
 // rule types the place it names; geocode.maps.co answers a place's coordinates by its name and
@@ -166,9 +166,9 @@ end if
 // --offline is the one option that decides this: with it, no registry is built and no question
 // can reach the network, so a run answers from its files and the prompt.
 if not engineSession.offline then
-	engineSession.providers = providers.registry(globals["api/client"], globals["spike/declared"],
-		globals["uid"], [globals["spike/ipwhois_map"].build(),
-			globals["spike/geocode_map"].build(), globals["spike/openmeteo_map"].build()])
+	engineSession.providers = providers.registry(globals["api/client"], globals["services/declared"],
+		globals["uid"], [globals["services/ipwhois_map"].build(),
+			globals["services/geocode_map"].build(), globals["services/openmeteo_map"].build()])
 end if
 
 // 'known', not 'fact': a top-level loop variable is a global here, so naming it

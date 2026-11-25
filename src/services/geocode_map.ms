@@ -3,8 +3,8 @@
 // This is the whole of the service as the writer reads it. Nothing here is code, and the only
 // thing a fourth endpoint would need is another entry under "endpoints".
 //
-//   import "spike/geocode_map"
-//   decl = globals["spike/geocode_map"].build()
+//   import "services/geocode_map"
+//   decl = globals["services/geocode_map"].build()
 //
 // The endpoints answer in two shapes: /search and /lookup with a list of results, /reverse with
 // one object, and a result carries the same fields whichever sent it, so one facts list reads
@@ -29,11 +29,11 @@
 // names the facts the request's fields are filled from.
 //
 // A search sends limit=1 and takes what comes back, so its reply block also names the fields
-// that make a result the place asked about - the city and the country - and src/spike/declared.ms
+// that make a result the place asked about - the city and the country - and src/services/declared.ms
 // refuses a first result whose own words disagree with the facts the session holds for that place.
 //
 // The service answers 401 without a key, so the map names the variable its key is read from:
-// "keyEnv" is GEOCODE_MAPS_API_KEY, which src/spike/declared.ms takes from the environment - the
+// "keyEnv" is GEOCODE_MAPS_API_KEY, which src/services/declared.ms takes from the environment - the
 // .env beside the run, read by src/dotenv.ms - when the caller hands no key in. A run with
 // neither refuses the request and says which variable to set.
 
@@ -88,7 +88,7 @@ build = function
 		"service": "geocode.maps.co",
 		"base": "https://geocode.maps.co",
 		// The service answers 401 without a key, so the map names where the key is read from:
-		// src/spike/declared.ms fills the request's api_key from this variable, and refuses the
+		// src/services/declared.ms fills the request's api_key from this variable, and refuses the
 		// request - saying which variable to set - when it holds nothing.
 		"keyEnv": "GEOCODE_MAPS_API_KEY",
 		"endpoints": {

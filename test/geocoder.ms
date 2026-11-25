@@ -1,4 +1,4 @@
-// Cases for src/spike/geocode_map.ms, geocode.maps.co as the writer reads it: one search result
+// Cases for src/services/geocode_map.ms, geocode.maps.co as the writer reads it: one search result
 // written as docs/api/geocode-maps-co.md's vocabulary, the other shapes a search can answer
 // with, and the request half beside geocode.fetch's own.
 //

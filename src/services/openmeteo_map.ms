@@ -1,7 +1,7 @@
 // openmeteo_map.ms — Open-Meteo as one map: all twenty-three endpoints, and what one reply becomes.
 //
-//   import "spike/openmeteo_map"
-//   decl = globals["spike/openmeteo_map"].build()
+//   import "services/openmeteo_map"
+//   decl = globals["services/openmeteo_map"].build()
 //
 // Open-Meteo answers with parallel lists: `hourly.time` holds the instants, and one list beside
 // it holds each variable's value at that index. A reply carries one table per period - hourly,

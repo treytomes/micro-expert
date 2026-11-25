@@ -1,9 +1,9 @@
 // ipwhois_map.ms — ipwho.is as one map: its request, and what its reply becomes.
 //
-// This is the whole of the service. src/spike/declared.ms reads it; nothing here is code.
+// This is the whole of the service. src/services/declared.ms reads it; nothing here is code.
 //
-//   import "spike/ipwhois_map"
-//   decl = globals["spike/ipwhois_map"].build()
+//   import "services/ipwhois_map"
+//   decl = globals["services/ipwhois_map"].build()
 //
 // The endpoint's params are the same spec shape src/api/client.ms validates against, so
 // --help and the request checks come for free. The reply half says when the service refused,

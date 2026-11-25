@@ -3,8 +3,8 @@
 // A service is data: its base, its endpoints, the parameters each takes, and what each reply
 // becomes. This module is the reading, and it knows no service by name.
 //
-//   import "spike/declared"
-//   declared = globals["spike/declared"]
+//   import "services/declared"
+//   declared = globals["services/declared"]
 //
 //   decl    = {"service": "ipwho.is", "base": "https://ipwho.is", "endpoints": {...}}
 //   result  = declared.fetch(api, decl, "lookup", {"fields": "city"}, 10)

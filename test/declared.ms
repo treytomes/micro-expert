@@ -1,4 +1,4 @@
-// Cases for src/spike/declared.ms, the shared writer, and src/spike/ipwhois_map.ms, ipwho.is as
+// Cases for src/services/declared.ms, the shared writer, and src/services/ipwhois_map.ms, ipwho.is as
 // the map it reads: the canned Fort Worth reply as the writer reads it.
 //
 // No request leaves the program: a client stand-in answers get with the JSON below.

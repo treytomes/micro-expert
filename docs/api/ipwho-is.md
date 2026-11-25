@@ -2,7 +2,7 @@
 
 ipwho.is reads an IP address to where it is: the country, region and city that address is
 registered to, the coordinates of that city, and the network, clock and flag that go with it.
-`src/spike/ipwhois_map.ms` holds the one endpoint the writer models - the lookup of the session's
+`src/services/ipwhois_map.ms` holds the one endpoint the writer models - the lookup of the session's
 own address - with the two parameters it takes and the facts a reply becomes. There is no program
 of its own for this service; `src/location.ms` is the caller, asking it where the session is.
 
@@ -88,7 +88,7 @@ absent rather than zero, and a part that was not sent is absent rather than empt
 
 ## The reply as facts
 
-`src/spike/declared.ms` reads the parsed JSON through the map: the reply says when the service
+`src/services/declared.ms` reads the parsed JSON through the map: the reply says when the service
 refused (`success` false), which fields identify the place (`city`, `region`, `country` hashed to
 `place-...`), and one fact per line. The label is `city, region, country`; the coordinates stay
 the numbers the reply sent. Every other field is read by the name the service gave it, so no field
@@ -202,8 +202,8 @@ globals - so the host in `src/` loads the maps and hands them in:
 
 ```
 api = globals["api/client"]
-declared = globals["spike/declared"]
-decl = globals["spike/ipwhois_map"].build()
+declared = globals["services/declared"]
+decl = globals["services/ipwhois_map"].build()
 location = globals["location"]
 where = location.sessionFacts(globals["triples"], globals["uid"], api, declared, decl)
 where.facts[0].text               has-location(session, place-f1d6b283a52a28dc)
