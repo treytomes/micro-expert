@@ -248,9 +248,9 @@ yesterday's is left out and the service is asked again rather than a stale clock
 question that asks only what time it is at a place is missing that place's offset, and the map
 answers it with a reply read for the zone alone. Reading a clock takes two offsets - the place's and
 the machine's own - so a question missing both asks for both, and one that does not even know where
-the machine is asks that first: the lookup that says where it is says how far its clock stands. `add-hours` moves a moment, and `add`,
+the machine is asks that first: the lookup that says where it is says how far its clock stands. `add-hours` moves a moment; `add`,
 `subtract`, `multiply` and `divide` work out a number from two numbers, nested as deep as a
-conversion needs: `equal(?f, add(divide(multiply(?c, 9), 5), 32))` in a constraint field is Celsius
+conversion needs, and `round(value, places)` cuts a number to that many decimal places; `equal(?f, add(divide(multiply(?c, 9), 5), 32))` in a constraint field is Celsius
 in Fahrenheit, which is the only place a number is compared, since '@' holds a moment, and
 `data/rules.kb` carries that pair as `has-fahrenheit-value` and `has-celsius-value`: each reads the
 other's predicate and works the value out, so the reading in one unit answers the other and the
@@ -259,8 +259,9 @@ conversion whose reading covered it, and the hour is what `@ ?when` takes. Both 
 must be numbers already - a word or a moment has no value, so the call settles nothing rather than
 something surprising - and a division by zero has no value either. They are floating point, so a
 conversion and its reverse print the same number without being the same one: a round trip lands a
-hair from where it started, and a pair of rules that convert both ways drifts by that hair each time
-round the pair. None of the calls is a
+hair from where it started unless the way back rounds it, which is what `round` is for. The pair in
+`data/rules.kb` rounds to six places, so converting and converting back lands exactly on the reading
+it started from, and a question cannot answer with a chain of near-copies. None of the calls is a
 fact, so none is stored, saved, or listed among the facts a session holds. The rest stay a stored fact's own: `~` and `#` are refused on a question rather than
 answered with them dropped, a constraint line takes none at all, and a rule's head and every
 condition are written bare, so an annotation on either is refused wherever the rule is read.

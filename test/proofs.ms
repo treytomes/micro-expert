@@ -404,6 +404,11 @@ run = function(t, rules, h)
 	h.check("arithmetic is not a constraint a body checks, nor a fact a line stores",
 		not t.isConstraint("add") and t.isCallName("add") and
 			t.callProblem(t.Call.make("add", [1])) != null)
+	h.check("round cuts a value to the places it is given",
+		arithmetic("round", 2.567, 2) == 2.57 and
+			arithmetic("round", 10.400000000000006, 6) == 10.4)
+	h.check("while a value that is not a number has nothing to round",
+		arithmetic("round", "berlin", 2) == null)
 	conversion = t.parseRule("has-fahrenheit-value(?p, ?f) => has-temperature-2m(?p, ?c), " +
 		"equal(?f, add(divide(multiply(?c, 9), 5), 32))")
 	reading = t.SpoTriple.make("berlin", "has-temperature-2m", 10.4,
@@ -418,6 +423,12 @@ run = function(t, rules, h)
 		[spo("berlin", "has-fahrenheit-value", 50.72)], [rule(back.head, back.body)], 2)
 	h.check("and the rule back again lands a floating hair from the reading it started from",
 		roundTrip.len == 1 and abs(roundTrip[0].binds["c"] - 10.4) < 0.000001)
+	rounded = t.parseRule("has-celsius-value(?p, ?c) => has-fahrenheit-value(?p, ?f), " +
+		"equal(?c, round(divide(multiply(subtract(?f, 32), 5), 9), 6))")
+	exactly = t.proveGoals(t.SpoTriple.parse("has-celsius-value(berlin, ?c)"),
+		[spo("berlin", "has-fahrenheit-value", 50.72)], [rule(rounded.head, rounded.body)], 2)
+	h.check("rounding the way back makes the pair cancel exactly",
+		exactly.len == 1 and exactly[0].binds["c"] == 10.4)
 	// The hour a rule's answer holds for is matched the way a fact's is: a question about one hour
 	// takes only the derivation whose reading covered it, and ?when takes that hour.
 	hourly = [

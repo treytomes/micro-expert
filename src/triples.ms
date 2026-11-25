@@ -190,9 +190,11 @@ end function
 // A call is a value, never a fact: has-time reads the clock into a field, add-hours moves a
 // moment by hours, and the four arithmetic names work out a number - which is what a conversion
 // between units is written with, in the constraint field that compared it.
-callNames = {"has-time": 1, "add-hours": 1, "add": 1, "subtract": 1, "multiply": 1, "divide": 1}
+callNames = {"has-time": 1, "add-hours": 1, "add": 1, "subtract": 1, "multiply": 1, "divide": 1,
+	"round": 1}
 
-callFields = {"has-time": 2, "add-hours": 2, "add": 2, "subtract": 2, "multiply": 2, "divide": 2}
+callFields = {"has-time": 2, "add-hours": 2, "add": 2, "subtract": 2, "multiply": 2, "divide": 2,
+	"round": 2}
 
 arithmeticNames = {"add": 1, "subtract": 1, "multiply": 1, "divide": 1}
 
@@ -1012,6 +1014,17 @@ evaluate = function(term, binds)
 		end if
 		if value == null then return null
 		return {"binds": right.binds, "value": value}
+	end if
+	if term.name == "round" then
+		// round(value, places) is the value to that many decimal places. Arithmetic is floating
+		// point, so a conversion and its reverse land a hair apart; rounding the way back is what
+		// makes a pair of rules cancel exactly rather than drift by that hair each time round.
+		if term.args.len != 2 then return null
+		value = evaluate(term.args[0], binds)
+		if value == null or not (value.value isa number) then return null
+		places = evaluate(term.args[1], value.binds)
+		if places == null or not (places.value isa number) then return null
+		return {"binds": places.binds, "value": round(value.value, places.value)}
 	end if
 	return null
 end function

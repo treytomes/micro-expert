@@ -26,7 +26,7 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 		"shares-age-group-with(?x, ?y) => belongs-to-age-group(?x, ?g), equal(?g, ?h), belongs-to-age-group(?y, ?h), not-equal(?x, ?y)",
 		"is-a(?x, location) => has-latitude(?x, ?y), has-longitude(?x, ?z)",
 		"has-fahrenheit-value(?p, ?f) => has-temperature-2m(?p, ?c), equal(?f, add(divide(multiply(?c, 9), 5), 32))",
-		"has-celsius-value(?p, ?c) => has-fahrenheit-value(?p, ?f), equal(?c, divide(multiply(subtract(?f, 32), 5), 9))",
+		"has-celsius-value(?p, ?c) => has-fahrenheit-value(?p, ?f), equal(?c, round(divide(multiply(subtract(?f, 32), 5), 9), 6))",
 	]
 	texts = []
 	for rule in loadedRules

@@ -1347,6 +1347,12 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("and a Fahrenheit value converts back to Celsius with the same hour",
 		printed(backAgain.answers.lines,
 			"  has-celsius-value(berlin, 10.4) @ [2026-11-25 15:00, 2026-11-25 16:00]"))
+	// The shipped pair cancels exactly rather than landing a hair off, because the rule back rounds
+	// the value it works out: 50.72 out of 10.4 comes back as 10.4 and not 10.400000000000006.
+	shippedBack = t.proveGoals(t.SpoTriple.parse("has-celsius-value(berlin, ?c)"),
+		fahrenheitValues, conversions, 2)
+	h.check("and the shipped pair cancels exactly, the way back rounding what it works out",
+		shippedBack.len == 1 and shippedBack[0].binds["c"] == 10.4)
 	// The time is not a fact a session keeps, so a line that would store it is refused.
 	clockStored = startSession([], [], ["has-time(session, 2026-11-22 11:45:00)"], null, 0, {})
 	refusedClock = null

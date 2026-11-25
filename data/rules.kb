@@ -89,6 +89,8 @@ has-fahrenheit-value(?p, ?f) => and(has-temperature-2m(?p, ?c), equal(?f, add(di
 
 // ...and back, for a session handed Fahrenheit and asked in Celsius. The head is
 // has-celsius-value rather than has-temperature-2m on purpose: two rules that concluded one
-// another's body would feed each other, and the arithmetic is floating point, so each pass round
-// the pair would drift a hair and a question would answer with a chain of near-copies.
-has-celsius-value(?p, ?c) => and(has-fahrenheit-value(?p, ?f), equal(?c, divide(multiply(subtract(?f, 32), 5), 9)))
+// another's body would feed each other, and a question would answer with a chain of near-copies.
+// round(...) is there because the arithmetic is floating point: without it the value coming back
+// is a hair off the one that went out (10.4 returns as 10.400000000000006), and with it the pair
+// cancels exactly, so converting and converting back lands on the reading it started from.
+has-celsius-value(?p, ?c) => and(has-fahrenheit-value(?p, ?f), equal(?c, round(divide(multiply(subtract(?f, 32), 5), 9), 6)))
