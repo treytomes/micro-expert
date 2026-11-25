@@ -49,7 +49,12 @@
 		{
 			"kind": "markdown",
 			"language": "markdown",
-			"source": "The coordinates that answer came from are facts of the session now, so a question about the place is answered from them rather than asked again. The map's other half is its reverse endpoint, which reads an address back from a coordinate - the road and house number a city's own search result has no way to carry:\n\n```micro-expert-kb\nhas-latitude(fort-worth, 32.753177)\nhas-longitude(fort-worth, -97.332746)\nhas-road(fort-worth, ?road)\n```\n\nThose three lines are here rather than in a cell of their own because they are the tour's one question no second map declares: `has-road` needs `GEOCODE_MAPS_API_KEY`, and a run without it asks you for a road instead of telling you one. Run them as a cell when the key is set, and the answer reads `has-road(fort-worth, Throckmorton Street) # geocode.maps.co/reverse`, with the street, the house number and the rest of the address read back onto the place. The reference page shows the request and its reply too."
+			"source": "The coordinates that answer came from are facts of the session now, so a question about the place is answered from them rather than asked again. The map's other half is its reverse endpoint, which reads an address back from a coordinate - the road and house number a city's own search result has no way to carry. The reverse is built from the place's coordinates, so this cell types them the way the search cell typed the city, and it has what it needs when it is run on its own. It is also the one cell here that wants the map's key, `GEOCODE_MAPS_API_KEY`: without it the map says which variable is missing and the cell asks you for the road instead of telling you one."
+		},
+		{
+			"kind": "code",
+			"language": "micro-expert-kb",
+			"source": "has-latitude(fort-worth, 32.753177)\nhas-longitude(fort-worth, -97.332746)\nhas-road(fort-worth, ?road)"
 		},
 		{
 			"kind": "markdown",
