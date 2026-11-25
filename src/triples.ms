@@ -217,6 +217,34 @@ isCallName = function(name)
 	return name isa string and callNames.hasIndex(name) != 0
 end function
 
+// Not every call reads the clock: the four arithmetic names and round work out a number from the
+// numbers they are given, so a line that is only one of them is a value with an answer rather than
+// a fact to store. has-time reads the clock, and add-hours moves a moment it is handed, so a line
+// naming either still needs a question to carry it in '@'.
+valueNames = {"add": 1, "subtract": 1, "multiply": 1, "divide": 1, "round": 1}
+
+clocklessCall = function(term)
+	"Says whether a term works itself out without reading the clock: a number worked out from numbers does, and anything reading or moving a moment does not."
+	if not (term isa Call) then return true
+	if valueNames.hasIndex(term.name) == 0 then return false
+	for arg in term.args
+		if not clocklessCall(arg) then return false
+	end for
+	return true
+end function
+
+clocklessCallOf = function(line)
+	"The call a line is when the line is one and it works itself out without the clock, else null."
+	text = trimSpace(line)
+	if text == "" or text[-1] != ")" then return null
+	if indexOfOutside(text, "(", false) == null then return null
+	if not balancedQuotes(text) then return null
+	term = termOf(text)
+	if not (term isa Call) then return null
+	if not clocklessCall(term) then return null
+	return term
+end function
+
 termText = function(term)
 	if term isa Call then return term.text
 	"Renders one term: a Var as '?x', a value in quotes when it needs them, and anything else as it is."

@@ -37,6 +37,7 @@ The session decides what a line is from its shape.
 | `is-grandpa-of(?who, tim)` | A question, because it holds a variable. |
 | `is-grandparent-of(?x, ?y) => is-parent-of(?x, ?p), is-parent-of(?p, ?y)` | A rule, because it holds `=>`. |
 | `oliver` | A value, said back the way a fact would write it. Nothing is stored. |
+| `add(3, 5)` | A call working out a number: it is answered, `8`, since arithmetic reads nothing but the values it is given. Nothing is stored. |
 | `less-than(5, 3)` | A constraint with a value in both fields: it is checked and said `true` or `false`. |
 | `/help` | A command for the session itself. |
 

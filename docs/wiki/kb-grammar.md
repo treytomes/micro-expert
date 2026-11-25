@@ -261,7 +261,14 @@ something surprising - and a division by zero has no value either. They are floa
 conversion and its reverse print the same number without being the same one: a round trip lands a
 hair from where it started unless the way back rounds it, which is what `round` is for. The pair in
 `data/rules.kb` rounds to six places, so converting and converting back lands exactly on the reading
-it started from, and a question cannot answer with a chain of near-copies. None of the calls is a
+it started from, and a question cannot answer with a chain of near-copies.
+
+A line that is only one of those calls is a value with an answer rather than a fact to store:
+`add(3, 5)` typed at the prompt is `8`, and `round(2.567, 2)` is `2.57`, worked out where they are
+typed. They need no '@' and no clock, which is the difference between them and the calls that read
+one: `has-time` asks what time it is, and `add-hours` moves a moment it is handed, so a line naming
+either is still not a fact. A call that still holds a variable, or divides by zero, has no value to
+give and says so instead of being stored. None of the calls is a
 fact, so none is stored, saved, or listed among the facts a session holds. The rest stay a stored fact's own: `~` and `#` are refused on a question rather than
 answered with them dropped, a constraint line takes none at all, and a rule's head and every
 condition are written bare, so an annotation on either is refused wherever the rule is read.

@@ -1362,6 +1362,21 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("the clock is refused as a fact to store",
 		refusedClock != null and refusedClock.indexOf("reads the clock") != null and
 			clockStored.session.facts.len == 0)
+	// Arithmetic reads no clock, so a line that is only one of its calls has an answer rather than
+	// a refusal: the four basic operations and round are worked out where they are typed.
+	values = startSession([], [], ["add(3, 5)", "divide(3, 5)", "multiply(3, 6)",
+		"subtract(6, 3)", "round(2.567, 2)", "add(multiply(2, 3), divide(9, 3))"], null, 0, {})
+	h.check("a line that is only arithmetic is answered, the numbers it is given being all it reads",
+		printed(values.answers.lines, "  8") and printed(values.answers.lines, "  0.6") and
+			printed(values.answers.lines, "  18") and printed(values.answers.lines, "  3") and
+			printed(values.answers.lines, "  2.57") and printed(values.answers.lines, "  9"))
+	h.check("and none of it is kept as a fact the session holds", values.session.facts.len == 0)
+	noValue = startSession([], [], ["add(?x, 5)", "divide(3, 0)"], null, 0, {})
+	h.check("while a call holding a variable or dividing by zero has no value to give",
+		printed(noValue.answers.lines, "  add(?x, 5): a call is answered rather than stored, " +
+			"and this one has no value to give") and
+		printed(noValue.answers.lines, "  divide(3, 0): a call is answered rather than stored, " +
+			"and this one has no value to give") and noValue.session.facts.len == 0)
 	t.clock = null
 	t.clock = null
 end function

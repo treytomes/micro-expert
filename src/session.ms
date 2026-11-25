@@ -594,6 +594,22 @@ handleLine = function(session, line)
 		repl.say(session, "answer", "  " + session.triples.termText(term))
 		return
 	end if
+	// A line that is only a call working out a number is a value, not a fact to store. add(3, 5)
+	// reads nothing but the numbers it is given, so it is answered where it is typed rather than
+	// refused for reading the clock it never reads; the same goes for the other three and for
+	// round. A call still holding a variable, or dividing by zero, has no value to give and says so
+	// rather than being stored, and one that reads a moment still needs a question to carry it.
+	call = session.triples.clocklessCallOf(line)
+	if call != null then
+		worked = session.triples.evaluate(call, {})
+		if worked == null then
+			repl.say(session, "warning", "  " + session.triples.trimSpace(line) +
+				": a call is answered rather than stored, and this one has no value to give")
+			return
+		end if
+		repl.say(session, "answer", "  " + session.triples.termText(worked.value))
+		return
+	end if
 	triple = session.triples.SpoTriple.parse(line)
 	if triple isa error then
 		repl.say(session, "warning", "  " + triple.message)
