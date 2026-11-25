@@ -346,6 +346,23 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	h.check("and holds the coordinates it answered as that place's",
 		holds(coordSaid, "added has-latitude(" + named + ", 32.7555)"))
 
+	// ── A body joins two facts, and the far one is asked of a service ───────
+
+	// The session knows where it is and the place's city, but not its coordinates. The body's
+	// first condition settles the place, so the second is a need with that place for its
+	// subject - the fact the geocoder's search declares - and the answer is both facts.
+	placed = triples.SpoTriple.make("session", "has-location", named)
+	joinedClient = stubFor(searchReply)
+	joinedSession = startSession(providers.registry(joinedClient, declared, uid, [geoDecl]),
+		["and(has-location(session, ?loc), has-latitude(?loc, ?lat))"], [placed, namedCity])
+	h.check("a body's second condition asks the service for the place the first located",
+		joinedClient.calls == 1 and joinedClient.seenUrl.indexOf("q=Fort") != null)
+	h.check("and the answer is both facts the body settled",
+		printed(joinedSession.answers.lines, "  has-location(session, " + named + ")") and
+			printed(joinedSession.answers.lines, "  has-latitude(" + named + ", 32.7555)"))
+	h.check("with no value asked for any of it",
+		not holds(joinedSession.answers.asked, "  ?loc = "))
+
 	// The reverse takes the coordinates the place already has, and answers its address.
 	addressed = stubFor(reverseReply)
 	addressSaid = []

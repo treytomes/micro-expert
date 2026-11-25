@@ -1242,6 +1242,27 @@ needsFor = function(goal, facts, rules, depth, binds=null, open=null)
 	return options
 end function
 
+needsConditions = function(conditions, facts, rules, depth)
+	"Every way a body could still be met: the facts it needs, in the order it would meet them; asked only for a body no proof answered, and a body has no head, so no rule is cited."
+	results = bodyRequirements(conditions, facts, rules, depth, null, {}, {}, 0)
+	// A body that claims it needs nothing was met one condition at a time rather than all at
+	// once - the reading bodyResults takes for a rule - so it is reported again with the
+	// conditions the proofs left open.
+	for result in results
+		if result.needs.len == 0 then
+			results = bodyRequirements(conditions, facts, rules, depth, null, {}, {}, 1)
+			break
+		end if
+	end for
+	// A condition the search already proves needs no fact, and a body whose every condition
+	// is settled this way needs nothing at all: nothing is left to report.
+	options = []
+	for result in results
+		if result.needs.len > 0 then options.push({"rule": null, "needs": result.needs})
+	end for
+	return options
+end function
+
 bodyResults = function(candidate, facts, rules, depth, path)
 	"The ways one rule could answer the goal, re-read when a body claims it needs nothing."
 	results = bodyRequirements(candidate.body, facts, rules, depth - 1, candidate.binds, path, {}, 0)
@@ -1512,7 +1533,8 @@ primedVariable = function(labels)
 end function
 
 reportLines = function(options, style=null)
-	"The lines that describe these alternatives, painted with style."
+	"The lines that describe these alternatives, painted with style; a body that needs nothing at all has no alternative to describe, so it has no report either."
+	if options.len == 0 then return []
 	style = filledStyle(style)
 	labels = reportLabels(options)
 	lines = [paint(style, "header", "  A solution would need one of these:")]
@@ -1540,7 +1562,16 @@ end function
 optionLines = function(option, labels, style)
 	"The lines for one alternative: a fact, or a rule and the facts its body would still need."
 	if option.rule == null then
-		return ["    a fact like " + neededFactText(option.needs[0], labels, style)]
+		if option.needs.len == 1 then
+			return ["    a fact like " + neededFactText(option.needs[0], labels, style)]
+		end if
+		// A body asked as a one-off rule has no head one fact could answer, so every fact its
+		// conditions would need is listed: they are needed together, not one of them.
+		block = [paint(style, "note", "    facts like these:")]
+		for needed in option.needs
+			block.push("      " + neededFactText(needed, labels, style))
+		end for
+		return block
 	end if
 	block = [paint(style, "rule", "    through rule " + option.rule.text)]
 	for needed in option.needs

@@ -29,12 +29,12 @@
 		{
 			"kind": "markdown",
 			"language": "markdown",
-			"source": "One reply carried every fact about that place, so a second question about it reads what the session already holds rather than asking again:"
+			"source": "One reply carried every fact about that place, so a second question about it reads what the session already holds rather than asking again. A line that is only a grouping is a rule body with no head: the two conditions are proved together, the first settling the place the second asks about, so the latitude is answered without the place's uid ever being typed."
 		},
 		{
 			"kind": "code",
 			"language": "micro-expert-kb",
-			"source": "has-latitude(session, ?lat)"
+			"source": "and(has-location(session, ?loc), has-latitude(?loc, ?lat))"
 		},
 		{
 			"kind": "markdown",

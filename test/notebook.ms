@@ -172,6 +172,25 @@ run = function(notebook, engine, sessionModule, triples, rules, cli, options, h)
 	h.check("and both of a cell's lines took", countOf(session.facts, "is-parent-of(casey, sam)") == 1 and
 		countOf(session.facts, "is-parent-of(drew, casey)") == 1)
 
+	// ── A cell that is only a body ──────────────────────────────────────────
+
+	// A grouping on a line of its own is a one-off rule's body, so a cell can join two facts
+	// without adding a rule or naming a term it has not seen: the session's place from one
+	// fact, and the latitude from the fact about that place.
+	joined = startSession()
+	joinedOut = transcript(joined, [["has-location(session, place-1)",
+		"has-latitude(place-1, 32.7)"],
+		["and(has-location(session, ?loc), has-latitude(?loc, ?lat))"]])
+	joinedCells = cellsOf(joinedOut)
+	h.check("a cell of just a grouping is answered with each fact it settled",
+		joinedCells.len == 2 and holds(textOf(joinedCells[1]), "has-location(session, place-1)") and
+			holds(textOf(joinedCells[1]), "has-latitude(place-1, 32.7)"))
+	storedBody = 0
+	for fact in joined.facts
+		if fact.predicate == "and" then storedBody = storedBody + 1
+	end for
+	h.check("and the body is not stored as a fact", storedBody == 0)
+
 	// ── A warning is the mark that a cell failed ───────────────────────────
 
 	failing = transcript(startSession(), [["is-parent-of(casey, sam)"], ["is-parent-of(casey,"],

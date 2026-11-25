@@ -269,6 +269,7 @@ end if
 // case, so check the surface the suite relies on up front.
 for name in ["SpoTriple", "proveGoals", "substitute", "NotEqual", "Equal", "Comparison", "isConstraint",
 	"constraintOf", "proofLines", "Or", "Not", "standardizeApart", "parseRule", "needsFor",
+	"needsConditions",
 	"reportLines", "reportLabels", "unboundVars", "paint"]
 	if triples.hasIndex(name) == 0 then
 		print "error: ../src/triples loaded without " + name

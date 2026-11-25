@@ -137,6 +137,58 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("the new rule answers the next question",
 		printed(ruled.answers.lines, "  bill is grandparent of anna"))
 
+	// ── A line that is only a body ───────────────────────────────────────────
+
+	// A grouping typed at the prompt is a one-off rule's body rather than a fact: its
+	// conditions are proved the way a rule's body is, and the answer is the fact each of them
+	// settled. So a join can be asked without a rule being added to the session, and without
+	// naming a term the session has not shown yet.
+	located = family + [spo("session", "has-location", "place-1"),
+		spo("place-1", "has-latitude", 32.7555)]
+	bodyLine = "and(has-location(session, ?loc), has-latitude(?loc, ?lat))"
+	joined = startSession(located, [], [bodyLine])
+	h.check("a line that is only a grouping is asked, not added as a fact",
+		joined.session.facts.len == located.len and
+			not printed(joined.answers.lines, "  added " + bodyLine))
+	h.check("and its answer is the fact each condition settled",
+		printed(joined.answers.lines, "  has-location(session, place-1)") and
+			printed(joined.answers.lines, "  has-latitude(place-1, 32.7555)"))
+
+	// A body nothing meets reports every fact its conditions would need, together, and asks for
+	// the first variable they bring - the report and the prompt a rule's body gets.
+	unmet = startSession(family + [], [], [bodyLine])
+	h.check("a body with nothing to meet it lists the facts it needs",
+		printed(unmet.answers.lines, "    facts like these:") and
+			printed(unmet.answers.lines, "      has-location(session, ?loc)") and
+			printed(unmet.answers.lines, "      has-latitude(?loc, ?lat)"))
+	h.check("and asks for the variable the first of them brings",
+		unmet.answers.asked.len > 1 and unmet.answers.asked[1] == "  ?loc = ")
+	h.check("saying which body the value is for",
+		unmet.answers.whys[1].indexOf("needed to answer " + bodyLine) != null)
+
+	// A body of nothing but a negation grounds no fact, and holding is the whole of what it
+	// says; one that does not hold says so once rather than drawing an empty report.
+	negated = startSession(family, [], ["not(is-parent-of(nobody, tim))",
+		"not(is-parent-of(bill, tim))"])
+	h.check("a negation typed alone is answered true when it holds",
+		printed(negated.answers.lines, "  true"))
+	h.check("while a false one says there is no solution, with no empty report",
+		printed(negated.answers.lines, "  no solution found at depth 8") and
+			not holds(negated.answers.lines, "A solution would need"))
+
+	// Two alternatives that agree, or a condition written twice, reach one fact two ways: the
+	// tree says both, the answer says it once.
+	twice = startSession(family, [], ["or(is-parent-of(bill, ?p), is-parent-of(bill, ?p))"])
+	agreed = 0
+	for line in twice.answers.lines
+		if line == "  is-parent-of(bill, tim)" then agreed = agreed + 1
+	end for
+	h.check("a fact two ways through the body reach is said once", agreed == 1)
+	traced = startSession(located, [], [bodyLine], null, 1)
+	h.check("--verbose shows each condition's tree before the answer",
+		printed(traced.answers.lines, "  has-location(session, place-1)  => fact") and
+			printed(traced.answers.lines, "  has-latitude(place-1, 32.7555)  => fact"))
+
 	// A predicate's name has a shape, and the prompt is the other door into the knowledge
 	// base: a typed line is refused there in the words the file reader uses, since both read
 	// through the solver's one check.

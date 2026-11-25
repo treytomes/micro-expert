@@ -493,9 +493,22 @@ run = function(session)
 end function
 
 handleLine = function(session, line)
-	"Does what one line asks: adds a fact, asks a question, adds a rule, or says how a value or a constraint reads."
+	"Does what one line asks: adds a fact, asks a question or a body, adds a rule, or says how a value or a constraint reads."
 	if line.indexOf("=>") != null then
 		addRule(session, line)
+		return
+	end if
+	// A line that is only a grouping - and(...), or(...), not(...) - is a body rather than a
+	// fact: it is read the way a rule's body is and asked as a one-off rule with no head, so
+	// and(has-location(session, ?loc), has-latitude(?loc, ?lat)) joins the two facts the way a
+	// rule would, without being stored as one.
+	if session.triples.groupingOf(session.triples.trimSpace(line)) != null then
+		body = session.triples.parseBodyPart(line, line)
+		if body isa error then
+			repl.say(session, "warning", "  " + body.message)
+			return
+		end if
+		askBody(session, body, line)
 		return
 	end if
 	// A line in square brackets is a span and not a value: the two dates it lies between, read
@@ -714,6 +727,16 @@ end function
 
 askGoal = function(session, goal)
 	"Answers a question, asking for the variables that would complete a missing fact."
+	askQuestion(session, {"goal": goal, "conditions": [goal], "text": goal.text})
+end function
+
+askBody = function(session, conditions, line)
+	"Answers a line that is only a grouping, as a one-off rule with no head: the conditions are proved the way a rule's body is, and the answer is the fact each of them settled."
+	askQuestion(session, {"goal": null, "conditions": conditions, "text": session.triples.trimSpace(line)})
+end function
+
+askQuestion = function(session, question)
+	"Answers a question - a goal, or a body with no head - asking for the variables that would complete a missing fact."
 	printed = null
 	shape = null
 	// What has been given for this question already, by the label the report shows each
@@ -729,16 +752,16 @@ askGoal = function(session, goal)
 		due = staleFacts(session)
 		facts = session.facts
 		if due.len > 0 and not reused then facts = freshFacts(session)
-		proofs = session.triples.proveGoals(goal, facts, session.rules, session.depth)
+		proofs = answersFor(session, question, facts)
 		if proofs.len > 0 then
-			if reused then announceStale(session, goal, proofs, due)
-			showProofs(session, goal, proofs)
+			if reused then announceStale(session, question, proofs, due)
+			showAnswers(session, question, proofs)
 			return
 		end if
-		// One walk over the goal feeds both the report and the question, so the variables
+		// One walk over the question feeds both the report and the prompt, so the variables
 		// asked about are the ones the report showed - with the values given so far in
 		// them, and without the facts the session can already prove, which need nothing.
-		options = session.triples.needsFor(goal, facts, session.rules, session.depth)
+		options = needsOf(session, question, facts)
 		if due.len > 0 and not reused then
 			if provideMissing(session, options) then continue
 			// Nothing could fetch a newer reading, so what the session holds answers after all -
@@ -752,7 +775,7 @@ askGoal = function(session, goal)
 		// service says is added as facts, so the question comes round again and is answered
 		// the way any other fact answers it.
 		if provideMissing(session, options) then continue
-		shown = withoutHeld(session, withGiven(session, options, goal, given))
+		shown = withoutHeld(session, withGiven(session, options, question, given))
 		report = session.triples.reportLines(shown, session.style)
 		// The report changes as facts are added and as values are given, so it is
 		// repeated only when it has something new to say.
@@ -774,34 +797,93 @@ askGoal = function(session, goal)
 		end if
 		// Taking a fact back changes the knowledge base as much as adding one does, so
 		// that round starts over too.
-		if fillMissing(session, shown, goal, given) == "stopped" then return
+		if fillMissing(session, shown, question, given) == "stopped" then return
 	end while
 end function
 
-showProofs = function(session, goal, proofs)
-	"Prints each answer, the way its proof tree calls it: the tree first when the session is verbose, then the result it reaches."
+answersFor = function(session, question, facts)
+	"Every proof of the question: its goal's answers, or the ways its body holds when it has no head."
+	if question.goal != null then
+		return session.triples.proveGoals(question.goal, facts, session.rules, session.depth)
+	end if
+	return session.triples.proveConditions(question.conditions, facts, session.rules, session.depth, null)
+end function
+
+needsOf = function(session, question, facts)
+	"Every way the question could still be answered: a goal's needs, or a body's."
+	if question.goal != null then
+		return session.triples.needsFor(question.goal, facts, session.rules, session.depth)
+	end if
+	return session.triples.needsConditions(question.conditions, facts, session.rules, session.depth)
+end function
+
+showAnswers = function(session, question, proofs)
+	"Prints each answer the way its proof tree calls it: the tree first when the session is verbose, then the result it reaches. A question with a head answers with its one fact; a body with none answers with the fact each of its conditions settled."
+	// A body's ways through can ground the same fact twice - or(...) alternatives that agree,
+	// or a condition written twice - so a fact is said once, whichever proof got there first.
+	// The trees above are each proof's own, since two ways to a fact are two arguments for it.
+	seen = {}
+	saidTrue = 0
 	for proof in proofs
 		// --verbose gives the steps before the answer they arrive at, so a run reads in the
 		// order the reasoning went, and the tree is said the same way the answer will be:
 		// --nlp on, facts and rules alike read as sentences.
 		if session.verbose then
-			for line in session.triples.proofLines(proof, "  ", session.nlp)
+			for line in treeLines(session, question, proof)
 				session.io.say(line)
 			end for
+		end if
+		grounded = groundedFacts(session, question, proof)
+		// A body of nothing but constraints and negations settles no fact, and holding is the
+		// whole of what it says: true, in the words a constraint line is answered with.
+		if grounded.len == 0 then
+			if not saidTrue then
+				saidTrue = 1
+				repl.say(session, "answer", "  true")
+			end if
+			continue
 		end if
 		// --nlp says the answer in words rather than showing it as a fact: a predicate's dashes
 		// are the spaces of the sentence it reads as. The report, /facts and the fact form the
 		// session prints without the flag stay as they are, since each of them is something to
 		// write back or read as data.
-		answer = session.triples.answerTriple(goal, proof.binds, proof.at, proof.confidence)
-		repl.say(session, "answer", "  " + session.triples.speak(answer, session.nlp))
+		for answer in grounded
+			if seen.hasIndex(answer.text) then continue
+			seen[answer.text] = 1
+			repl.say(session, "answer", "  " + session.triples.speak(answer, session.nlp))
+		end for
 	end for
 end function
 
-withGiven = function(session, options, goal, given)
+groundedFacts = function(session, question, proof)
+	"The facts one proof settled: the goal's answer, or every condition a body's proof grounded."
+	if question.goal != null then
+		return [session.triples.answerTriple(question.goal, proof.binds, proof.at, proof.confidence)]
+	end if
+	found = []
+	for answer in proof.proofs
+		found.push session.triples.answerTriple(answer.goal, answer.binds, answer.at, answer.confidence)
+	end for
+	return found
+end function
+
+treeLines = function(session, question, proof)
+	"The proof tree for one proof: a goal's own tree, or the tree behind each condition a body settled."
+	if question.goal != null then return session.triples.proofLines(proof, "  ", session.nlp)
+	lines = []
+	for answer in proof.proofs
+		lines = lines + session.triples.proofLines(answer, "  ", session.nlp)
+	end for
+	return lines
+end function
+
+withGiven = function(session, options, question, given)
 	"The options as they read with the values given so far put in, so the report and the question agree."
 	if given.len == 0 then return options
-	goalVars = nameSet(session, goal)
+	// A body with no head has no answer variable to keep for the search, so every variable it
+	// names is one a value given may stand in.
+	goalVars = {}
+	if question.goal != null then goalVars = nameSet(session, question.goal)
 	labels = session.triples.reportLabels(options)
 	answers = []
 	for option in options
@@ -889,11 +971,22 @@ collectReadings = function(session, goal, binds, at, confidence, reasons, used)
 	end for
 end function
 
-announceStale = function(session, goal, proofs, due)
+readsFromQuestion = function(session, question, proof)
+	"The facts one proof's derivations rest on, whichever shape the proof has: a goal's tree, or the tree behind each condition a body settled."
+	if question.goal != null then return readsFrom(session, proof)
+	used = []
+	for answer in proof.proofs
+		collectReadings(session, answer.goal, answer.binds, answer.at, answer.confidence,
+			answer.reasons, used)
+	end for
+	return used
+end function
+
+announceStale = function(session, question, proofs, due)
 	"Says which earlier readings the answers stand on, each once, with the line a facts file would hold - and says nothing about a reading the question never needed."
 	said = {}
 	for proof in proofs
-		for used in readsFrom(session, proof)
+		for used in readsFromQuestion(session, question, proof)
 			for stale in due
 				if not session.triples.sameClaim(used, stale) then continue
 				if said.hasIndex(stale.text) then continue
@@ -1078,7 +1171,7 @@ nameSet = function(session, triple)
 	return names
 end function
 
-fillMissing = function(session, options, goal, given)
+fillMissing = function(session, options, question, given)
 	"Asks for the facts of the best missing rule one after another, carrying each answer to the next; says whether it stopped or changed the knowledge base."
 	found = firstMissing(session, options)
 	if found == null then return "stopped"
@@ -1106,8 +1199,8 @@ fillMissing = function(session, options, goal, given)
 			session.io.say("  " + session.triples.neededFactText(
 				{"triple": triple, "settled": need.settled}, labels, style))
 		end if
-		for variable in askedVars(session, triple, goal)
-			value = askValue(session, triple, variable, labels, goal)
+		for variable in askedVars(session, triple, question)
+			value = askValue(session, triple, variable, labels, question)
 			if value == null then return "stopped"
 			if value == changedMark then return "changed"
 			binds[variable.name] = value
@@ -1139,10 +1232,13 @@ fillMissing = function(session, options, goal, given)
 	return "stopped"
 end function
 
-askedVars = function(session, triple, goal)
+askedVars = function(session, triple, question)
 	"The variables to ask about for a missing fact: the ones it brings itself, or all of them when it brings none."
 	own = session.triples.unboundVars(triple)
-	goalVars = nameSet(session, goal)
+	// A body with no head has no answer variable, so a fact that brings none of its own asks
+	// about all of them.
+	goalVars = {}
+	if question.goal != null then goalVars = nameSet(session, question.goal)
 	introduced = []
 	for variable in own
 		if goalVars.hasIndex(variable.name) == 0 then introduced.push(variable)
@@ -1261,15 +1357,15 @@ fieldValue = function(session, value, type)
 	return value
 end function
 
-askValue = function(session, triple, variable, labels, goal)
+askValue = function(session, triple, variable, labels, question)
 	"Asks for one value, from a numbered list when its field is a boolean or a list; null when the user leaves it, changedMark when they change the knowledge base instead."
 	// What a value here stands for, and the question the fact is needed for when it is a
 	// rule's. It is set on the session rather than passed through the prompt, so the repl
 	// library keeps its one-argument read, and a host that asks in a box of its own reads it
 	// there while the question waits.
 	meaning = session.triples.valueMeaning(triple, variable)
-	if goal != null and goal.text != triple.text then
-		meaning = meaning + ", needed to answer " + goal.text
+	if question.text != triple.text then
+		meaning = meaning + ", needed to answer " + question.text
 	end if
 	while true
 		type = fieldType(session, triple, variable)

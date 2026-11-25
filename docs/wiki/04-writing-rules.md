@@ -61,6 +61,36 @@ no proof of its body with the bindings already in hand, so the conditions that b
 have to come first. That is why the only-child rule asks for the parent first, then says no sibling
 exists. Move the negation first and it would pass vacuously, before anyone is bound.
 
+## A body at the prompt
+
+A line that is only a grouping is a rule body with no head, asked as if it were a one-off rule. It
+is not stored, and the answer is the fact each of its conditions settled:
+
+```text
+? and(has-location(session, ?loc), has-latitude(?loc, ?lat))
+  has-location(session, place-1)
+  has-latitude(place-1, 32.7555)
+```
+
+The join is what a rule's body does, so the second condition is proved with the first one's
+bindings - which is how a question reaches a place's field without the question naming the place.
+A body nothing meets is reported the way a rule's body is, with every fact its conditions would
+still need, together, and it asks for their variables the same way:
+
+```text
+? and(has-location(session, ?loc), has-latitude(?loc, ?lat))
+  no solution found at depth 8
+  A solution would need one of these:
+    facts like these:
+      has-location(session, ?loc)
+      has-latitude(?loc, ?lat)
+  ?loc =
+```
+
+A body of nothing but constraints and negations settles no fact, so it answers `true` when it
+holds; one that cannot hold says there is no solution and reports nothing, since no fact would
+make an absence true.
+
 ## Constraints
 
 A constraint is checked against the bindings instead of proved by search. It is written as a call,
