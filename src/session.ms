@@ -819,7 +819,11 @@ end function
 // the same for a place's weather: a question needing one of its hourly facts is asked with the
 // coordinates the session already holds, and one reply carries every variable the declaration
 // asked for, so the next weather fact about that place reads the first answer rather than
-// asking again.
+// asking again. A field the session cannot fill is asked of another service first: the geocoder's
+// search answers a named place's coordinates, so a place known only by name or city is located
+// and the weather question comes round with them. One service is asked per pass, so the two hops
+// are two answers, each one change; a field no service declares leaves the question to the reader
+// as before.
 //
 // A service is asked once, and what it answered is kept whether it answered or failed: a question
 // that comes round again, or a second question needing the same fact, reads the first attempt
@@ -843,32 +847,57 @@ provideMissing = function(session, options)
 			capability = providers.forGoal(session.providers, session.triples, triple)
 			if capability == null then continue
 			// The request's own fields come from what the session holds about the subject the
-			// question names; without them there is nothing to ask the service with.
+			// question names. A field with no fact behind it is asked of another service first,
+			// and this question comes round with what that one answered.
 			request = providers.requestFor(capability, session.triples, session.facts, triple.subject)
-			if request == null then continue
-			key = capability.service + " " + capability.endpoint + " " + providers.requestText(request)
-			if session.providerCalls.hasIndex(key) then continue
-			session.providerCalls[key] = 1
-			answered = providers.answer(capability, session.triples, request, triple.subject)
-			if not answered.ok then
-				repl.say(session, "warning", "  " + capability.service + " could not answer " +
-					triple.text + ": " + answered.error)
+			if request == null then
+				if provideField(session, capability, triple.subject) then return true
 				continue
 			end if
-			// The facts go in the way a typed one does, so each is held against the schema and
-			// none is stored twice. What they changed is then kept as one change, so /undo takes
-			// the whole answer back rather than a fact at a time.
-			added = 0
-			before = 0
-			if session.hasIndex("changes") then before = session.changes.len
-			for fact in answered.facts
-				if alreadyKnown(session, fact) then continue
-				if addFact(session, fact) then added = added + 1
-			end for
-			if added > 0 then
-				groupAnswer(session, before, capability, key)
-				return true
-			end if
+			if askService(session, capability, request, triple) then return true
+		end for
+	end for
+	return false
+end function
+
+
+askService = function(session, capability, request, need)
+	"One request to one service: what it answers is added the way a typed fact is, held against the schema and stored once, and what it changed is kept as one change. Says whether the session now holds more than it did."
+	key = capability.service + " " + capability.endpoint + " " + providers.requestText(request)
+	if session.providerCalls.hasIndex(key) then return false
+	session.providerCalls[key] = 1
+	answered = providers.answer(capability, session.triples, request, need.subject)
+	if not answered.ok then
+		repl.say(session, "warning", "  " + capability.service + " could not answer " +
+			need.text + ": " + answered.error)
+		return false
+	end if
+	added = 0
+	before = 0
+	if session.hasIndex("changes") then before = session.changes.len
+	for fact in answered.facts
+		if alreadyKnown(session, fact) then continue
+		if addFact(session, fact) then added = added + 1
+	end for
+	if added == 0 then return false
+	groupAnswer(session, before, capability, key)
+	return true
+end function
+
+
+provideField = function(session, capability, subject)
+	"Lets a service answer a fact one request field needs and no held fact fills, so the question can come round with it. Says whether the session now holds more than it did."
+	// A field is a fact about the place the question names, and a place is only asked about by a
+	// term the session holds; a variable would be a question of its own rather than a field.
+	if session.triples.isVar(subject) then return false
+	for unfilled in providers.unfilledFor(capability, session.triples, session.facts, subject)
+		for predicate in unfilled.predicates
+			need = session.triples.SpoTriple.make(subject, predicate, session.triples.var("value"))
+			found = providers.forGoal(session.providers, session.triples, need)
+			if found == null then continue
+			request = providers.requestFor(found, session.triples, session.facts, subject)
+			if request == null then continue
+			if askService(session, found, request, need) then return true
 		end for
 	end for
 	return false

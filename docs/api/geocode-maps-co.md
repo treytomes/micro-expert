@@ -453,6 +453,13 @@ its `has-latitude` and `has-longitude`. A place with neither is not asked about 
 nothing to put in the request - so the question falls through to the prompt as it would with no
 registry at all.
 
+The search is also reached from the other direction: when a question needs a place's weather and
+the session holds only that place's name or city, the forecast's request has no coordinates to be
+filled with, so the search is asked for them first and the weather question comes round with them.
+That is the session's doing rather than either map's - `src/providers.ms` says which fields a
+request could not fill, and `src/session.ms` asks one service per pass - and it is why the search's
+two declarations matter beyond a question that names a coordinate outright.
+
 Nothing is asked at startup and `/lookup` declares nothing, since it needs an OSM id the session
 has no way to settle on its own. The search sends `limit=1`, because one place's coordinates are
 the first match's and a second answer would only be a second opinion.

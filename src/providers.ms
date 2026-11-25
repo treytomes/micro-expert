@@ -44,6 +44,13 @@
 // with no fact to fill it leaves the capability unusable for that question, and the session asks
 // the reader instead.
 //
+// A request the session cannot fill is not sent: requestFor answers null. unfilledFor names the
+// fields it could not fill, each with the predicates that would fill it, so the session can ask
+// another service for one of those facts first - the geocoder's search answers a named place's
+// coordinates, and the forecast is asked with them - and then come round to this request with
+// what it was missing. Nothing here decides that: the fields are named, and src/session.ms does
+// the asking.
+//
 // "about" also tells the reading which place it was asked about. A reply such as a forecast's
 // names the place by nothing but the coordinates the request carried, and its reading wants the
 // place as its subject, so the part the declaration reads onto - "?place" - is bound to that
@@ -149,21 +156,42 @@ answers = function(triples, part, term, about)
 end function
 
 
+heldFrom = function(triples, facts, subject, wanted)
+	"One field's value: the first of these predicates the session holds a fact for about this subject, or null when it holds none."
+	for predicate in wanted
+		value = heldTerm(triples, facts, subject, predicate)
+		if value != null then return value
+	end for
+	return null
+end function
+
+
 requestFor = function(capability, triples, facts, subject)
 	"The request to send, its fields filled from facts the session holds about the subject; null when one of them has no fact to fill it."
 	request = capability.request + {}
 	for name in capability.from.indexes
 		wanted = capability.from[name]
 		if not (wanted isa list) then wanted = [wanted]
-		value = null
-		for predicate in wanted
-			value = heldTerm(triples, facts, subject, predicate)
-			if value != null then break
-		end for
+		value = heldFrom(triples, facts, subject, wanted)
 		if value == null then return null
 		request[name] = value
 	end for
 	return request
+end function
+
+
+unfilledFor = function(capability, triples, facts, subject)
+	"One request's fields no held fact answers, each with the predicates that would fill it, in field-name order - the facts another service may be asked for."
+	unfilled = []
+	for name in capability.from.indexes
+		wanted = capability.from[name]
+		if not (wanted isa list) then wanted = [wanted]
+		if heldFrom(triples, facts, subject, wanted) == null then
+			unfilled.push({"field": name, "predicates": wanted})
+		end if
+	end for
+	unfilled.sort "field"
+	return unfilled
 end function
 
 

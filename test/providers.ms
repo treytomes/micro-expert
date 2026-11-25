@@ -49,6 +49,34 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		return fake
 	end function
 
+	// A client that answers by host, so one session can be asked of two services: the geocoder for
+	// the coordinates, then the forecast for the weather. Nothing leaves the program, and the
+	// urls say which service was asked, in what order.
+	splitStub = function(routes)
+		fake = {}
+		for name in apiClient.indexes
+			fake[name] = apiClient[name]
+		end for
+		fake.routes = routes
+		fake.calls = []
+		fake.get = function(url, timeout=null)
+			self.calls.push url
+			for route in self.routes
+				if url.indexOf(route.host) != null then
+					if route.hasIndex("fails") and route.fails then
+						return {"ok": 0, "status": null, "body": "", "json": null, "url": url,
+							"error": route.why}
+					end if
+					return {"ok": 1, "status": 200, "body": "", "json": route.json, "url": url,
+						"error": null}
+				end if
+			end for
+			return {"ok": 0, "status": null, "body": "", "json": null, "url": url,
+				"error": "no service at this host"}
+		end function
+		return fake
+	end function
+
 	// A session over a script of typed lines, recording what it printed and asked, as the
 	// prompt's own cases do.
 	startSession = function(registry, script)
@@ -362,15 +390,17 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	h.check("so the reverse is asked again rather than prompting",
 		changed and sparse.calls == 2)
 
-	// A place with nothing to ask by is left to the reader, not asked about.
+	// A place with nothing any service can ask by is left to the reader: the reverse wants
+	// coordinates and the search wants a name or city, and this place has neither.
 	unasked = stubFor(reverseReply)
-	noCoords = {"triples": triples, "Rule": rules.Rule, "facts": [namedCity], "rules": [],
+	noCoords = {"triples": triples, "Rule": rules.Rule,
+		"facts": [triples.SpoTriple.make(named, "has-fee", "no")], "rules": [],
 		"depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {}, "knowledge": null,
 		"providers": providers.registry(unasked, declared, uid, [geoDecl]),
 		"io": {"read": null, "say": function(line)
 		end function}}
 	changed = sessionModule.provideMissing(noCoords, triples.needsFor(needRoad, noCoords.facts, [], 8))
-	h.check("a place with no coordinates is never asked about",
+	h.check("a place with nothing any service can ask by is never asked about",
 		unasked.calls == 0 and not changed)
 
 	// ── The shipped domain holds what a service answers ─────────────────────
@@ -547,6 +577,81 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		triples.needsFor(needRain, unmetSession.facts, [], 8))
 	h.check("and one place's failed weather request is not asked again for its next fact",
 		offlineForecast.calls == 1 and not changed)
+
+	// ── A place known only by name is located before it is asked about ──────
+
+	// The forecast's request needs coordinates the session does not hold. The geocoder's search
+	// declares a place's coordinates from its own name or city, so it is asked first and the
+	// question comes round with them. One pass asks one service, so the two hops are two answers
+	// and each is one change to take back.
+	both = splitStub([
+		{"host": "geocode.maps.co", "json": searchReply},
+		{"host": "api.open-meteo.com", "json": weatherReply},
+	])
+	byName = uid.of("place", ["Fort Worth by name"])
+	byNameCity = triples.SpoTriple.make(byName, "has-city", "Fort Worth")
+	needWeather = triples.SpoTriple.make(byName, "has-temperature-2m", triples.var("t"))
+	chainSaid = []
+	chainSession = {"triples": triples, "Rule": rules.Rule, "facts": [byNameCity],
+		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
+		"knowledge": null,
+		"providers": providers.registry(both, declared, uid, [geoDecl, weatherDecl]),
+		"io": {"read": null, "say": function(line)
+			chainSaid.push(line)
+		end function}}
+	chainCap = providers.forGoal(chainSession.providers, triples, needWeather)
+	h.check("a place with only a name has no weather request yet",
+		chainCap != null and providers.requestFor(chainCap, triples, chainSession.facts, byName) == null)
+	changed = sessionModule.provideMissing(chainSession,
+		triples.needsFor(needWeather, chainSession.facts, [], 8))
+	h.check("the geocoder is asked first, for the coordinates the forecast needs",
+		changed and both.calls.len == 1 and both.calls[0].indexOf("geocode.maps.co") != null and
+			both.calls[0].indexOf("q=Fort") != null)
+	chainedLat = null
+	for fact in chainSession.facts
+		if fact.predicate == "has-latitude" then chainedLat = fact
+	end for
+	h.check("and the place holds the coordinates it answered as its own",
+		chainedLat != null and triples.termText(chainedLat.subject) == byName and
+			chainedLat.object == 32.7555)
+	changed = sessionModule.provideMissing(chainSession,
+		triples.needsFor(needWeather, chainSession.facts, [], 8))
+	h.check("the next pass asks the forecast with those coordinates",
+		changed and both.calls.len == 2 and
+			both.calls[1].indexOf("api.open-meteo.com") != null and
+			both.calls[1].indexOf("latitude=32.7555") != null)
+	chainedWeather = null
+	for fact in chainSession.facts
+		if fact.predicate == "has-temperature-2m" then chainedWeather = fact
+	end for
+	h.check("so the weather fact is answered from the service, about that place",
+		chainedWeather != null and triples.termText(chainedWeather.subject) == byName and
+			chainedWeather.object == 18.4)
+	h.check("as two changes, one per answer",
+		chainSession.changes.len == 2 and chainSession.changes[0].kind == "batch" and
+			chainSession.changes[1].kind == "batch")
+
+	// A place with nothing to search by is not located, and its weather question is left to the
+	// reader as it was before there was anything to chain.
+	nowhere = uid.of("place", ["Fort Worth nowhere"])
+	nowhereSession = {"triples": triples, "Rule": rules.Rule,
+		"facts": [triples.SpoTriple.make(nowhere, "has-road", "Main Street")],
+		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
+		"knowledge": null,
+		"providers": providers.registry(both, declared, uid, [geoDecl, weatherDecl]),
+		"io": {"read": null, "say": function(line)
+		end function}}
+	changed = sessionModule.provideMissing(nowhereSession,
+		triples.needsFor(triples.SpoTriple.make(nowhere, "has-temperature-2m", triples.var("t")),
+			nowhereSession.facts, [], 8))
+	h.check("a place with neither name nor city is not located, and nothing is asked",
+		not changed and both.calls.len == 2 and nowhereSession.facts.len == 1)
+
+	// Both hops are changes, so /undo reaches back through them and forgets both requests.
+	sessionModule.undo(chainSession)
+	sessionModule.undo(chainSession)
+	h.check("undoing both answers forgets both requests, so the chain can start over",
+		chainSession.providerCalls.len == 0 and chainSession.facts.len == 1)
 
 	// ── A session given no registry asks nothing ────────────────────────────
 

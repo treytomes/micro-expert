@@ -791,9 +791,11 @@ shaped alike:
 `about` says the reply is read onto the place the question named. The reply names that place by
 nothing but the coordinates it was asked with, so the reading is told the place as well, under
 the same part's name, while the request itself carries only what the service uses. `from` fills
-the request's coordinates from facts the session already holds about that place; a place with no
-coordinates is not asked about, and the question falls through to the prompt as it would with no
-registry at all.
+the request's coordinates from facts the session already holds about that place. A place the
+session knows only by name or city has none of them yet, so the geocoder's search is asked for the
+coordinates first and the weather question comes round with them - one service per pass, two
+answers. A place with no coordinates and nothing to search it by is not asked about at all, and
+the question falls through to the prompt as it would with no registry at all.
 
 Every entry carries the same request, so they are one request: a reply holds every variable it
 was asked for, so the first weather fact a question needs brings the other four with it, and the
