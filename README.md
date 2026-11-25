@@ -603,7 +603,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-1294 passed, 0 failed
+1306 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -619,8 +619,8 @@ per check to read:
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 1293 skipped
-##END {"passed":1,"failed":0,"skipped":1293}
+1 passed, 0 failed, 1305 skipped
+##END {"passed":1,"failed":0,"skipped":1305}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
@@ -635,10 +635,10 @@ The parser, the logger and the repl library are their own repositories with thei
 by the same interpreter, and this suite imports none of them. It keeps one check about the
 repl library, and that one is about this repository rather than the library: `examples/notes.ms`
 is a whole program written on the library and nothing else, and `test/repl.ms` is what says so.
-The 1294 cover the program itself: display and parsing (71), the knowledge data format (151),
+The 1306 cover the program itself: display and parsing (71), the knowledge data format (151),
 the predicate schema (50), the date and time types (79), the loaders (26), proofs and
-explanations (52), the missing-fact report (34), recursion and cycle handling (13), relations
-including the family rules (104), the session at the prompt (232), the notebook's cells (40),
+explanations (62), the missing-fact report (34), recursion and cycle handling (13), relations
+including the family rules (104), the session at the prompt (234), the notebook's cells (40),
 the notes example on the repl library (1), the command line (8), the domain (10), the Mermaid
 diagram (49), the id generator (21), the location module (15), the declared writer (29), the provider registry (132), the geocode mapping (58), the Open-Meteo mapping (42), and the API
 layer's argument split, parameter engine and .env reader (77).

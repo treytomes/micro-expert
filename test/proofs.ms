@@ -277,4 +277,37 @@ run = function(t, rules, h)
 	cycled = t.proveGoals(cycleGoal, cycleFacts, [], 0, selfBound)
 	h.check("and a goal asked under one still answers",
 		cycled.len == 1 and answerText(cycleGoal, cycled[0]) == "has-rank(zed, 1)")
+
+	// ── A question may name the moment it wants ─────────────────────────────
+	// '@' is a field of the question like any other, so the fact's moment is bound to it and a
+	// reading can be picked by its hour rather than by taking a day and reading annotations.
+	hourFacts = [t.SpoTriple.make("berlin", "has-temperature-2m", 4.1, "[2026-11-22 00:00, 2026-11-22 01:00]"),
+		t.SpoTriple.make("berlin", "has-temperature-2m", 9.8, "[2026-11-22 20:00, 2026-11-22 21:00]")]
+	whenGoal = t.SpoTriple.parse("has-temperature-2m(berlin, ?t) @ ?when")
+	h.check("a question reads a variable where the moment goes",
+		not (whenGoal isa error) and whenGoal.at isa t.Var)
+	h.check("and it reads as a question rather than a fact", t.hasUnknowns(whenGoal))
+	whenAnswers = t.proveGoals(whenGoal, hourFacts, [], 0)
+	h.check("every reading answers with the hour it holds for", whenAnswers.len == 2 and
+		answerText(whenGoal, whenAnswers[0]) ==
+			"has-temperature-2m(berlin, 4.1) @ [2026-11-22 00:00, 2026-11-22 01:00]")
+	h.check("a moment asked for picks the reading whose span holds it",
+		t.proveGoals(t.SpoTriple.parse("has-temperature-2m(berlin, ?t) @ 2026-11-22 20:30"),
+			hourFacts, [], 0).len == 1)
+	h.check("and a moment no span holds matches nothing",
+		t.proveGoals(t.SpoTriple.parse("has-temperature-2m(berlin, ?t) @ 2026-11-22 23:30"),
+			hourFacts, [], 0).len == 0)
+	h.check("a moment asked for exactly picks that reading",
+		t.proveGoals(t.SpoTriple.parse("has-temperature-2m(berlin, ?t) @ [2026-11-22 20:00, 2026-11-22 21:00]"),
+			hourFacts, [], 0).len == 1)
+	h.check("a reading with no moment answers no moment question",
+		t.proveGoals(whenGoal, [spo("berlin", "has-temperature-2m", 4.1)], [], 0).len == 0)
+	h.check("and a rule's head and conditions still take no annotation",
+		t.parseRule("warm(?p, ?t) => has-temperature-2m(?p, ?t) @ ?when") isa error)
+	bodyLine = "and(has-temperature-2m(?p, ?t) @ ?when, has-location(session, ?p))"
+	body = t.parseBodyPart(bodyLine, bodyLine, 1)
+	h.check("an and(...) question names the moment its reading has to hold for",
+		not (body isa error) and body.len == 2 and body[0].at isa t.Var)
+	h.check("while a rule body keeps its conditions bare",
+		t.parseBodyPart("has-temperature-2m(?p, ?t) @ ?when", "a rule line") isa error)
 end function

@@ -560,7 +560,8 @@ handleLine = function(session, line)
 	// and(has-location(session, ?loc), has-latitude(?loc, ?lat)) joins the two facts the way a
 	// rule would, without being stored as one.
 	if session.triples.groupingOf(session.triples.trimSpace(line)) != null then
-		body = session.triples.parseBodyPart(line, line)
+		// A question written as a body may name the moment its conditions have to hold for.
+		body = session.triples.parseBodyPart(line, line, 1)
 		if body isa error then
 			repl.say(session, "warning", "  " + body.message)
 			return
@@ -598,16 +599,20 @@ handleLine = function(session, line)
 		repl.say(session, "warning", "  " + triple.message)
 		return
 	end if
-	// A question and a constraint are both lines that read rather than store: '@' and '~' say
-	// when a stored fact holds and how confident we are of it, and neither the search for a
-	// question nor the check a constraint line makes reads either, so such a line takes no
-	// annotation. Refused rather than read with the annotation dropped, since answering it
-	// would be answering a line that said something else.
+	// A question and a constraint are both lines that read rather than store. A question may
+	// name the moment it wants - '@', a moment or a variable to hold one - since that is part of
+	// what it asks; '~' and '#' are a stored fact's own, and a constraint line takes none at
+	// all, so those are still refused rather than answered with the annotation dropped.
 	readsNotStores = session.triples.hasUnknowns(triple) or session.triples.isConstraint(triple.predicate)
 	if readsNotStores and session.triples.indexOfAnnotation(line) != null then
-		repl.say(session, "warning", "  refused: " + session.triples.trimSpace(line) +
-			": a line that is not a stored fact takes no annotation")
-		return
+		askedWhen = session.triples.hasUnknowns(triple) and
+			not session.triples.isConstraint(triple.predicate) and triple.at != null and
+			triple.confidence == 100 and triple.source == null
+		if not askedWhen then
+			repl.say(session, "warning", "  refused: " + session.triples.trimSpace(line) +
+				": a question takes only an '@', and a constraint takes none")
+			return
+		end if
 	end if
 	// A constraint's name is a shape, not a predicate: a line with a value in every field is
 	// checked and said true or false, and one that still holds a variable is refused before it

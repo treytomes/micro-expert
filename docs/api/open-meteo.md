@@ -393,7 +393,10 @@ parenthesis and no `//`. Weather data strains that harder than a geocoder result
   What an *answer* does keep is those annotations: the span and the source with the day it was
   read, from the first of a rule's conditions that carries them, and the weakest confidence among
   them - so `is-cold(place, value)` prints the hour it judged, the service the reading came from
-  and the day that service was asked rather than an undated, unattributed conclusion. The way out is to reify the reading
+  and the day that service was asked rather than an undated, unattributed conclusion.
+  A rule still cannot depend on it, but a *question* can name it: `has-temperature-2m(place, ?t) @
+  ?when` takes each reading's span into the variable, and `... @ 2026-11-25 20:30` asks for the
+  reading whose span holds that instant - one hour out of a day, without reading the lines. The way out is to reify the reading
   and write its parts as facts of their own:
 
   ```prolog

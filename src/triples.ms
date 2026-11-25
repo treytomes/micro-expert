@@ -287,7 +287,7 @@ readAnnotations = function(text)
 		if sign == "@" then
 			if seenAt then return err("a fact takes one '@': " + trimSpace(text))
 			seenAt = true
-			moment = readMoment(rest[1:])
+			moment = readAtTerm(rest[1:])
 			if moment isa error then return moment
 			at = moment.text
 			rest = moment.rest
@@ -329,6 +329,25 @@ readSource = function(text)
 	moment = readMoment(text[stop:])
 	if moment isa error then return moment
 	return {"source": name, "fetched": moment.text, "rest": moment.rest}
+end function
+
+readAtTerm = function(text)
+	"Reads what follows '@' in a question or a fact: a moment as readMoment reads one, or a variable standing for one - the form a question names the hour with."
+	text = trimSpace(text)
+	if text[:1] != "?" then return readMoment(text)
+	// A variable ends at the first space or at the next annotation's sign, so '@ ?when ~ 80%'
+	// would still be two annotations rather than one name with a sign in it.
+	last = text.len
+	for at in range(0, text.len - 1)
+		c = text[at]
+		if c == " " or c == "@" or c == "~" or c == "#" then
+			last = at
+			break
+		end if
+	end for
+	written = trimSpace(text[:last])
+	if written.len < 2 then return err("'@' needs a date, a time, a span, or a variable to hold one: " + text)
+	return {"text": Var.make(written), "rest": text[last:]}
 end function
 
 readMoment = function(text)
@@ -415,7 +434,13 @@ SpoTriple.text = function
 	// order the two were written in; a fact that says nothing about either stays bare.
 	line = termText(self.predicate) + "(" + termText(self.subject) + ", " +
 		termText(self.object) + ")"
-	if self.at != null then line = line + " @ " + self.at
+	// A fact's moment is text and is written as it was read; a question's can still be a
+	// variable, which is written the way a variable is.
+	if self.at isa string then
+		line = line + " @ " + self.at
+	else if self.at != null then
+		line = line + " @ " + termText(self.at)
+	end if
 	if self.confidence != 100 then line = line + " ~ " + str(self.confidence) + "%"
 	if self.source != null then
 		line = line + " # " + self.source
@@ -438,11 +463,12 @@ SpoTriple.sentence = function
 		termText(self.object)
 	// The annotation is part of the fact, so the sentence says it too: two readings of one value
 	// at different hours would otherwise be the same sentence twice.
-	if self.at != null then
+	if self.at isa string then
+		when = self.at
 		if self.at[:1] == "[" then
-			said = said + " during " + self.at
+			said = said + " during " + when
 		else
-			said = said + " at " + self.at
+			said = said + " at " + when
 		end if
 	end if
 	if self.confidence != 100 then said = said + ", " + str(self.confidence) + "% confident"
@@ -509,7 +535,11 @@ unify = function(pattern, fact, binds=null)
 	working = copyBinds(binds)
 	if pattern isa SpoTriple then
 		if not (fact isa SpoTriple) then return null
-		return unifyParts(pattern.parts, fact.parts, working)
+		matched = unifyParts(pattern.parts, fact.parts, working)
+		if matched == null then return null
+		atMatched = unifyAt(pattern, fact, matched)
+		if atMatched == null then return null
+		return atMatched
 	end if
 	matches = unifyTerms(pattern, fact, working)
 	if matches == null then return null
@@ -539,6 +569,27 @@ unifyTerms = function(left, right, binds)
 	end if
 	if left isa Var then return withBinding(binds, left.name, right)
 	if right isa Var then return withBinding(binds, right.name, left)
+	return null
+end function
+
+unifyAt = function(pattern, fact, binds)
+	"The bindings extended so a goal's '@' agrees with a fact's, or null when they cannot: a variable takes the moment the fact holds, and a moment asked for is the one the fact covers - inside the span when it holds for a span."
+	if pattern.at == null then return binds
+	if fact.at == null then return null
+	if pattern.at isa Var then return withBinding(binds, pattern.at.name, fact.at)
+	// A stored moment is text and is compared as the text it was written as; termText would
+	// quote a span, since a span holds a comma of its own.
+	asked = pattern.at
+	if asked == fact.at then return binds
+	// A question about an instant is asking for the reading that covers it: three hours from
+	// now lands on the hour whose span holds it, not on a line that says the same thing.
+	if asked[:1] != "[" and fact.at[:1] == "[" then
+		moment = temporal.DateTime.receive(asked)
+		if moment isa error then return null
+		span = temporal.TimeSpan.receive(fact.at)
+		if span isa error then return null
+		if span.contains(moment) == true then return binds
+	end if
 	return null
 end function
 
@@ -580,8 +631,11 @@ substitute = function(term, binds)
 	"Applies bindings: a new triple with resolved fields and the annotations it carries, or the resolved term."
 	if binds == null then return term
 	if term isa SpoTriple then
+		// The moment can be a variable in a question - '@ ?when' - so it is resolved here with
+		// the fields; a fact's moment is text, and deref leaves it as it is.
 		return SpoTriple.make(deref(term.subject, binds), deref(term.predicate, binds),
-			deref(term.object, binds), term.at, term.confidence)
+			deref(term.object, binds), deref(term.at, binds), term.confidence, term.source,
+			term.fetched)
 	end if
 	return deref(term, binds)
 end function
@@ -1482,11 +1536,12 @@ promiseVars = function(newVars, terms)
 end function
 
 unboundVars = function(triple)
-	"The fields of a triple that are still variables, in order."
+	"The fields of a triple that are still variables, in order, and a moment asked as a variable after them."
 	vars = []
 	for part in triple.parts
 		if part isa Var then vars.push(part)
 	end for
+	if triple.at isa Var then vars.push(triple.at)
 	return vars
 end function
 
@@ -1833,12 +1888,23 @@ splitConditions = function(text)
 	return splitOutside(text, ",", true)
 end function
 
-parseCondition = function(text, line)
+parseCondition = function(text, line, atAllowed=0)
 	"Reads one condition of a rule body: a triple, or a constraint such as not-equal(?x, ?y), equal(?n, 18), years-since(2019-04-01, ?n) or less-than-or-equal(?n, 18)."
 	text = trimSpace(text)
 	if text == "" then return err(badRule(line))
 	constraint = constraintOf(text)
 	if constraint != null then return constraint
+	// A rule's head and conditions are written bare, since the moment belongs to the fact it
+	// matches. A question written as a body - and(...) typed at the prompt - is asking, so it
+	// may name the moment; '~' and '#' stay a stored fact's own.
+	if atAllowed then
+		triple = SpoTriple.parse(text)
+		if triple isa error then return triple
+		if triple.confidence != 100 or triple.source != null then
+			return err("a question takes only an '@': " + text)
+		end if
+		return triple
+	end if
 	return SpoTriple.parseBare(text)
 end function
 
@@ -1864,13 +1930,13 @@ constraintOf = function(text)
 	return Comparison.make(comparisonNames[name], termOf(left), termOf(right))
 end function
 
-parseBodyPart = function(text, line)
+parseBodyPart = function(text, line, atAllowed=0)
 	"Reads one piece of a rule body into the conditions it stands for: a fact, a constraint, and(...) flattened, or or(...) and not(...) as one condition."
 	text = trimSpace(text)
 	if text == "" then return err(badRule(line))
 	called = groupingOf(text)
 	if called == null then
-		condition = parseCondition(text, line)
+		condition = parseCondition(text, line, atAllowed)
 		if condition isa error then return condition
 		return [condition]
 	end if
@@ -1879,14 +1945,14 @@ parseBodyPart = function(text, line)
 	parts = splitConditions(inner)
 	if called.name == "not" then
 		if parts.len != 1 then return err(badRule(line))
-		body = parseBodyPart(parts[0], line)
+		body = parseBodyPart(parts[0], line, atAllowed)
 		if body isa error then return body
 		return [Not.make(body)]
 	end if
 	if called.name == "and" then
 		conditions = []
 		for part in parts
-			more = parseBodyPart(part, line)
+			more = parseBodyPart(part, line, atAllowed)
 			if more isa error then return more
 			conditions = conditions + more
 		end for
@@ -1894,7 +1960,7 @@ parseBodyPart = function(text, line)
 	end if
 	alternatives = []
 	for part in parts
-		alternative = parseBodyPart(part, line)
+		alternative = parseBodyPart(part, line, atAllowed)
 		if alternative isa error then return alternative
 		alternatives.push(alternative)
 	end for

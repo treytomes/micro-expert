@@ -302,13 +302,13 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("retract takes back the hour its line names",
 		retractedHour.session.facts.len == family.len + 1 and
 			printed(retractedHour.answers.lines, "  retracted " + firstHour))
-	// A question is a search rather than a stored fact, and the search reads neither
-	// annotation, so a line that still holds a variable and carries one is refused: answering
-	// it would drop what the line says about when it holds and how sure it is.
-	askedTimed = startSession(family + [], [], ["is-parent-of(?p, susan) @ 2019-04-01 ~ 80%"])
-	h.check("a typed question that carries an annotation is refused, and says why",
+	// A question may name the moment it wants, since that is part of what it asks, but '~'
+	// and '#' stay a stored fact's own: answering a question that carried one would drop what
+	// the line says about how sure it is or who answered it.
+	askedTimed = startSession(family + [], [], ["is-parent-of(?p, susan) ~ 80%"])
+	h.check("a typed question that carries a confidence is refused, and says why",
 		printed(askedTimed.answers.lines,
-			"  refused: is-parent-of(?p, susan) @ 2019-04-01 ~ 80%: a line that is not a stored fact takes no annotation"))
+			"  refused: is-parent-of(?p, susan) ~ 80%: a question takes only an '@', and a constraint takes none"))
 	h.check("and nothing is stored or searched from it",
 		askedTimed.session.facts.len == family.len and
 			not holds(askedTimed.answers.lines, "no solution found"))
@@ -318,7 +318,7 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	checkedTimed = startSession(family + [], [], ["not-equal(tim, susan) @ 2019-04-01"])
 	h.check("a typed constraint that carries an annotation is refused, and says why",
 		printed(checkedTimed.answers.lines,
-			"  refused: not-equal(tim, susan) @ 2019-04-01: a line that is not a stored fact takes no annotation"))
+			"  refused: not-equal(tim, susan) @ 2019-04-01: a question takes only an '@', and a constraint takes none"))
 	h.check("and it is neither checked nor stored",
 		checkedTimed.session.facts.len == family.len and
 			not printed(checkedTimed.answers.lines, "  false") and
@@ -1243,4 +1243,21 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("an answer names the service and the day the reading came from",
 		printed(asked.answers.lines, "  has-temperature-2m(berlin, 4.1) @ " + readingHour +
 			" # open-meteo/forecast 2026-11-22"))
+
+	// ── A question names the hour it wants ─────────────────────────────────
+	// '@' is part of the question rather than a note on a stored fact, so a reading is picked
+	// by the hour it holds for instead of the day being taken whole and its annotations read.
+	whenHour = "[2026-11-22 20:00, 2026-11-22 21:00]"
+	whenFact = t.SpoTriple.make("berlin", "has-temperature-2m", 9.8, whenHour)
+	whenTypes = {"has-temperature-2m": ["text", "number"]}
+	whenAsked = startSession([whenFact], [], ["has-temperature-2m(berlin, ?t) @ ?when"],
+		null, 0, whenTypes)
+	h.check("a question names the hour, and the answer carries the one it holds for",
+		printed(whenAsked.answers.lines, "  has-temperature-2m(berlin, 9.8) @ " + whenHour) and
+			not holds(whenAsked.answers.asked, "  ?when = "))
+	whenBody = startSession([whenFact], [],
+		["and(has-temperature-2m(berlin, ?t) @ ?when, has-temperature-2m(berlin, ?t))"],
+		null, 0, whenTypes)
+	h.check("and a question written as a body names it the same way",
+		printed(whenBody.answers.lines, "  has-temperature-2m(berlin, 9.8) @ " + whenHour))
 end function
