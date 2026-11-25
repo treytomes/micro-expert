@@ -86,18 +86,19 @@ run = function(declared, ipwhoisMap, apiClient, triples, uid, h)
 
 	reading = declared.read(triples, uid, decl, "lookup", fortWorth)
 	h.check("a declared lookup is ok", reading.ok)
-	h.check("and writes the seven facts the reply supports", reading.facts.len == 7)
+	h.check("and writes the eight facts the reply supports", reading.facts.len == 8)
 	h.check("the place is named by the id its fields generate",
 		reading.subject == "place-f1d6b283a52a28dc")
 	h.check("has-location puts the place under the session",
 		reading.facts[0].text == "has-location(session, place-f1d6b283a52a28dc)")
 	others = 0
 	for fact in reading.facts
-		if fact.predicate != "has-location" and fact.subject != reading.subject then
+		if fact.predicate != "has-location" and fact.subject != reading.subject and
+				fact.predicate != "has-utc-offset" then
 			others = others + 1
 		end if
 	end for
-	h.check("and every other fact hangs off the place", others == 0)
+	h.check("and every other fact hangs off the place, but the machine's own clock offset", others == 0)
 	h.check("the coordinates stay numbers, as the reply sent them",
 		factAbout(reading.facts, "has-latitude").object isa number)
 	unread = 0
@@ -112,9 +113,10 @@ run = function(declared, ipwhoisMap, apiClient, triples, uid, h)
 	noRegionReading = declared.read(triples, uid, decl, "lookup", noRegion)
 	h.check("a reply with no region writes one fact fewer",
 		noRegionReading.facts.len == 6 and factAbout(noRegionReading.facts, "has-region") == null)
-	h.check("and says which fact it left out",
-		noRegionReading.skipped.len == 1 and
-			noRegionReading.skipped[0].indexOf("has-region") != null)
+	h.check("and says which facts it left out",
+		noRegionReading.skipped.len == 2 and
+			noRegionReading.skipped[0].indexOf("has-region") != null and
+			noRegionReading.skipped[1].indexOf("has-utc-offset") != null)
 	h.check("and writes the six facts the reply supports",
 		noRegionReading.facts.len == 6 and factAbout(noRegionReading.facts, "has-city") != null)
 	nullRegionReading = declared.read(triples, uid, decl, "lookup", nullRegion)

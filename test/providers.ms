@@ -490,6 +490,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	// variable: a reply is read as one fact per hour, so a question answers with a day of them.
 	weatherDecl = openmeteoMap.build()
 	weatherReply = {"latitude": 32.7555, "longitude": -97.3308, "timezone": "America/Chicago",
+		"utc_offset_seconds": -21600,
 		"hourly_units": {"time": "iso8601", "temperature_2m": "°C",
 			"relative_humidity_2m": "%", "precipitation": "mm", "wind_speed_10m": "km/h",
 			"weather_code": "wmo code"},
@@ -526,11 +527,11 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		triples, providers.requestFor(weatherCap, triples, [locatedLat, locatedLon], located),
 		located)
 	h.check("the forecast's answer is the reading the question named, about the place it named",
-		forecastAnswer.ok and forecastAnswer.facts.len == 2 and
+		forecastAnswer.ok and forecastAnswer.facts.len == 4 and
 			forecastAnswer.facts[0].predicate == "has-temperature-2m" and
 			triples.termText(forecastAnswer.facts[0].subject) == located)
 	h.check("with the hour the reply covers kept as the fact's span",
-		forecastAnswer.facts.len == 2 and forecastAnswer.facts[0].at != null)
+		forecastAnswer.facts.len == 4 and forecastAnswer.facts[0].at != null)
 	h.check("and the unit the reply gave, as a fact about the variable it asked for",
 		forecastAnswer.facts[1].predicate == "has-unit" and
 			triples.termText(forecastAnswer.facts[1].subject) == "temperature_2m" and
@@ -569,7 +570,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	// than leaving four of its readings behind - and says so once rather than five times.
 	h.check("a service's answer is one change the session records",
 		weatherSession.changes.len == 1 and weatherSession.changes[0].kind == "batch" and
-			weatherSession.changes[0].steps.len == 2)
+			weatherSession.changes[0].steps.len == 4)
 	takenBack = sessionModule.undo(weatherSession)
 	coordinates = 0
 	for fact in weatherSession.facts
@@ -581,7 +582,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		takenBack and weatherSession.facts.len == 2 and coordinates == 2 and
 			weatherSession.changes.len == 0)
 	h.check("saying it once, with the service that answered",
-		countOf(weatherSaid, "took back 2 facts open-meteo answered") == 1 and
+		countOf(weatherSaid, "took back 4 facts open-meteo answered") == 1 and
 			not holds(weatherSaid, "took back has-temperature-2m("))
 	// The request went with the answer: a session that no longer holds what the forecast said
 	// asks it again rather than the reader.
@@ -1117,8 +1118,8 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 			forecastStamps = forecastStamps + 1
 		end if
 	end for
-	h.check("and every reading a forecast answered names that endpoint too",
-		stampedWeather.ok and forecastStamps == 2)
+	h.check("and every fact a forecast answered names that endpoint too",
+		stampedWeather.ok and forecastStamps == 4)
 	triples.today = savedToday
 
 	// ── The same fact, answered again ───────────────────────────────────────

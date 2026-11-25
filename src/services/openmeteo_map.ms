@@ -263,6 +263,13 @@ build = function
 			[models, cell] + output,
 		[hourSeries, daySeries, currentSeries, minutelySeries])
 	forecast.provides = weatherProvides
+	// The zone the request asked for, and how far it stands from UTC, are said once about the
+	// place rather than read by reading. They are what has-time(?place, ?now) reads: the clock the
+	// same hours are written in, so a place the machine is not at can still be asked about now.
+	forecast.reply.once = [
+		["has-timezone", "?place", "$.timezone"],
+		["has-utc-offset", "?place", "$.utc_offset_seconds as number"],
+	]
 
 	// The seasonal forecast publishes its own weekly table: one row a week, its date the day the
 	// week begins, and a mean over that week rather than a reading of it. Five weeks is the month

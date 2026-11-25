@@ -1286,6 +1286,20 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("a question asks for the hour at the place's own clock",
 		printed(placeAsked.answers.lines,
 			"  has-temperature-2m(berlin, 9.8) @ [2026-11-22 20:00, 2026-11-22 21:00]"))
+	// A place the machine is not at takes its clock from the offsets a service answered with -
+	// the machine's own and the place's, moved by the difference - which is the fallback
+	// has-time keeps for a place that is not here.
+	t.clock = "2026-11-22 17:45:00"
+	farFacts = [
+		t.SpoTriple.make("session", "has-location", "home"),
+		t.SpoTriple.make("home", "has-utc-offset", -21600),
+		t.SpoTriple.make("berlin", "has-utc-offset", 7200),
+		t.SpoTriple.make("berlin", "has-temperature-2m", 4.4, "[2026-11-23 04:00, 2026-11-23 05:00]")]
+	farAsked = startSession(farFacts, [],
+		["and(has-temperature-2m(berlin, ?t) @ add-hours(has-time(berlin, ?now), 3))"], null, 0, offsetTypes)
+	h.check("a place the machine is not at takes its clock from how far the two stand from UTC",
+		printed(farAsked.answers.lines,
+			"  has-temperature-2m(berlin, 4.4) @ [2026-11-23 04:00, 2026-11-23 05:00]"))
 	// The time is not a fact a session keeps, so a line that would store it is refused.
 	clockStored = startSession([], [], ["has-time(session, 2026-11-22 11:45:00)"], null, 0, {})
 	refusedClock = null

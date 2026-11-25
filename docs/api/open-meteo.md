@@ -176,11 +176,15 @@ and leaves `has-latitude` to the geocoder:
 | `has-grid-latitude(?p, 52.512604)`, `has-grid-longitude(?p, 13.419517)` | the reply's `latitude`, `longitude` | `text, unique(number)` |
 | `has-elevation(?p, 38)` | the reply's `elevation` | `text, unique(number)` |
 | `has-timezone(?p, GMT)` | the reply's `timezone`, with `timezone=auto` | `text, unique(text)` |
-| `has-utc-offset(?p, 3600) @ 2026-11-22` | the reply's `utc_offset_seconds` | `text, number` |
+| `has-utc-offset(?p, 3600)` | the reply's `utc_offset_seconds` | `text, number` |
 
-Only the last line needs a date, and only when `timezone=auto` asks for local timestamps: the zone
-is a property of the place, and how far it is from UTC is a property of the place on that date,
-because the offset moves twice a year, so the date is on the fact's `@`.
+The last two lines are said once per reply rather than once per reading, and the offset is
+written without a date: the hours beside it are that day's, and the offset moves twice a year, so a
+fact that outlives the day it was read is a day old and is answered for again. The machine's own
+offset comes from the lookup that says where it is (`docs/api/ipwho-is.md`), so the two together are
+what `has-time` reads a place the machine is not at against. They are what
+`has-time(?place, ?now)` reads - the clock the reply's hours are written in - so a place the machine
+is not at can still be asked what time it is there.
 
 A geocoding search is asked with `count=1` and read as what comes back, so the reply block names
 the fields that make the result the place asked about:

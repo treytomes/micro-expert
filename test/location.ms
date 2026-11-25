@@ -9,7 +9,8 @@ run = function(location, uid, triples, apiClient, declared, ipwhoisMap, h)
 	decl = ipwhoisMap.build()
 
 	fortWorth = {"success": true, "continent": "North America", "country": "United States",
-		"region": "Texas", "city": "Fort Worth", "latitude": 32.7254134, "longitude": -97.3208492}
+		"region": "Texas", "city": "Fort Worth", "latitude": 32.7254134, "longitude": -97.3208492,
+		"timezone": {"id": "America/Chicago", "offset": -21600}}
 
 	// The fact with this predicate, or null when the reply wrote none.
 	factAbout = function(facts, predicate)
@@ -42,7 +43,7 @@ run = function(location, uid, triples, apiClient, declared, ipwhoisMap, h)
 
 	// ── The place the session holds ─────────────────────────────────────────
 
-	h.check("a session's facts come from one lookup", looked.ok and looked.facts.len == 7)
+	h.check("a session's facts come from one lookup", looked.ok and looked.facts.len == 8)
 	subject = factAbout(looked.facts, "has-location").object
 	h.check("the session has the place the lookup answered with", subject == place)
 	h.check("named by the id its own fields generate", subject == "place-f1d6b283a52a28dc")
@@ -50,9 +51,14 @@ run = function(location, uid, triples, apiClient, declared, ipwhoisMap, h)
 		factAbout(looked.facts, "is-a") == null)
 	others = 0
 	for fact in looked.facts
-		if fact.predicate != "has-location" and fact.subject != subject then others = others + 1
+		if fact.predicate != "has-location" and fact.subject != subject and
+				fact.predicate != "has-utc-offset" then others = others + 1
 	end for
-	h.check("every other fact hangs off the place rather than the session", others == 0)
+	h.check("every other fact hangs off the place rather than the session, but the machine's clock offset",
+		others == 0)
+	h.check("and how far the machine's own clock stands from UTC, for a place it is not at",
+		factAbout(looked.facts, "has-utc-offset") != null and
+			factAbout(looked.facts, "has-utc-offset").object == -21600)
 
 	// ── What the place is like ──────────────────────────────────────────────
 

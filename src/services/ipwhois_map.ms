@@ -49,6 +49,9 @@ build = function
 						["has-city", "?place", "$.city"],
 						["has-latitude", "?place", "$.latitude"],
 						["has-longitude", "?place", "$.longitude"],
+						// The lookup that says where the machine is says how far its own clock stands from
+						// UTC: what another place's clock is read against when the machine is not there.
+						["has-utc-offset", "session", "$.timezone.offset as number"],
 					],
 				},
 			},

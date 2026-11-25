@@ -830,6 +830,12 @@ placeClocks = function(session)
 			end if
 		end if
 	end for
+	// The machine is at the place it says it is at, so how far that place's clock stands from UTC
+	// is how far the machine's does: the zone a forecast answered with is the machine's own when
+	// the session is there, and the offset another place needs to be read against.
+	if machine == null and place != null and places.hasIndex(place) != 0 then
+		machine = places[place]
+	end if
 	session.triples.sessionPlace = place
 	session.triples.machineOffset = machine
 	session.triples.placeOffsets = places

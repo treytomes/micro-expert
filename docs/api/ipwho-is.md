@@ -130,6 +130,7 @@ has-region(place-f1d6b283a52a28dc, Texas)
 has-city(place-f1d6b283a52a28dc, Fort Worth)
 has-latitude(place-f1d6b283a52a28dc, 32.725413)
 has-longitude(place-f1d6b283a52a28dc, -97.320849)
+has-utc-offset(session, -21600)
 ```
 
 `session` is the run's own subject, the way `env` is the interpreter's: it is one term from one run
@@ -155,6 +156,11 @@ anything built from them. Case and spacing are not spelling, so either way of wr
 term. A field the reply did not carry writes no fact, and a reply with no city or no coordinates
 writes none at all: the region and country alone would name every town in a country, and a refused
 lookup writes no facts and reports its refusal.
+
+The last line is the machine's own clock rather than the place's: how far it stands from UTC, which
+is what another place's clock is read against when the machine is not there. It hangs off `session`
+because it is the machine's, and `data/schema.kb` does not name it - an unnamed predicate is
+accepted as written.
 
 Four of the spellings are the other two pages' own - `has-city`, `has-country`, `has-latitude`,
 `has-longitude` - written here exactly as they are there, with the same field types, so one schema

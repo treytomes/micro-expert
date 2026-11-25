@@ -531,6 +531,16 @@ readSeries = function(triples, uid, reply, json, asked)
 			end if
 		end for
 	end for
+	// A reply may say something about the place once rather than reading by reading - the zone
+	// its hours are written in, and how far that zone stands from UTC - so those fields are read
+	// from the root with the same reader: a field the reply leaves out is a skip, not a failure.
+	if reply.hasIndex("once") and not reply.hasIndex("each") then
+		one = readOne(triples, uid, reply, json, asked, {}, facts, skipped, false, reply.once)
+		if not one.ok then
+			return {"ok": 0, "error": one.error, "subject": "", "subjects": subjects,
+				"facts": facts, "skipped": skipped}
+		end if
+	end if
 	subject = ""
 	if subjects.len > 0 then subject = subjects[0]
 	return {"ok": 1, "error": null, "subject": subject, "subjects": subjects,

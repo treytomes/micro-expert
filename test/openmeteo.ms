@@ -73,6 +73,9 @@ run = function(declared, openmeteoMap, apiClient, triples, uid, schemaLoader, h)
 		"has-unit(relative_humidity_2m, percent)",
 		"has-unit(precipitation, mm)",
 		"has-unit(wind_speed_10m, kmh)",
+		// The zone the hours are written in, said once about the place: has-time reads it.
+		"has-timezone(berlin, GMT)",
+		"has-utc-offset(berlin, 0)",
 	]
 
 	linesOf = function(facts)
@@ -110,8 +113,8 @@ run = function(declared, openmeteoMap, apiClient, triples, uid, schemaLoader, h)
 
 	reading = declared.read(triples, uid, decl, "forecast", forecast, {"place": "berlin"})
 	h.check("a declared forecast is ok", reading.ok)
-	h.check("and writes the fourteen lines the page names, and a unit for each variable that has one",
-		reading.facts.len == 18 and linesOf(reading.facts) == expected)
+	h.check("and writes the fourteen lines the page names, a unit for each variable that has one, and the place's zone",
+		reading.facts.len == 20 and linesOf(reading.facts) == expected)
 	h.check("the subject is the place the caller named, once per place",
 		reading.subject == "berlin" and reading.subjects.join(",") == "berlin")
 	unread = 0
@@ -181,7 +184,7 @@ run = function(declared, openmeteoMap, apiClient, triples, uid, schemaLoader, h)
 
 	sparseReading = declared.read(triples, uid, decl, "forecast", sparse, {"place": "berlin"})
 	h.check("a reply with one variable writes three facts and names the rest",
-		sparseReading.ok and sparseReading.facts.len == 3 and sparseReading.skipped.len == 12)
+		sparseReading.ok and sparseReading.facts.len == 3 and sparseReading.skipped.len == 14)
 	h.check("and claims no confidence it was not given",
 		sparseReading.facts[0].confidence == 100)
 
