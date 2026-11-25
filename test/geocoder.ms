@@ -210,6 +210,45 @@ run = function(declared, geocodeMap, apiClient, triples, uid, schemaLoader, h)
 	h.check("a result with no query records none",
 		noQuery.facts.len == 21 and factAbout(noQuery.facts, "was-answer-to") == null)
 
+	// ── The reply has to be the place the question named ────────────────
+	// A search is asked with limit=1 and read as what came back, so the reply block names the
+	// fields that make a result this place: the city and the country the session holds for it.
+	held = [triples.SpoTriple.make("place-1", "has-city", "Paris"),
+		triples.SpoTriple.make("place-1", "has-country", "France")]
+	confirmed = declared.read(triples, uid, decl, "search", [eiffel], {"q": "Paris"}, held)
+	h.check("a reply whose city and country are the place's own is read",
+		confirmed.ok == 1 and confirmed.facts.len == reading.facts.len)
+
+	// The first result is the one a limit of one asked for, so it has to be this place: another
+	// Springfield would otherwise be read as the Paris asked about.
+	wrongCity = {"osm_type": "node", "osm_id": 1, "lat": "39.7984", "lon": "-89.6440",
+		"name": "Springfield", "address": {"city": "Springfield", "country": "France"}}
+	mismatch = declared.read(triples, uid, decl, "search", [wrongCity], {"q": "Paris"}, held)
+	h.check("a first result that is another city is refused",
+		mismatch.ok == 0 and mismatch.facts.len == 0)
+	h.check("whose message says both cities",
+		mismatch.error == "the first result is not the place asked about: its city is " +
+			"Springfield, not Paris")
+
+	wrongCountry = {"osm_type": "node", "osm_id": 2, "lat": "48.8583", "lon": "2.2945",
+		"name": "Paris", "address": {"city": "Paris", "country": "Canada"}}
+	h.check("and another country is refused by its own name",
+		declared.read(triples, uid, decl, "search", [wrongCountry], {"q": "Paris"},
+			held).error == "the first result is not the place asked about: its country is " +
+			"Canada, not France")
+
+	shouted = {"osm_type": "node", "osm_id": 3, "lat": "48.8583", "lon": "2.2945",
+		"name": "PARIS", "address": {"city": "PARIS", "country": "france"}}
+	h.check("a name in other capitals is the same name",
+		declared.read(triples, uid, decl, "search", [shouted], {"q": "Paris"}, held).ok == 1)
+
+	h.check("a place the session holds no city or country for is read as it comes",
+		declared.read(triples, uid, decl, "search", [eiffel], {"q": "Eiffel Tower"}, []).ok == 1)
+	noAddress = {"osm_type": "node", "osm_id": 4, "lat": "48.8583", "lon": "2.2945",
+		"name": "Paris"}
+	h.check("and a reply that leaves the field out says nothing to disagree with",
+		declared.read(triples, uid, decl, "search", [noAddress], {"q": "Paris"}, held).ok == 1)
+
 	// ── The request half ────────────────────────────────────────────────
 
 	h.check("the map names the service's own base and path",

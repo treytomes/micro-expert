@@ -471,3 +471,13 @@ registry was built.
 Nothing is asked at startup and `/lookup` declares nothing, since it needs an OSM id the session
 has no way to settle on its own. The search sends `limit=1`, because one place's coordinates are
 the first match's and a second answer would only be a second opinion.
+
+The first match is worth the coordinates only if it is the place that was asked about, so the
+search's reply block names the fields that make it so:
+`"confirm": {"has-city": "address.city", "has-country": "address.country"}`.
+`src/spike/declared.ms` looks each of those predicates up among the facts the session already
+holds about that place and refuses the reply when the service's own word for the field disagrees
+- in any case but its own - so a search for Fort Worth that comes back with another Springfield
+is a warning naming both cities, and those coordinates are not read onto this place. A field the
+session holds no fact under, or that the reply leaves out, is nothing to disagree with: the
+declaration says which fields it can check, not that every reply must carry them.

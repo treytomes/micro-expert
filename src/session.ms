@@ -1104,7 +1104,9 @@ askService = function(session, capability, request, need)
 	key = capability.service + " " + capability.endpoint + " " + providers.requestText(request)
 	if session.providerCalls.hasIndex(key) then return false
 	session.providerCalls[key] = 1
-	answered = providers.answer(capability, session.triples, request, need.subject)
+	// The session's own facts go with the request, so a declaration can confirm the reply is
+	// about the place it was asked about rather than the first of what the service offered.
+	answered = providers.answer(capability, session.triples, request, need.subject, session.facts)
 	if not answered.ok then
 		repl.say(session, "warning", "  " + capability.service + " could not answer " +
 			need.text + ": " + answered.error)

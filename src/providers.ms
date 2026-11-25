@@ -66,7 +66,10 @@
 //
 // The reading is the map's own: declared.read turns the reply into facts, the same lines the
 // reply always writes, so a provider answers with the facts the service declares rather than
-// with a second description of them. What a provider's facts are worth - whether the session
+// with a second description of them. The session's facts about the place go with the reading, so
+// a declaration can confirm the reply is that place - a search takes its first result, and
+// another Fort Worth would otherwise be read as this one - and a reply that disagrees is a
+// warning like any other failure, so the next declaration is asked. What a provider's facts are worth - whether the session
 // holds them, and whether it asks again - is the session's business, in src/session.ms.
 //
 // Every fact a service answers carries "# <service>/<endpoint> <day>" in its own line: which
@@ -256,8 +259,8 @@ askedFor = function(capability, request, subject)
 end function
 
 
-answer = function(capability, triples, request=null, subject=null)
-	"One provider's answer, as the facts its endpoint maps: ok with them, or ok 0 and the reason there are none."
+answer = function(capability, triples, request=null, subject=null, facts=null)
+	"One provider's answer, as the facts its endpoint maps: ok with them, or ok 0 and the reason there are none. The facts the session holds let a declaration confirm the reply is about the place it was asked about."
 	declared = capability.declared
 	api = capability.api
 	if request == null then request = capability.request
@@ -268,8 +271,17 @@ answer = function(capability, triples, request=null, subject=null)
 	if result.json == null then
 		return {"ok": 0, "facts": [], "error": "the service did not answer with JSON"}
 	end if
+	// What the session already holds about the place goes with the reply, filtered to that
+	// subject: a declaration that names the fields making a reply the place asked about checks
+	// them against these, so the first result of a search is refused when it is another place.
+	held = []
+	if facts != null and subject != null then
+		for fact in facts
+			if triples.termText(fact.subject) == triples.termText(subject) then held.push fact
+		end for
+	end if
 	reading = declared.read(triples, capability.uid, capability.decl, capability.endpoint,
-		result.json, askedFor(capability, request, subject))
+		result.json, askedFor(capability, request, subject), held)
 	if not reading.ok then
 		return {"ok": 0, "facts": [], "error": reading.error}
 	end if

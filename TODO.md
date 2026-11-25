@@ -37,10 +37,6 @@
   day, so `--verbose` hides the thing a reader needs. A tree line naming the service and day, and
   a plain `2 of 3 from services` under an answer, would show it. Effort: small-medium; the
   matched fact has to be carried into the reason.
-* **Confirm that a geocoder found the place that was asked about.** Value: high, it is the worst
-  failure mode left. Search sends `limit=1` and takes the first match with nothing checking the
-  reply's city or country, so a wrong Fort Worth yields a fresh, today's forecast with clean
-  provenance. Effort: medium; an agreement rule on the reply, refusing when it does not match.
 * **An age ceiling for readings (`--max-age`).** Value: high, it finishes the staleness rule.
   Every earlier day is equally stale today, so yesterday's coordinate and a 2024 reading are both
   used once nothing can refresh them. Effort: small-medium; a day count on the session and a

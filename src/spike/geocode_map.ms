@@ -28,6 +28,10 @@
 // hangs its facts on the OSM object, which is its identity rather than the domain's - and "from"
 // names the facts the request's fields are filled from.
 //
+// A search sends limit=1 and takes what comes back, so its reply block also names the fields
+// that make a result the place asked about - the city and the country - and src/spike/declared.ms
+// refuses a first result whose own words disagree with the facts the session holds for that place.
+//
 // The service answers 401 without a key, so the map names the variable its key is read from:
 // "keyEnv" is GEOCODE_MAPS_API_KEY, which src/spike/declared.ms takes from the environment - the
 // .env beside the run, read by src/dotenv.ms - when the caller hands no key in. A run with
@@ -65,7 +69,7 @@ build = function
 		return facts
 	end function
 	// What every endpoint's reply has to say to be one: an id, and a refusal sent as an error.
-	replyShape = function(each, withQuery)
+	replyShape = function(each, withQuery, confirm=null)
 					reply = {
 			"refuse": {"present": "error", "message": "error.message"},
 			"require": ["osm_type", "osm_id"],
@@ -77,6 +81,7 @@ build = function
 		}
 		if each != null then reply.each = each
 		if withQuery then reply.request = ["q"]
+		if confirm != null then reply.confirm = confirm
 		return reply
 	end function
 	return {
@@ -135,8 +140,12 @@ build = function
 					{"fact": ["has-longitude", "?place", "?lon"], "about": "?place",
 						"from": {"q": ["has-name", "has-city"]}, "request": {"limit": 1}},
 				],
-				// /search answers with a list, so every entry is one place.
-				"reply": replyShape("$", 1),
+				// /search answers with a list, so every entry is one place - and it is asked with
+				// limit=1, so the first entry is the one that answers. The reply's own city and
+				// country must be the place the session holds, or another Fort Worth would be read
+				// as this one and a forecast computed for it.
+				"reply": replyShape("$", 1,
+					{"has-city": "address.city", "has-country": "address.country"}),
 			},
 			"reverse": {
 				"method": "GET",

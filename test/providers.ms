@@ -773,6 +773,38 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 			keylessLatitude != null and keylessLatitude.source == "open-meteo/geocoding" and
 			not holds(keylessSession.answers.asked, "  ?lat = "))
 
+	// A reply that is not the place the question named is the same shape of failure once more:
+	// the search takes the first result limit=1 offers, so the declaration checks its city and
+	// country against the place's own facts and refuses another Fort Worth - and the next
+	// declaration is asked, so a cell that would otherwise show a clean forecast for the wrong
+	// town shows the refusal and the answer it did reach.
+	namesake = splitStub([
+		{"host": "geocode.maps.co", "json": [{"osm_type": "relation", "osm_id": 999,
+			"lat": "32.7555", "lon": "-97.3308", "name": "Fort Worth",
+			"address": {"city": "Springfield", "country": "United States"}}]},
+		{"host": "geocoding-api.open-meteo.com", "json": geocoderReply},
+	])
+	namesakePlace = uid.of("place", ["Fort Worth namesake"])
+	namesakeSession = startSession(
+		providers.registry(namesake, declared, uid, [geoDecl, weatherDecl]),
+		["has-latitude(" + namesakePlace + ", ?lat)"],
+		[triples.SpoTriple.make(namesakePlace, "has-city", "Fort Worth")])
+	namesakeLines = namesakeSession.answers.lines
+	h.check("a first result that is not the place asked about is refused, naming both",
+		printed(namesakeLines, "  geocode.maps.co could not answer has-latitude(" +
+			namesakePlace + ", ?lat): the first result is not the place asked about: its city " +
+			"is Springfield, not Fort Worth"))
+	h.check("after the search that would have answered was asked",
+		namesake.calls.len == 2 and namesake.calls[0].indexOf("geocode.maps.co") != null)
+	namesakeLatitude = null
+	for readFact in namesakeSession.session.facts
+		if readFact.predicate == "has-latitude" then namesakeLatitude = readFact
+	end for
+	h.check("so the next declaration answers, and nothing of the wrong place is read",
+		printed(namesakeLines, "  has-latitude(" + namesakePlace + ", 32.7555)") and
+			namesakeLatitude != null and namesakeLatitude.source == "open-meteo/geocoding" and
+			not holds(namesakeSession.answers.asked, "  ?lat = "))
+
 	// ── A weather question answered through the prompt ──────────────────
 
 	// The whole loop rather than one pass: a question about a place the session knows only by

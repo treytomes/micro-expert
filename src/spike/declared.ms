@@ -45,6 +45,17 @@
 // every fact left out is named in the reading's "skipped" list rather than disappearing
 // quietly.
 //
+// The reply half may also say which of its fields make it the place the question named:
+//
+//   "reply": {"confirm": {"has-city": "address.city", "has-country": "address.country"}}
+//
+// A search sends limit=1 and is read as what came back, so an agreement is what stops a result
+// for another Fort Worth being read as this one: each named predicate is looked for in the facts
+// the session holds about the place (read is handed them, and providers.answer takes them from
+// the session), and a reply whose own word for that field disagrees - in any case but its own -
+// is refused with the reason. A predicate the session holds no fact for is not checked, and a
+// field the reply leaves out says nothing to disagree with.
+//
 // The request half takes three per-service clauses as well: "key" names the parameter a key
 // travels as, "keyEnv" the environment variable the key is read from, and "redact" the
 // parameters whose values are hidden in the url a result carries; "boolAs" rewrites true and
@@ -477,8 +488,55 @@ readSeries = function(triples, uid, reply, json, asked)
 end function
 
 
-read = function(triples, uid, decl, endpointName, json, asked={})
-	"Every object the reply carries, as the facts its endpoint maps; ok 0 only when a single object has no subject."
+disagreement = function(triples, reply, json, held)
+	"The reason the reply's first object is not the place the session holds, or null when it is - or when the reply names no field to check, or the session holds none of them."
+	if held == null or not (held isa list) then return null
+	if held.len == 0 then return null
+	if reply.hasIndex("confirm") == 0 then return null
+	first = json
+	// A list reply is the results the request asked for, and its first is the one a limit of
+	// one wanted; a single object is itself.
+	if json isa list then
+		if json.len == 0 then return null
+		first = json[0]
+	end if
+	if not (first isa map) then return null
+	for predicate in reply.confirm.indexes
+		wanted = heldText(triples, held, predicate)
+		if wanted == null then continue
+		said = at(first, reply.confirm[predicate])
+		if said == null then continue
+		said = trimText(said)
+		if said == "" then continue
+		// A name is the same name in another case: a service's capitals are its own.
+		if said.lower == wanted.lower then continue
+		return "the first result is not the place asked about: its " +
+			fieldWord(reply.confirm[predicate]) + " is " + said + ", not " + wanted
+	end for
+	return null
+end function
+
+
+heldText = function(triples, held, predicate)
+	"The session's own text for one field of the place, or null when it holds none: the first ground fact under this predicate."
+	for fact in held
+		if fact.predicate != predicate then continue
+		if triples.isVar(fact.object) then continue
+		return triples.termText(fact.object)
+	end for
+	return null
+end function
+
+
+fieldWord = function(path)
+	"The last step of a reply path, for the message: address.city is a city."
+	steps = str(path).split(".")
+	return steps[steps.len - 1]
+end function
+
+
+read = function(triples, uid, decl, endpointName, json, asked={}, held=null)
+	"Every object the reply carries, as the facts its endpoint maps; ok 0 when a single object has no subject, or when the reply is not the place the session holds."
 	endpoint = endpointOf(decl, endpointName)
 	if endpoint == null then
 		return {"ok": 0, "error": "unknown endpoint " + endpointName, "subject": "",
@@ -503,6 +561,15 @@ read = function(triples, uid, decl, endpointName, json, asked={})
 			return {"ok": 0, "error": "the service refused the request: " + why,
 				"subject": "", "subjects": [], "facts": [], "skipped": []}
 		end if
+	end if
+
+	// The first object is the one a limit of one asked for, and nothing else checks it: the
+	// declaration says which of its fields must be the place the session holds, so a first result
+	// that says another city is refused here rather than read as this place.
+	problem = disagreement(triples, reply, json, held)
+	if problem != null then
+		return {"ok": 0, "error": problem, "subject": "", "subjects": [], "facts": [],
+			"skipped": []}
 	end if
 
 	// A reply of several tables is read a table at a time; a reply of one list of objects or one
