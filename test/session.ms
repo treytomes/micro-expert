@@ -1300,6 +1300,22 @@ run = function(t, rules, host, h, schema, knowledge, library)
 	h.check("a place the machine is not at takes its clock from how far the two stand from UTC",
 		printed(farAsked.answers.lines,
 			"  has-temperature-2m(berlin, 4.4) @ [2026-11-23 04:00, 2026-11-23 05:00]"))
+	// An offset is a reading rather than a rule: a place may have moved its clocks twice a year
+	// since the service answered, so a day-old offset is not a clock and the place has none, while
+	// the machine's own clock - no offset at all - still answers for the place it is at.
+	savedToday = t.today
+	t.today = "2026-11-25"
+	staleFacts = [
+		t.SpoTriple.make("session", "has-location", "home"),
+		t.SpoTriple.make("home", "has-utc-offset", -18000, null, 100, "open-meteo/forecast", "2026-11-24"),
+		t.SpoTriple.make("berlin", "has-utc-offset", 7200, null, 100, "open-meteo/forecast", "2026-11-24")]
+	staleAsked = startSession(staleFacts, [], ["has-time(berlin, ?now)"], null, 0, offsetTypes)
+	h.check("a day-old offset is no clock at all",
+		printed(staleAsked.answers.lines, "  no solution found at depth 8"))
+	staleHome = startSession(staleFacts, [], ["has-time(home, ?now)"], null, 0, offsetTypes)
+	h.check("while the machine's own clock, which is no offset, still answers where it is",
+		not holds(staleHome.answers.lines, "no solution found"))
+	t.today = savedToday
 	// The time is not a fact a session keeps, so a line that would store it is refused.
 	clockStored = startSession([], [], ["has-time(session, 2026-11-22 11:45:00)"], null, 0, {})
 	refusedClock = null

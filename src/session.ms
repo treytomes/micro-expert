@@ -815,14 +815,20 @@ askBody = function(session, conditions, line)
 end function
 
 placeClocks = function(session)
-	"The clock facts a question reads: where the machine is, and how far its clock and each known place's stand from UTC - the offsets a service answered with, so no zone rules live here."
+	"The clock facts a question reads: where the machine is, and how far its clock and each known place's stand from UTC - the offsets a service answered with today, so no zone rules live here."
 	place = null
 	machine = null
 	places = {}
+	// An offset is a reading rather than a rule, and a place may have moved its clocks twice a
+	// year since: an answer from an earlier day is not one to move a clock by, so it is left out
+	// and the place has no clock at all until a service is asked again - the honest no, where
+	// yesterday's offset would have been a wrong clock. A typed fact has no day and stands.
+	today = session.triples.dayText(session.triples.dayToday())
 	for fact in session.facts
 		if fact.subject == "session" and fact.predicate == "has-location" and fact.object isa string then
 			place = fact.object
-		else if fact.predicate == "has-utc-offset" and fact.object isa number then
+		else if fact.predicate == "has-utc-offset" and fact.object isa number and
+				(fact.source == null or fact.fetched == today) then
 			if fact.subject == "session" then
 				machine = fact.object
 			else if fact.subject isa string then

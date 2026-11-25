@@ -158,7 +158,8 @@ writes none at all: the region and country alone would name every town in a coun
 lookup writes no facts and reports its refusal.
 
 The last line is the machine's own clock rather than the place's: how far it stands from UTC, which
-is what another place's clock is read against when the machine is not there. It hangs off `session`
+is what another place's clock is read against when the machine is not there. Like any reading it is
+good for the day it was answered: a day-old offset is not a clock, and the lookup is made again. It hangs off `session`
 because it is the machine's, and `data/schema.kb` does not name it - an unnamed predicate is
 accepted as written.
 

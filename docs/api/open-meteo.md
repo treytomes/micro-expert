@@ -180,7 +180,9 @@ and leaves `has-latitude` to the geocoder:
 
 The last two lines are said once per reply rather than once per reading, and the offset is
 written without a date: the hours beside it are that day's, and the offset moves twice a year, so a
-fact that outlives the day it was read is a day old and is answered for again. The machine's own
+fact that outlives the day it was read is a day old and is answered for again: `has-time` reads only
+an offset answered today, since a place may have moved its clocks twice a year since, so a session
+holding yesterday's asks the forecast again rather than reading a clock by it. The machine's own
 offset comes from the lookup that says where it is (`docs/api/ipwho-is.md`), so the two together are
 what `has-time` reads a place the machine is not at against. They are what
 `has-time(?place, ?now)` reads - the clock the reply's hours are written in - so a place the machine

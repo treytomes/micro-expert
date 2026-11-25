@@ -850,6 +850,8 @@ end function
 
 dayText = function(day)
 	"One day as a fact writes it: yyyy-MM-dd, the month and day padded the way a date is."
+	// A caller may pin the day in the text a fact carries rather than as its three parts.
+	if day isa string then return day
 	month = str(day.month)
 	if month.len < 2 then month = "0" + month
 	date = str(day.day)

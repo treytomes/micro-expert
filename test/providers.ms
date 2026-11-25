@@ -593,6 +593,30 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	h.check("so the question asks the forecast again rather than the reader",
 		changed and forecasting.calls == 2)
 
+	// An offset ages like a reading: yesterday's answer to where the place's clock stands from
+	// UTC is not a clock to move one by, so the session holds none until the forecast is asked
+	// again - and the reply it answers with today is the one the clock is read from.
+	savedClockDay = triples.today
+	triples.today = "2026-11-25"
+	clockStale = triples.SpoTriple.make(located, "has-utc-offset", -18000, null, 100,
+		"open-meteo/forecast", "2026-11-21")
+	clocking = stubFor(weatherReply)
+	clockSession = {"triples": triples, "Rule": rules.Rule, "facts": [locatedLat, locatedLon, clockStale],
+		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
+		"knowledge": knowledge, "providers": providers.registry(clocking, declared, uid, [weatherDecl]),
+		"io": {"read": null, "say": function(line)
+			end function}}
+	sessionModule.placeClocks(clockSession)
+	h.check("a day-old offset is not a clock to read the place by",
+		triples.machineOffset == null and triples.placeOffsets.len == 0)
+	changed = sessionModule.provideMissing(clockSession,
+		triples.needsFor(needTemperature, clockSession.facts, [], 8))
+	sessionModule.placeClocks(clockSession)
+	offsets = triples.placeOffsets
+	h.check("and the forecast asked again says how far the place's clock stands today",
+		changed and clocking.calls == 1 and offsets.len == 1 and
+			offsets[offsets.indexes[0]] == -21600)
+	triples.today = savedClockDay
 	// A forecast that cannot answer leaves the fact to the reader. One attempt is one request,
 	// and each variable has a request of its own now, so another variable is a second attempt
 	// rather than the same failed one; the request already made is not made twice.
