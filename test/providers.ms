@@ -767,6 +767,8 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		dueLatHeld != null and dueLatHeld.object == 32.76 and
 			dueLatHeld.fetched == "2026-11-21" and holds(dueAsked.answers.lines,
 			"has-latitude(" + duePlace + ", 32.76)"))
+	h.check("so a reading fetched again is no stale reading to own up to",
+		not holds(dueAsked.answers.lines, "from an earlier reading"))
 
 	// A reading fetched today is today's already, and a typed fact was never a service's to
 	// fetch: neither asks anything.
@@ -798,6 +800,22 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		lonelyStub.calls == 0 and not holds(lonelyAsked.answers.asked, "  ?t = ") and
 			holds(lonelyAsked.answers.lines,
 				"has-temperature-2m(" + lonelyPlace + ", 18.4)"))
+	// Answering from it silently would be the worst of both, so the transcript says which day
+	// the reading is from - the line a facts file would hold, its annotation included - and
+	// says it before the answer it stands behind.
+	noteAt = null
+	answerAt = null
+	for lineAt in lonelyAsked.answers.lines.indexes
+		line = lonelyAsked.answers.lines[lineAt]
+		if noteAt == null and line.indexOf("from an earlier reading") != null then noteAt = lineAt
+		if line.indexOf("has-temperature-2m(" + lonelyPlace + ", 18.4)") != null then
+			answerAt = lineAt
+		end if
+	end for
+	h.check("and an answer from an old reading says which day it is from, before it answers",
+		noteAt != null and answerAt != null and noteAt < answerAt and
+			lonelyAsked.answers.lines[noteAt].indexOf("fetched 2026-11-20") != null and
+			lonelyAsked.answers.lines[noteAt].indexOf("# open-meteo/forecast 2026-11-20") != null)
 	triples.today = savedStaleDay
 
 	// ── A provider's fact says who answered it, and when ────────────────────

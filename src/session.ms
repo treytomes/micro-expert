@@ -740,6 +740,24 @@ askGoal = function(session, goal)
 		options = session.triples.needsFor(goal, facts, session.rules, session.depth)
 		if due.len > 0 and not reused then
 			if provideMissing(session, options) then continue
+			// Nothing could fetch a newer reading, so what the session holds answers after all -
+			// and the transcript says which day that reading is from, with the line the file
+			// would hold, so an answer from an old fact is not taken for a fresh one.
+			said = {}
+			for option in options
+				for need in option.needs
+					held = staleOf(session, need.triple)
+					if held == null then continue
+					if said.hasIndex(held.text) then continue
+					said[held.text] = 1
+					if held.fetched == null then
+						repl.say(session, "note", "  from an earlier reading: " + held.text)
+					else
+						repl.say(session, "note", "  from an earlier reading, fetched " +
+							held.fetched + ": " + held.text)
+					end if
+				end for
+			end for
 			reused = 1
 			continue
 		end if
@@ -905,7 +923,8 @@ end function
 // A reading is due again once its day has passed: a question that would be answered by a fact a
 // service gave on an earlier day is answered from today's readings first, and the service is asked
 // for the rest, so an answer is not yesterday's weather. A reading nothing can fetch again still
-// answers - the alternative is asking the reader for a fact the session holds.
+// answers - the alternative is asking the reader for a fact the session holds - and the transcript
+// says which day that reading is from, so the answer is not silently old.
 //
 // A service is asked once, and what it answered is kept whether it answered or failed: a question
 // that comes round again, or a second question needing the same fact, reads the first attempt
