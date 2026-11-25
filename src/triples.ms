@@ -985,7 +985,18 @@ proveGoals = function(goal, facts, rules, depth, binds=null, open=null, index=nu
 	for candidate in matchingRules(goal, rules, binds)
 		for proved in proveConditions(candidate.body, facts, rules, depth - 1, candidate.binds,
 			path, index)
-			mergeAnswer(results, goal, proved.binds, {"rule": candidate.rule, "conditions": proved.proofs})
+			// A conclusion holds for as long as the readings its body stood on, and is only as
+			// sure as the least sure of them: the span of the first one that carries one, and the
+			// weakest confidence. A body of bare facts carries neither, so it concludes nothing
+			// about when, which is what a rule over the family's facts says.
+			at = null
+			confidence = 100
+			for proof in proved.proofs
+				if at == null and proof.at != null then at = proof.at
+				if proof.confidence < confidence then confidence = proof.confidence
+			end for
+			mergeAnswer(results, goal, proved.binds, {"rule": candidate.rule, "conditions": proved.proofs},
+				at, confidence)
 		end for
 	end for
 	return results.list
@@ -1150,7 +1161,7 @@ proveConditions = function(conditions, facts, rules, depth, binds, open=null, in
 end function
 
 mergeAnswer = function(results, goal, binds, reason, at=null, confidence=100)
-	"One entry per answer, holding every way that answer was proved; the annotations are the fact's, since the goal is only a pattern."
+	"One entry per answer, holding every way that answer was proved; the annotations are the fact's, or the readings' a rule's body stood on, since the goal is only a pattern."
 	// The key is the whole line, so two readings of the same value at different hours are two
 	// answers rather than one with two derivations.
 	key = answerTriple(goal, binds, at, confidence).text

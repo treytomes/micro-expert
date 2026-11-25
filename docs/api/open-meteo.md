@@ -389,7 +389,10 @@ parenthesis and no `//`. Weather data strains that harder than a geocoder result
 - **A reading has four parts** - place, variable, instant, value - and a fact holds three terms. The
   compact shape above puts the place in the subject, the variable in the predicate and the instant
   in `@`, which is one fact per number. It cannot join two readings of one instant, or two places at
-  one instant: the annotation is not a term a rule can bind. The way out is to reify the reading
+  one instant: the annotation is not a term a rule can bind.
+  What a rule's *answer* does keep is that reading's annotation: the span of the first of its
+  conditions that carries one, and the weakest confidence among them, so `is-cold(place, value)`
+  prints the hour it judged rather than an undated conclusion. The way out is to reify the reading
   and write its parts as facts of their own:
 
   ```prolog

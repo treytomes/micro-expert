@@ -57,6 +57,40 @@ run = function(t, rulesLoader, factsLoader, schemaLoader, h)
 		h.check("a birthdate loads as the text it was written as", loadedFacts[1].object == "1948-03-14")
 	end if
 
+	// ── A rule passes its bindings back to the caller ─────────────────────────
+	// is-child-of(?x, ?y) => is-parent-of(?y, ?x) is the shipped rule whose head swaps its
+	// two terms, so the answer says which fact bound which variable, and in which direction.
+	childGoal = t.SpoTriple.make(t.var("x"), "is-child-of", t.var("y"))
+	children = t.proveGoals(childGoal, loadedFacts, loadedRules, 1)
+	childAnswers = []
+	for answer in children
+		childAnswers.push t.substitute(childGoal, answer.binds).text
+	end for
+	h.check("the is-child-of rule binds the question's two variables the other way round",
+		childAnswers.indexOf("is-child-of(bill, walter)") != null and
+			childAnswers.indexOf("is-child-of(walter, bill)") == null)
+	swapped = null
+	for answer in children
+		if t.substitute(childGoal, answer.binds).text == "is-child-of(bill, walter)" then
+			swapped = answer.reasons[0]
+		end if
+	end for
+	h.check("and the rule's own condition is the fact that settled them",
+		swapped != null and swapped.rule != null and swapped.conditions.len == 1 and
+			t.substitute(swapped.conditions[0].goal, swapped.conditions[0].binds).text ==
+				"is-parent-of(walter, bill)")
+	// A head position the question already settled is a filter rather than a binding: the
+	// body is asked for one place's children, not for every child in the file.
+	oneParent = t.SpoTriple.make(t.var("x"), "is-child-of", "walter")
+	oneAnswers = []
+	for answer in t.proveGoals(oneParent, loadedFacts, loadedRules, 1)
+		oneAnswers.push t.substitute(oneParent, answer.binds).text
+	end for
+	h.check("a parent the question names asks the body for that parent only",
+		oneAnswers.indexOf("is-child-of(bill, walter)") != null and
+			oneAnswers.indexOf("is-child-of(bill, doris)") == null)
+
+
 	// ── The schema the shipped facts have to fit ─────────────────────────────
 
 	// The prompt holds a typed fact against data/schema.kb, so the facts the program

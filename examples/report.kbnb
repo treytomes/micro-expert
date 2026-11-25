@@ -49,7 +49,7 @@
 		{
 			"kind": "markdown",
 			"language": "markdown",
-			"source": "The hours of the day above that the rule calls cold, each beside the reading that made it one. The rule names no temperature at all unless the session holds the celsius fact, so a fahrenheit folder answers nothing here rather than answering wrongly:\n"
+			"source": "The hours of the day above that the rule calls cold, each carrying the hour it was read for, since a rule's answer keeps the annotation of the reading it stood on. The rule names no temperature at all unless the session holds the celsius fact, so a fahrenheit folder answers nothing here rather than answering wrongly:\n"
 		},
 		{
 			"kind": "code",
