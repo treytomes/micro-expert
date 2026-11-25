@@ -79,7 +79,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 
 	// A session over a script of typed lines, recording what it printed and asked, as the
 	// prompt's own cases do.
-	startSession = function(registry, script)
+	startSession = function(registry, script, facts=[])
 		answers = {"lines": [], "asked": [], "at": 0}
 		reader = function(question)
 			answers.asked.push(question)
@@ -92,7 +92,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		end function
 		// No schema and no types, as a session handed neither reads: the facts a service answers
 		// with are held as they come, which is what these cases are about.
-		session = {"triples": triples, "Rule": rules.Rule, "facts": [], "rules": [],
+		session = {"triples": triples, "Rule": rules.Rule, "facts": facts + [], "rules": [],
 			"depth": 8, "verbose": 0, "nlp": 0, "style": null,
 			"paths": {}, "knowledge": null, "providers": registry,
 			"io": {"read": @reader, "say": @writer}}
@@ -652,6 +652,29 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	sessionModule.undo(chainSession)
 	h.check("undoing both answers forgets both requests, so the chain can start over",
 		chainSession.providerCalls.len == 0 and chainSession.facts.len == 1)
+
+	// ── A weather question answered through the prompt ──────────────────
+
+	// The whole loop rather than one pass: a question about a place the session knows only by
+	// city is answered from the geocoder's coordinates and then the forecast's reading, and the
+	// value prompt is never reached.
+	prompted = splitStub([
+		{"host": "geocode.maps.co", "json": searchReply},
+		{"host": "api.open-meteo.com", "json": weatherReply},
+	])
+	byCity = uid.of("place", ["Fort Worth by city"])
+	askedWeather = startSession(
+		providers.registry(prompted, declared, uid, [geoDecl, weatherDecl]),
+		["has-temperature-2m(" + byCity + ", ?t)", "quit"],
+		[triples.SpoTriple.make(byCity, "has-city", "Fort Worth")])
+	h.check("a weather question asks the geocoder and then the forecast",
+		prompted.calls.len == 2 and prompted.calls[0].indexOf("geocode.maps.co") != null and
+			prompted.calls[1].indexOf("api.open-meteo.com") != null)
+	h.check("and asks the reader for no value",
+		not holds(askedWeather.answers.asked, "  ?t = "))
+	h.check("so the question is answered from the reading the forecast gave",
+		holds(askedWeather.answers.lines, "has-temperature-2m(" + byCity + ", 18.4)") and
+			not holds(askedWeather.answers.lines, "no solution found"))
 
 	// ── A session given no registry asks nothing ────────────────────────────
 
