@@ -655,6 +655,95 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		clockLines.len > 0 and clockOnly.facts.len == 7)
 	triples.clock = savedOnlyClock
 	triples.today = savedOnlyDay
+	// A cold clock-only question about a place the machine is not at needs both halves of the
+	// arithmetic - how far the place's clock stands from UTC, and how far the machine's own does -
+	// and a session that knows where it is but holds no offset at all asks for both before the
+	// clock is read, so the first question answers instead of failing on the half it fetched.
+	zoneStub = function()
+		fake = {}
+		for name in apiClient.indexes
+			fake[name] = apiClient[name]
+		end for
+		fake.calls = 0
+		fake.seenUrl = null
+		fake.get = function(url, timeout=null)
+			self.calls = self.calls + 1
+			self.seenUrl = url
+			// The lookup that says where the machine is says how far its clock stands, which is the
+			// other half the cold question needs: one stub answers both services by URL.
+			if url.indexOf("ipwho.is") != null then
+				return {"ok": 1, "status": 200, "body": "", "url": url, "error": null,
+					"json": {"success": true, "city": "Fort Worth", "region": "Texas",
+						"country": "United States", "latitude": 32.7555, "longitude": -97.3308,
+						"timezone": {"id": "America/Chicago", "offset": -21600}}}
+			end if
+			if url.indexOf("latitude=52.52") != null then
+				return {"ok": 1, "status": 200, "body": "", "url": url, "error": null,
+					"json": {"latitude": 52.52, "longitude": 13.404, "timezone": "Europe/Berlin",
+						"utc_offset_seconds": 3600}}
+			end if
+			return {"ok": 1, "status": 200, "body": "", "url": url, "error": null,
+				"json": {"latitude": 32.7555, "longitude": -97.3308, "timezone": "America/Chicago",
+					"utc_offset_seconds": -21600}}
+		end function
+		return fake
+	end function
+	zoning = zoneStub()
+	savedColdDay = triples.today
+	savedColdClock = triples.clock
+	triples.today = "2026-11-25"
+	triples.clock = "2026-11-25 12:00:00"
+	coldLines = []
+	coldClock = {"triples": triples, "Rule": rules.Rule, "facts": [
+		triples.SpoTriple.make("session", "has-location", "home"),
+		triples.SpoTriple.make("home", "has-latitude", 32.7555),
+		triples.SpoTriple.make("home", "has-longitude", -97.3308),
+		triples.SpoTriple.make("berlin", "has-latitude", 52.52),
+		triples.SpoTriple.make("berlin", "has-longitude", 13.404)],
+		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
+		"knowledge": knowledge, "providers": providers.registry(zoning, declared, uid, [weatherDecl]),
+		"io": {"read": null, "say": function(line)
+			coldLines.push(line)
+		end function}}
+	sessionModule.askGoal(coldClock, triples.SpoTriple.make("berlin", "has-time", triples.var("now")))
+	h.check("a cold clock-only question fetches both offsets it stands on",
+		zoning.calls == 2)
+	h.check("the machine's own from the place it is at, and the asked place's from its coordinates",
+		triples.machineOffset == -21600 and
+			triples.placeOffsets[triples.sessionPlace] == -21600 and
+			triples.placeOffsets["berlin"] == 3600)
+	h.check("and answers on the first try, seven hours ahead of the machine",
+		holds(coldLines, "2026-11-25 19:00:00"))
+	triples.clock = savedColdClock
+	triples.today = savedColdDay
+	// A session that does not even know where it is asks that first: the lookup answers where
+	// the machine is and how far its clock stands in one reply, so a cold question with no
+	// location and no offsets answers on the first try rather than fetching one half of the sum.
+	nowhere = zoneStub()
+	savedNowhereDay = triples.today
+	savedNowhereClock = triples.clock
+	triples.today = "2026-11-25"
+	triples.clock = "2026-11-25 12:00:00"
+	nowhereLines = []
+	nowhereSession = {"triples": triples, "Rule": rules.Rule, "facts": [
+		triples.SpoTriple.make("berlin", "has-latitude", 52.52),
+		triples.SpoTriple.make("berlin", "has-longitude", 13.404)],
+		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
+		"knowledge": knowledge,
+		"providers": providers.registry(nowhere, declared, uid, [ipwhoisMap.build(), weatherDecl]),
+		"io": {"read": null, "say": function(line)
+			nowhereLines.push(line)
+		end function}}
+	sessionModule.askGoal(nowhereSession,
+		triples.SpoTriple.make("berlin", "has-time", triples.var("now")))
+	h.check("a question that does not know where the machine is asks that, and the place's offset",
+		nowhere.calls == 2 and nowhere.seenUrl.indexOf("api.open-meteo.com") != null)
+	h.check("so the machine's own clock is read from the lookup's zone",
+		triples.machineOffset == -21600 and triples.sessionPlace != null)
+	h.check("and the cold question about a place the machine is not at answers on the first try",
+		holds(nowhereLines, "2026-11-25 19:00:00"))
+	triples.clock = savedNowhereClock
+	triples.today = savedNowhereDay
 	// A forecast that cannot answer leaves the fact to the reader. One attempt is one request,
 	// and each variable has a request of its own now, so another variable is a second attempt
 	// rather than the same failed one; the request already made is not made twice.

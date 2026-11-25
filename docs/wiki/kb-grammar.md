@@ -246,7 +246,9 @@ has none, rather than the machine's standing in for it, and neither has a place 
 answered on an earlier day: an offset is a reading, a place may have moved its clocks since, so
 yesterday's is left out and the service is asked again rather than a stale clock answering: a
 question that asks only what time it is at a place is missing that place's offset, and the map
-answers it with a reply read for the zone alone. `add-hours` moves a moment. Neither is a
+answers it with a reply read for the zone alone. Reading a clock takes two offsets - the place's and
+the machine's own - so a question missing both asks for both, and one that does not even know where
+the machine is asks that first: the lookup that says where it is says how far its clock stands. `add-hours` moves a moment. Neither is a
 fact, so neither is stored, saved, or listed among the facts a session holds. The rest stay a stored fact's own: `~` and `#` are refused on a question rather than
 answered with them dropped, a constraint line takes none at all, and a rule's head and every
 condition are written bare, so an annotation on either is refused wherever the rule is read.

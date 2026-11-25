@@ -1572,9 +1572,22 @@ clockNeeds = function(goal, facts, binds)
 	// it, so neither needs an offset: the offset is what another place is read against.
 	if not (place isa string) then return []
 	if place == "session" or (sessionPlace != null and place == sessionPlace) then return []
-	if offsetHeld(place, facts) then return []
-	return [{"rule": null, "needs": [
-		missingFact(SpoTriple.make(place, "has-utc-offset", var("offset")), false)]}]
+	// Another place's clock is the machine's moved by how the two stand from UTC, so a session
+	// that knows where it is but not how far its clock stands asks for that place's offset too:
+	// the question answers on the first try rather than fetching one half of the arithmetic.
+	needs = []
+	if machineOffset == null and sessionPlace == null then
+		// Where the machine is is what says how far its clock stands: the lookup that answers
+		// it answers the offset with it, so it is asked first and the offset need not be.
+		needs.push(missingFact(SpoTriple.make("session", "has-location", var("place")), false))
+	else if machineOffset == null and not offsetHeld(sessionPlace, facts) then
+		needs.push(missingFact(SpoTriple.make(sessionPlace, "has-utc-offset", var("offset")), false))
+	end if
+	if not offsetHeld(place, facts) then
+		needs.push(missingFact(SpoTriple.make(place, "has-utc-offset", var("here")), false))
+	end if
+	if needs.len == 0 then return []
+	return [{"rule": null, "needs": needs}]
 end function
 
 
