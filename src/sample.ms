@@ -142,7 +142,7 @@ runQuery = function(query)
 		// --nlp says the answer rather than showing it: the predicate's dashes are the spaces
 		// of the sentence, so the result is a line of English either way.
 		print "  " + triples.speak(triples.answerTriple(query, proof.binds, proof.at,
-			proof.confidence), nlp)
+			proof.confidence, proof.source, proof.fetched), nlp)
 	end for
 end function
 

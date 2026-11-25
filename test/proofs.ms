@@ -123,6 +123,39 @@ run = function(t, rules, h)
 	swapped = rule(spo(v("c"), "child-of", v("p")), [spo(v("p"), "is-parent-of", v("c"))])
 	bared = t.proveGoals(spo("bill", "child-of", v("x")),
 		[spo("walter", "is-parent-of", "bill")], [swapped], 1)
-	h.check("a body of bare facts concludes nothing about when",
-		bared.len == 1 and bared[0].at == null and bared[0].confidence == 100)
+	h.check("a body of bare facts concludes nothing about when or from where",
+		bared.len == 1 and bared[0].at == null and bared[0].confidence == 100 and
+			bared[0].source == null and bared[0].fetched == null)
+
+	// Where a reading came from travels the same way: the service that answered it and the
+	// day it was read are part of the fact, so a rule concluding from it says both.
+	served = [t.SpoTriple.make("berlin", "has-temperature-2m", 4.1, hour, 80,
+		"open-meteo/forecast", "2026-11-22")]
+	servedCold = t.proveGoals(coldGoal, served, [coldRule], 1)
+	h.check("a rule's answer keeps the service that answered the reading",
+		servedCold.len == 1 and servedCold[0].source == "open-meteo/forecast")
+	h.check("and the day it was read", servedCold[0].fetched == "2026-11-22")
+	h.check("so the conclusion's line carries all four annotations",
+		t.answerTriple(coldGoal, servedCold[0].binds, servedCold[0].at, servedCold[0].confidence,
+			servedCold[0].source, servedCold[0].fetched).text ==
+			"is-cold(berlin, 4.1) @ " + hour + " ~ 80% # open-meteo/forecast 2026-11-22")
+	// A fact's own answer says it too: the annotation is the reading's, and asking for the
+	// reading is not a way to lose it.
+	readingGoal = spo("berlin", "has-temperature-2m", v("t"))
+	readingAnswer = t.proveGoals(readingGoal, served, [], 0)
+	h.check("a fact answers with the service and day it was read",
+		readingAnswer.len == 1 and readingAnswer[0].source == "open-meteo/forecast" and
+			readingAnswer[0].fetched == "2026-11-22" and
+			t.answerTriple(readingGoal, readingAnswer[0].binds, readingAnswer[0].at,
+				readingAnswer[0].confidence, readingAnswer[0].source, readingAnswer[0].fetched).text ==
+				"has-temperature-2m(berlin, 4.1) @ " + hour +
+					" ~ 80% # open-meteo/forecast 2026-11-22")
+	// Two services answering the same reading for the same hour are two answers, not one with
+	// two derivations: the line each was read from differs.
+	services = [t.SpoTriple.make("berlin", "has-temperature-2m", 4.1, hour, 100,
+		"open-meteo/forecast", "2026-11-22"),
+		t.SpoTriple.make("berlin", "has-temperature-2m", 4.1, hour, 100,
+			"another/forecast", "2026-11-23")]
+	h.check("two services answering one reading are two answers",
+		t.proveGoals(readingGoal, services, [], 0).len == 2)
 end function

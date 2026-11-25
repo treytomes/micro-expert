@@ -173,7 +173,8 @@ end function
 
 SpoTriple = {}
 
-SpoTriple.make = function(subject, predicate, object, at=null, confidence=100)
+SpoTriple.make = function(subject, predicate, object, at=null, confidence=100, source=null,
+	fetched=null)
 	"Builds a triple from its subject, predicate, and object, with the annotations a fact may carry: when it holds, how confident we are, and which service answered it and when."
 	t = new SpoTriple
 	t.subject = subject
@@ -186,8 +187,8 @@ SpoTriple.make = function(subject, predicate, object, at=null, confidence=100)
 	t.confidence = confidence
 	// A fact a service answered says which service and endpoint gave it and the day it was read;
 	// nothing else sets these, and a typed fact leaves them null.
-	t.source = null
-	t.fetched = null
+	t.source = source
+	t.fetched = fetched
 	return t
 end function
 
@@ -563,12 +564,13 @@ substitute = function(term, binds)
 	return deref(term, binds)
 end function
 
-answerTriple = function(goal, binds, at=null, confidence=100)
-	"One answer's triple: the goal with its bindings applied, carrying the annotations of the fact it was proved from."
+answerTriple = function(goal, binds, at=null, confidence=100, source=null, fetched=null)
+	"One answer's triple: the goal with its bindings applied, carrying every annotation of the fact it was proved from."
 	settled = substitute(goal, binds)
 	if not (settled isa SpoTriple) then return settled
-	if at == null and confidence == 100 then return settled
-	return SpoTriple.make(settled.subject, settled.predicate, settled.object, at, confidence)
+	if at == null and confidence == 100 and source == null then return settled
+	return SpoTriple.make(settled.subject, settled.predicate, settled.object, at, confidence, source,
+		fetched)
 end function
 
 // ── Constraints ──────────────────────────────────────────────────────────────
@@ -979,24 +981,29 @@ proveGoals = function(goal, facts, rules, depth, binds=null, open=null, index=nu
 	// proves, so both are collected from their matches and merged the same way.
 	for matched in matchingFacts(goal, facts, binds, index)
 		mergeAnswer(results, goal, matched.binds, {"rule": null, "conditions": []},
-			matched.fact.at, matched.fact.confidence)
+			matched.fact.at, matched.fact.confidence, matched.fact.source, matched.fact.fetched)
 	end for
 	if depth <= 0 then return results.list
 	for candidate in matchingRules(goal, rules, binds)
 		for proved in proveConditions(candidate.body, facts, rules, depth - 1, candidate.binds,
 			path, index)
-			// A conclusion holds for as long as the readings its body stood on, and is only as
-			// sure as the least sure of them: the span of the first one that carries one, and the
-			// weakest confidence. A body of bare facts carries neither, so it concludes nothing
-			// about when, which is what a rule over the family's facts says.
+			// A conclusion holds for as long as the readings its body stood on, was read from the
+			// same place, and is only as sure as the least sure of them: the annotations of the
+			// first condition that carries any, and the weakest confidence. A body of bare facts
+			// carries none, so it concludes nothing about when or from where, which is what a rule
+			// over the family's facts says.
 			at = null
 			confidence = 100
+			source = null
+			fetched = null
 			for proof in proved.proofs
 				if at == null and proof.at != null then at = proof.at
+				if source == null and proof.source != null then source = proof.source
+				if fetched == null and proof.fetched != null then fetched = proof.fetched
 				if proof.confidence < confidence then confidence = proof.confidence
 			end for
 			mergeAnswer(results, goal, proved.binds, {"rule": candidate.rule, "conditions": proved.proofs},
-				at, confidence)
+				at, confidence, source, fetched)
 		end for
 	end for
 	return results.list
@@ -1160,14 +1167,15 @@ proveConditions = function(conditions, facts, rules, depth, binds, open=null, in
 	return results
 end function
 
-mergeAnswer = function(results, goal, binds, reason, at=null, confidence=100)
+mergeAnswer = function(results, goal, binds, reason, at=null, confidence=100, source=null,
+	fetched=null)
 	"One entry per answer, holding every way that answer was proved; the annotations are the fact's, or the readings' a rule's body stood on, since the goal is only a pattern."
-	// The key is the whole line, so two readings of the same value at different hours are two
-	// answers rather than one with two derivations.
-	key = answerTriple(goal, binds, at, confidence).text
+	// The key is the whole line, so two readings of the same value at different hours, or from
+	// different services, are two answers rather than one with two derivations.
+	key = answerTriple(goal, binds, at, confidence, source, fetched).text
 	if results.byText.hasIndex(key) == 0 then
 		results.byText[key] = {"goal": goal, "binds": binds, "at": at,
-			"confidence": confidence, "reasons": []}
+			"confidence": confidence, "source": source, "fetched": fetched, "reasons": []}
 		results.list.push(results.byText[key])
 	end if
 	results.byText[key].reasons.push(reason)
@@ -1204,15 +1212,16 @@ proofLines = function(answer, indent="", nlp=0)
 	"Describes every derivation of an answer, with the conditions behind each, said as sentences when nlp asks for them."
 	lines = []
 	appendDerivations(answer.goal, answer.binds, answer.reasons, indent, lines, nlp,
-		answer.at, answer.confidence)
+		answer.at, answer.confidence, answer.source, answer.fetched)
 	return lines
 end function
 
-appendDerivations = function(goal, binds, reasons, indent, lines, nlp=0, at=null, confidence=100)
+appendDerivations = function(goal, binds, reasons, indent, lines, nlp=0, at=null, confidence=100,
+	source=null, fetched=null)
 	"Appends each derivation's line, then the block behind each of its conditions."
 	for reason in reasons
-		lines.push(indent + speak(answerTriple(goal, binds, at, confidence), nlp) + "  => " +
-			reasonText(reason, nlp))
+		lines.push(indent + speak(answerTriple(goal, binds, at, confidence, source, fetched), nlp) +
+			"  => " + reasonText(reason, nlp))
 		appendConditions(reason.conditions, indent + "  ", lines, nlp)
 	end for
 end function
@@ -1221,7 +1230,7 @@ appendConditions = function(conditions, indent, lines, nlp=0)
 	"Appends the block behind each proved condition, in order."
 	for condition in conditions
 		appendDerivations(condition.goal, condition.binds, condition.reasons, indent, lines, nlp,
-			condition.at, condition.confidence)
+			condition.at, condition.confidence, condition.source, condition.fetched)
 	end for
 end function
 

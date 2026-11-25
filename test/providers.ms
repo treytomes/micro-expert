@@ -203,8 +203,12 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		holds(lines, "  added has-location(session, " + place + ")"))
 	h.check("so the question is answered without a value being asked for",
 		not holds(asked.answers.asked, "  ?p = "))
-	h.check("and the answer is the fact the service gave",
-		printed(lines, "  has-location(session, " + place + ")"))
+	// The answer is the line the service gave, annotations and all: an answer from a service
+	// says which one and the day it was read, so it can be written back to a facts file as it
+	// stands. The day is the one the run's clock says, read the same way the writer read it.
+	today = triples.dayText(triples.dayToday())
+	h.check("and the answer is the fact the service gave, with where it came from",
+		printed(lines, "  has-location(session, " + place + ") # ipwho.is/lookup " + today))
 
 	// ── A service that cannot answer leaves the fact to the reader ──────────
 
@@ -357,9 +361,10 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		["and(has-location(session, ?loc), has-latitude(?loc, ?lat))"], [placed, namedCity])
 	h.check("a body's second condition asks the service for the place the first located",
 		joinedClient.calls == 1 and joinedClient.seenUrl.indexOf("q=Fort") != null)
-	h.check("and the answer is both facts the body settled",
+	h.check("and the answer is both facts the body settled, the read one with where it came from",
 		printed(joinedSession.answers.lines, "  has-location(session, " + named + ")") and
-			printed(joinedSession.answers.lines, "  has-latitude(" + named + ", 32.7555)"))
+			printed(joinedSession.answers.lines, "  has-latitude(" + named + ", 32.7555) # geocode.maps.co/search " +
+				today))
 	h.check("with no value asked for any of it",
 		not holds(joinedSession.answers.asked, "  ?loc = "))
 
@@ -806,7 +811,8 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		if readFact.predicate == "has-latitude" then keylessLatitude = readFact
 	end for
 	h.check("so the next declaration answers, and the question is answered from it",
-		printed(keylessLines, "  has-latitude(" + keylessPlace + ", 32.7555)") and
+		printed(keylessLines, "  has-latitude(" + keylessPlace + ", 32.7555) # open-meteo/geocoding " +
+			today) and
 			keylessLatitude != null and keylessLatitude.source == "open-meteo/geocoding" and
 			not holds(keylessSession.answers.asked, "  ?lat = "))
 
@@ -838,7 +844,8 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		if readFact.predicate == "has-latitude" then namesakeLatitude = readFact
 	end for
 	h.check("so the next declaration answers, and nothing of the wrong place is read",
-		printed(namesakeLines, "  has-latitude(" + namesakePlace + ", 32.7555)") and
+		printed(namesakeLines, "  has-latitude(" + namesakePlace + ", 32.7555) # open-meteo/geocoding " +
+			today) and
 			namesakeLatitude != null and namesakeLatitude.source == "open-meteo/geocoding" and
 			not holds(namesakeSession.answers.asked, "  ?lat = "))
 
@@ -892,7 +899,8 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	end for
 	h.check("a search reply with a name and no city is confirmed by that name",
 		citylessLatitude != null and citylessLatitude.source == "geocode.maps.co/search" and
-			printed(citylessLines, "  has-latitude(" + citylessPlace + ", -23.55065)"))
+			printed(citylessLines, "  has-latitude(" + citylessPlace + ", -23.55065) # geocode.maps.co/search " +
+				today))
 	h.check("with nothing said against it",
 		not holds(citylessLines, "could not answer") and
 			not holds(citylessSession.answers.asked, "  ?lat = "))

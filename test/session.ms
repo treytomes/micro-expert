@@ -1231,4 +1231,16 @@ run = function(t, rules, host, h, schema, knowledge, library)
 		if libraryAt < sessionAt then ordered = 1
 	end if
 	h.check("the main entry imports the repl library before the session module", ordered)
+
+	// ── A reading says where it came from, and so does the answer ────────────
+	// A service's fact carries the service and the day it was read, and a question about it
+	// answers with the same line, so what the prompt shows can be written back to a file.
+	readingTypes = {"has-temperature-2m": ["text", "number"]}
+	readingHour = "[2026-11-22 00:00, 2026-11-22 01:00]"
+	served = t.SpoTriple.make("berlin", "has-temperature-2m", 4.1, readingHour, 100,
+		"open-meteo/forecast", "2026-11-22")
+	asked = startSession([served], [], ["has-temperature-2m(berlin, ?t)"], null, 0, readingTypes)
+	h.check("an answer names the service and the day the reading came from",
+		printed(asked.answers.lines, "  has-temperature-2m(berlin, 4.1) @ " + readingHour +
+			" # open-meteo/forecast 2026-11-22"))
 end function

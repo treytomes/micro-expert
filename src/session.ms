@@ -923,11 +923,13 @@ end function
 groundedFacts = function(session, question, proof)
 	"The facts one proof settled: the goal's answer, or every condition a body's proof grounded."
 	if question.goal != null then
-		return [session.triples.answerTriple(question.goal, proof.binds, proof.at, proof.confidence)]
+		return [session.triples.answerTriple(question.goal, proof.binds, proof.at, proof.confidence,
+			proof.source, proof.fetched)]
 	end if
 	found = []
 	for answer in proof.proofs
-		found.push session.triples.answerTriple(answer.goal, answer.binds, answer.at, answer.confidence)
+		found.push session.triples.answerTriple(answer.goal, answer.binds, answer.at, answer.confidence,
+			answer.source, answer.fetched)
 	end for
 	return found
 end function
@@ -1018,19 +1020,20 @@ end function
 readsFrom = function(session, proof)
 	"The facts a proof's derivations rest on, as the triples they were, so a reading the answer stands on can be told from one it never used."
 	used = []
-	collectReadings(session, proof.goal, proof.binds, proof.at, proof.confidence, proof.reasons, used)
+	collectReadings(session, proof.goal, proof.binds, proof.at, proof.confidence, proof.source,
+		proof.fetched, proof.reasons, used)
 	return used
 end function
 
-collectReadings = function(session, goal, binds, at, confidence, reasons, used)
+collectReadings = function(session, goal, binds, at, confidence, source, fetched, reasons, used)
 	"Appends the facts behind each derivation: a fact match is the goal it settled, and a rule's body is walked the same way."
 	for reason in reasons
 		if reason.rule == null then
-			used.push(session.triples.answerTriple(goal, binds, at, confidence))
+			used.push(session.triples.answerTriple(goal, binds, at, confidence, source, fetched))
 		else
 			for condition in reason.conditions
 				collectReadings(session, condition.goal, condition.binds, condition.at,
-					condition.confidence, condition.reasons, used)
+					condition.confidence, condition.source, condition.fetched, condition.reasons, used)
 			end for
 		end if
 	end for
@@ -1042,7 +1045,7 @@ readsFromQuestion = function(session, question, proof)
 	used = []
 	for answer in proof.proofs
 		collectReadings(session, answer.goal, answer.binds, answer.at, answer.confidence,
-			answer.reasons, used)
+			answer.source, answer.fetched, answer.reasons, used)
 	end for
 	return used
 end function
