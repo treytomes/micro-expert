@@ -29,7 +29,7 @@
 		{
 			"kind": "markdown",
 			"language": "markdown",
-			"source": "## 2. The next twenty-four hours\n\nThe forecast answers a reading per hour about the place a question names. `has-temperature-2m(?place, ?t)` is asked with that place's coordinates, and the reply's twenty-four hours are read back onto the place, each reading carrying the hour it covers as its `@`. Only the variable the question names is asked for, so the day's readings are not buried under the four other variables the forecast could also carry.\n"
+			"source": "## 2. The next twenty-four hours\n\nThe forecast answers a reading per hour about the place a question names. `has-temperature-2m(?place, ?t)` is asked with that place's coordinates, and the reply's twenty-four hours are read back onto the place, each reading carrying the hour it covers as its `@`, and after the `#` the service that answered it and the day it was asked. Only the variable the question names is asked for, so the day's readings are not buried under the four other variables the forecast could also carry.\n"
 		},
 		{
 			"kind": "code",
@@ -49,7 +49,7 @@
 		{
 			"kind": "markdown",
 			"language": "markdown",
-			"source": "The hours of the day above that the rule calls cold, each carrying the hour it was read for, since a rule's answer keeps the annotation of the reading it stood on. The rule names no temperature at all unless the session holds the celsius fact, so a fahrenheit folder answers nothing here rather than answering wrongly:\n"
+			"source": "The hours of the day above that the rule calls cold, each carrying the hour it was read for, the service that answered it and the day it was asked - `is-cold(fort-worth, 3.1) @ [15:00, 16:00] # open-meteo/forecast <day>` - since a rule's answer keeps every annotation of the reading it stood on. The rule names no temperature at all unless the session holds the celsius fact, so a fahrenheit folder answers nothing here rather than answering wrongly:\n"
 		},
 		{
 			"kind": "code",
