@@ -730,7 +730,12 @@ dataPath = function(source, relative)
 	at = source.indexOf(" line ")
 	if at != null then source = source[:at]
 	folder = file.parent(source)
-	entry = file.parent(shellArgs[0])
+	// A host that embeds this module need not have a command line of its own, and then shellArgs
+	// is empty - dotenv.ms reads it the same way. There is no entry script's folder to read the
+	// module's path against, and the module's own folder, where its data sits, is the candidate
+	// that answers instead of the lookup stopping on an index error.
+	entry = ""
+	if shellArgs.len > 0 then entry = file.parent(shellArgs[0])
 	// source is written relative to the entry script's own folder while the working
 	// directory may be further up, so the module's folder is read both ways before the
 	// working directory itself: main.ms and sample.ms live in src/, bench/ runs from

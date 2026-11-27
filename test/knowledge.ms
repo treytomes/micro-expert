@@ -524,6 +524,32 @@ run = function(t, knowledge, h)
 		env["HOME"] = savedHome
 	end if
 
+	// ── A host with no command line ──────────────────────────────────────────
+
+	// dataPath reads the entry script's folder out of shellArgs, which a command line always
+	// provides and a host embedding this module may not. Empty, it used to be an index error that
+	// stopped the host; a file beside a module is found from the module's own folder, so the
+	// lookup falls back instead. One the host does provide is still read, which is what keeps an
+	// import name like ../src/services/... resolving against the entry script.
+	// Beside this suite, where its own case modules stand, so the file is somewhere the lookup
+	// reaches from the module's folder whether the working directory is above it or not.
+	earlier = file.parent(shellArgs[0])
+	beside = file.child(earlier, "micro-expert-knowledge-path.grfon")
+	handle = file.open(beside, "w")
+	if not (handle isa error) then
+		handle.writeLine("service: probe")
+		handle.close
+	end if
+	module = file.child(earlier, "probe_map.ms")
+	savedArgs = shellArgs
+	globals["shellArgs"] = []
+	h.check("an empty shellArgs still finds a file beside its module",
+		knowledge.resolvePath(file.name(beside), module + " line 1") == beside)
+	globals["shellArgs"] = savedArgs
+	h.check("and a shellArgs the host provides still resolves an import name",
+		file.exists(knowledge.resolvePath("ipwhois.grfon", "../src/services/ipwhois_map.ms line 9")))
+	file.delete(beside)
+
 	// ── One unit per variable ────────────────────────────────────────────────
 
 	// A unit is how a number is read, and nothing in the engine converts one into another, so
