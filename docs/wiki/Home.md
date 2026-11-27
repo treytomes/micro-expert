@@ -30,10 +30,11 @@ branch names the rule it used. No weights, no API key, no network.
 | [5. Your own domain](05-your-own-domain.md) | Replace the family with your own facts, rules, and schema |
 | [6. Tests and extending the knowledge base](06-tests-and-extending.md) | Run the suite and add a rule with checks behind it |
 | [7. The notebook in VS Code](07-the-notebook.md) | Run knowledge as cells: the protocol, the ask box and its reason line, the settings |
+| [8. Declaring a service](08-declaring-a-service.md) | Write a service map: the fact it answers, where its request is filled from, and how its reply becomes facts |
 | [The `.kb` grammar](kb-grammar.md) | Reference: the exact file format for facts, rules, and schema |
 | [The built-in constraints](constraints.md) | Reference: what each constraint checks, binds, and refuses |
 
-Read the introduction first, then work through chapters 1 to 7 in order. Each chapter assumes only
+Read the introduction first, then work through chapters 1 to 8 in order. Each chapter assumes only
 the ones before it. If you want the long-form story instead — why a rules engine in 2026, how
 backward chaining and unification work here, and where an LLM fits in front of it — read
 [A Micro Expert in MiniScript](../articles/01-a-micro-expert-in-miniscript.md).
@@ -86,7 +87,7 @@ files in `data/` and the same engine answers questions about a different world.
 | `data/facts.kb` | The 54 facts, as text |
 | `data/rules.kb` | The sixteen rules, as text |
 | `data/schema.kb` | The field types, as text |
-| `test/` | The 1160 checks and their runner |
+| `test/` | The 1410 checks and their runner |
 | `docs/` | This wiki, the long-form articles, and the format references |
 | `vscode-knowledge/` | Syntax highlighting for `.kb` files, and the `.kbnb` notebook |
 | `bootstrap.bat`, `bootstrap.sh` | Submodules, interpreter, `.env` |

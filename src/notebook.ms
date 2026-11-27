@@ -58,14 +58,15 @@ import "repl/repl"
 import "triples"
 import "rule"
 import "engine"
+import "knowledge"
 import "session"
 import "mermaid"
 import "options"
-import "api/client"
+import "api/http_client"
 import "services/declared"
-import "services/ipwhois_map"
-import "services/geocode_map"
-import "services/openmeteo_map"
+// The reader a service document is read with, and the loader that finds them all.
+import "services/document"
+import "services/loader"
 import "uid"
 import "providers"
 
@@ -328,9 +329,23 @@ enableServices = function(session)
 		repl.say(session, "note", "  the services are already on")
 		return
 	end if
-	session.providers = providers.registry(globals["api/client"], globals["services/declared"],
-		globals["uid"], [globals["services/ipwhois_map"].build(),
-			globals["services/geocode_map"].build(), globals["services/openmeteo_map"].build()])
+	// Every service is a document in ./services, and the loader finds them all: a
+	// refused file costs that one service, not the cell.
+	loaded = globals["services/loader"].load(globals["services/document"], globals["knowledge"])
+	maps = []
+	if loaded isa error then
+		repl.say(session, "warning", "  no services are on: " + loaded.message)
+	else
+		for kv in loaded
+			if kv.value isa error then
+				repl.say(session, "warning", "  " + kv.key + " is off: " + kv.value.message)
+			else
+				maps.push kv.value
+			end if
+		end for
+	end if
+	session.providers = providers.registry(globals["api/http_client"], globals["services/declared"],
+		globals["uid"], maps)
 	repl.say(session, "note", "  services on: " + session.providers.len +
 		" facts a question can ask the maps for")
 end function

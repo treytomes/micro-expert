@@ -2,7 +2,7 @@
 
 Open-Meteo is not one API but a family of them. Each forecast product has its own host, the
 domain APIs - marine, air quality, flood, climate, seasonal, satellite - add more, and the
-geocoder is a separate service that shares the parameter style. `src/services/openmeteo_map.ms`
+geocoder is a separate service that shares the parameter style. `services/openmeteo.grfon`
 holds the writer's map of them: 24 endpoints, each with its host, path and the complete set of
 query parameters it accepts, and the shape of the reply that comes back.
 
@@ -93,7 +93,7 @@ and the rest are given so a result can be looked up again.
 {"elevation": [38.0]}
 ```
 
-`src/services/openmeteo_map.ms` declares those shapes as series rather than reading them into
+`services/openmeteo.grfon` declares those shapes as series rather than reading them into
 classes: a series names one table - hourly, daily, current and the rest - with its instants in
 one list and a list per variable beside them, and the writer turns each row into a fact. The
 geocoder's results and the elevation endpoint's heights are the two shapes that are not
@@ -488,7 +488,7 @@ files' instants are comparable; with `timezone=auto` or a named zone the same in
 differently in two files, so either keep the zone in the subject or ask for `GMT` and let
 `has-timezone` carry the local one as a fact.
 
-The map writes triples: `src/services/openmeteo_map.ms` names the series and the fields, and
+The map writes triples: `services/openmeteo.grfon` names the series and the fields, and
 `src/services/declared.ms` turns a reply into facts, exactly as it does for the geocoder. What is
 missing on the way from a reply to a domain - a place to record which fetch a file came from,
 and the sizes involved - is collected in [gaps to close before these APIs are
@@ -819,7 +819,7 @@ comma-separated list of names, `date` is `yyyy-mm-dd`, `datetime` is `yyyy-mm-dd
 
 ## How the map reads a reply
 
-`src/services/openmeteo_map.ms` is the service as data: each endpoint's host, path and parameters,
+`services/openmeteo.grfon` is the service as data: each endpoint's host, path and parameters,
 and a reply that names one `series` per table - hourly as an hour-long span, daily as a date,
 current as its one instant, and the seasonal weekly and monthly tables as their own periods.
 `src/services/declared.ms` reads a series row by row, naming each variable's fact from the

@@ -2,21 +2,22 @@
 //
 // A script has no sensor to ask, so the session's public address stands in for it: ipwho.is
 // reads that address to a city and a pair of coordinates. The service is a map now -
-// src/services/ipwhois_map.ms says its one endpoint and what a reply becomes - and
+// services/ipwhois.grfon says its one endpoint and what a reply becomes - and
 // src/services/declared.ms turns that reply into facts, so this file is only the part on top:
 // one function answering the facts a run starts with.
 //
 // sessionFacts takes the writer, the map and the transport; the caller loads them. A host
 // passes the client's map and the two modules, as src/where.ms does:
 //
-//   import "api/client"
+//   import "api/http_client"
 //   import "services/declared"
-//   import "services/ipwhois_map"
+//   import "services/loader"
 //   import "triples"
 //   import "uid"
 //   import "location"
-//   here = location.sessionFacts(globals["triples"], globals["uid"], globals["api/client"],
-//       globals["services/declared"], globals["services/ipwhois_map"].build())
+//   loaded = globals["services/loader"].load(globals["services/document"], globals["knowledge"])
+//   here = location.sessionFacts(globals["triples"], globals["uid"], globals["api/http_client"],
+//       globals["services/declared"], loaded["ipwhois.grfon"])
 //   print here.facts[0].text    has-location(session, place-f1d6b283a52a28dc)
 //
 // The facts are the map's: has-location(session, place-...) and one line per field the reply

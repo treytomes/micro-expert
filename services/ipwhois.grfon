@@ -1,0 +1,51 @@
+// ipwho.is, as a provider document: its request, and what its reply becomes.
+// This file is the service. src/services/loader.ms finds it and hands it to
+// src/services/document.ms, whose resolve() returns the map src/services/declared.ms reads.
+//
+// The endpoint's params are the same spec shape src/api/http_client.ms validates against, so --help and
+// the request checks come for free. The reply half says when the service refused, which fields
+// identify the place, and one fact per line.
+
+service: ipwho.is
+base: https://ipwho.is
+
+endpoints: {
+  lookup: {
+    method: GET
+    path: /
+    params: {
+      {name: lang; type: text; doc: Language the words come back in, such as en or de.};
+      {name: fields; type: csv; doc: Only these fields, comma-separated.}
+    }
+    // What this endpoint can answer on its own: a question needing this fact asks the service
+    // rather than the reader. src/providers.ms reads the block, and the place it names is the
+    // reading's own subject, so the pattern says which fact the answer settles rather than what
+    // the reply holds.
+    provides: {
+      {fact: {has-location; session; ?place}; request: {}}
+    }
+    reply: {
+      // A refusal is a 200 with success false, so it is read before any fact is: `is: 0` is what
+      // that false is, since a document's bare false reads back as the text "false".
+      refuse: {when: success; is: 0; message: message}
+      // Without a city and a longitude there is no place to hang facts on.
+      require: {city; longitude}
+      // The identity, not the label: the same three fields hash to the same term.
+      subject: {kind: place; name: place; from: {city; region; country}}
+      label: {name: {city}; also: {region; country}}
+      coordinates: {latitude; longitude}
+      facts: {
+        {has-location; session; ?place};
+        {has-continent; ?place; $.continent};
+        {has-country; ?place; $.country};
+        {has-region; ?place; $.region};
+        {has-city; ?place; $.city};
+        {has-latitude; ?place; $.latitude};
+        {has-longitude; ?place; $.longitude};
+        // The lookup that says where the machine is says how far its own clock stands from UTC:
+        // what another place's clock is read against when the machine is not there.
+        {has-utc-offset; session; $.timezone.offset as number}
+      }
+    }
+  }
+}

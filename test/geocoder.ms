@@ -1,12 +1,15 @@
-// Cases for src/services/geocode_map.ms, geocode.maps.co as the writer reads it: one search result
+// Cases for geocode.maps.co as services/geocode.grfon declares it and the writer reads it: one search result
 // written as docs/api/geocode-maps-co.md's vocabulary, the other shapes a search can answer
 // with, and the request half beside geocode.fetch's own.
 //
 // No request leaves the program: a client stand-in answers get with the JSON below, and the
 // expected facts are the ones the reference page writes for the trimmed Eiffel result.
 
-run = function(declared, geocodeMap, apiClient, triples, uid, schemaLoader, h)
-	decl = geocodeMap.build()
+run = function(declared, geocode, apiClient, triples, uid, schemaLoader, h)
+	decl = geocode
+
+	// The map these cases read; a refused document is failed by name in run.ms and counted here.
+	if not h.documents("geocoder.ms", [["geocode.maps.co", decl]]) then return
 
 	// One /search result, as the reference page trims it.
 	eiffel = {

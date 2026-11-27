@@ -156,3 +156,6 @@ A `.kbnb` is JSON: a version and a list of cells, each with its kind, language a
 
 It is the shape the MiniScript 2 extension's `.msnb` notebooks use, so either extension can open the
 other's file. Outputs are not saved: running a cell again is how its answer comes back.
+
+Next: [8. Declaring a service](08-declaring-a-service.md) writes the map behind a service, and the
+local one it describes.

@@ -12,7 +12,7 @@ shell:
 ```text
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
 ...
-1360 passed, 0 failed
+1410 passed, 0 failed
 ```
 
 On Linux, `"$MINISCRIPT_EXE_PATH"` — a plain shell does not read `.env`, so export it or paste the
@@ -40,11 +40,12 @@ While working on one rule, run only the checks that cover it:
 
 ```text
 > "%MINISCRIPT_EXE_PATH%" test\run.ms --json --file session.ms --filter "a rule line parses"
+...
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 1359 skipped
-##END {"passed":1,"failed":0,"skipped":1356}
+5 passed, 0 failed, 1405 skipped
+##END {"passed":5,"failed":0,"skipped":1405}
 ```
 
 | Argument | Meaning |
@@ -54,7 +55,9 @@ PASS  a rule line parses
 | `--json` | Add the `##TEST` and `##END` records a runner reads |
 
 Each argument may be repeated, and a check runs when it matches any of the filters and any of the
-files that are given. The VS Code extension's Testing panel passes exactly these arguments, so its
+files that are given. A run also makes the four checks no filter can take away - the folder scan and
+the three shipped declarations - which is why the one check above reports five. The VS Code
+extension's Testing panel passes exactly these arguments, so its
 tree and its runs come from the suite rather than from a list kept beside it.
 
 ## Add a rule to the shipped domain
@@ -135,14 +138,15 @@ birthday cannot change them — so the focused run is a shortcut, not the final 
 
 ## The suite's own shape
 
-The 1360 checks cover the program itself, split by area: display and parsing (71), the knowledge data
-format (151), the predicate schema (50), the date and time types (79), the loaders (26), proofs and
-explanations (77), the missing-fact report (34), recursion and cycle handling (13), relations
+The 1410 checks cover the program itself, split by area: display and parsing (71), the knowledge data
+format (154), the predicate schema (50), the date and time types (79), the loaders (26), proofs and
+explanations (89), the missing-fact report (34), recursion and cycle handling (13), relations
 including the family rules (104), the session at the prompt (247), the notebook's cells (40), the
 notes example on the repl library (1), the command line (8), the domain (10), the Mermaid diagram
-(49), the id generator (21), the location module (15), the declared writer (29), the provider
-registry (132), the geocode mapping (58), the Open-Meteo mapping (42), and the API layer's
-argument split, parameter engine and .env reader (77).
+(49), the id generator (21), the location module (16), the declared writer (29), the provider
+registry (148), the geocode mapping (58), the Open-Meteo mapping (44), the provider document reader
+(32), the service loader (6), the folder scan and the three shipped declarations (4), and the API
+layer's argument split, parameter engine and .env reader (77).
 
 Three of the components are separate repositories with suites of their own:
 

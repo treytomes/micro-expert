@@ -2,7 +2,7 @@
 
 ipwho.is reads an IP address to where it is: the country, region and city that address is
 registered to, the coordinates of that city, and the network, clock and flag that go with it.
-`src/services/ipwhois_map.ms` holds the one endpoint the writer models - the lookup of the session's
+`services/ipwhois.grfon` holds the one endpoint the writer models - the lookup of the session's
 own address - with the two parameters it takes and the facts a reply becomes. There is no program
 of its own for this service; `src/location.ms` is the caller, asking it where the session is.
 
@@ -208,9 +208,10 @@ reads no globals - an imported module's imports belong to the entry script, and 
 globals - so the host in `src/` loads the maps and hands them in:
 
 ```
-api = globals["api/client"]
+api = globals["api/http_client"]
 declared = globals["services/declared"]
-decl = globals["services/ipwhois_map"].build()
+loaded = globals["services/loader"].load(globals["services/document"], globals["knowledge"])
+decl = loaded["ipwhois.grfon"]
 location = globals["location"]
 where = location.sessionFacts(globals["triples"], globals["uid"], api, declared, decl)
 where.facts[0].text               has-location(session, place-f1d6b283a52a28dc)

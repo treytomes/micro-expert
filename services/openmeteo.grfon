@@ -1,0 +1,490 @@
+// open-meteo, as a provider document: twenty-four endpoints over one reply shape, and what one
+// reply becomes. This file is the service. src/services/loader.ms finds it and hands it to
+// src/services/document.ms, whose resolve() returns the map src/services/declared.ms reads.
+//
+// Open-Meteo answers with parallel lists: `hourly.time` holds the instants, and one list beside it
+// holds each variable's value at that index. A reply carries one table per period - hourly, daily,
+// current, minutely_15, weekly, monthly - and each is declared as a series: "hour" is read a row at
+// a time as an hour-long span, "day" as a date, "instant" as the one instant a current reading
+// names. The variables are read from the table, so a variable this document has never heard of
+// still becomes has-<its-name>; the documented lists name the ones a reply left out.
+//
+// Two annotations carry what the object cannot. '@' says when the fact holds: an hourly value is
+// the hour that starts at its instant, so the fact spans that instant to the next one, and the last
+// hour of a reply falls back to the instant alone rather than claiming an end it was not given. '~'
+// carries the service's chance of precipitation, read as how confident the precipitation fact is: a
+// 40% chance is 40% confidence that the hour's rain happens. The instant lives only in '@', not in
+// the subject: a fact is known by its whole line, so two hours holding the same value are two
+// facts, told apart by the span they cover. The subject is the place alone, which is what a
+// question about the place can name.
+//
+// A reply's units table is read as facts of its own: has-unit(temperature_2m, celsius), once per
+// variable, from hourly_units, daily_units and weekly_units. A number does not carry its unit, and a
+// rule cannot convert one, so the unit is the fact a threshold rule checks before it reads the
+// number. docs/api/open-meteo.md says what each unit word is.
+//
+// Each endpoint names its own host, because the service spreads its surface over a dozen of them.
+// The geocoder answers with a list of places rather than a table of readings, and the elevation
+// endpoint with nothing but its heights, so those two carry their own reply shape.
+// src/providers.ms collects the blocks the endpoints declare; docs/api/open-meteo.md says what
+// they mean.
+
+service: open-meteo
+base: https://api.open-meteo.com
+
+groups: {
+  // ── Parameters, one group each, so an endpoint's list is a list of names ─────────────────
+  latitude: {params: {{name: latitude; type: coordinates; min: -90; max: 90; required: 1;
+    doc: WGS84 latitude\; a comma-separated list asks for several locations.}}}
+  longitude: {params: {{name: longitude; type: coordinates; min: -180; max: 180; required: 1;
+    doc: WGS84 longitude\; as many values as there are latitudes.}}}
+  elevation: {params: {{name: elevation; type: coordinates; min: -1000; max: 9000; allowNan: 1;
+    doc: Elevation used for downscaling, or nan to disable downscaling.}}}
+  tilt: {params: {{name: tilt; type: number; min: 0; max: 90; allowNan: 1;
+    doc: Panel tilt for global_tilted_irradiance, or nan for a tracker.}}}
+  azimuth: {params: {{name: azimuth; type: number; min: -180; max: 180; allowNan: 1;
+    doc: Panel azimuth for global_tilted_irradiance, 0 south and negative east.}}}
+
+  hourly: {params: {{name: hourly; type: csv; doc: Hourly variables, comma separated.}}}
+  daily: {params: {{name: daily; type: csv; doc: Daily variables, comma separated.}}}
+  dailyRequired: {params: {{name: daily; type: csv; required: 1;
+    doc: Daily variables, comma separated.}}}
+  current: {params: {{name: current; type: csv;
+    doc: Variables to report as current conditions.}}}
+  minutely: {params: {{name: minutely_15; type: csv; doc: \15-minutely variables.}}}
+  weekly: {params: {{name: weekly; type: csv; doc: Weekly seasonal variables.}}}
+  monthly: {params: {{name: monthly; type: csv; doc: Monthly seasonal variables.}}}
+
+  temperatureUnit: {params: {{name: temperature_unit; type: enum;
+    values: {celsius; fahrenheit}; doc: Temperature unit.}}}
+  windSpeedUnit: {params: {{name: wind_speed_unit; type: enum;
+    values: {kmh; ms; mph; kn}; doc: Wind speed unit.}}}
+  precipitationUnit: {params: {{name: precipitation_unit; type: enum;
+    values: {mm; inch}; doc: Precipitation unit.}}}
+  lengthUnit: {params: {{name: length_unit; type: enum; values: {metric; imperial};
+    doc: Wave height unit.}}}
+
+  timeformat: {params: {{name: timeformat; type: enum; values: {iso8601; unixtime};
+    doc: Timestamp format.}}}
+  timezone: {params: {{name: timezone; type: text;
+    doc: Time zone name, or auto to resolve it from the coordinates.}}}
+
+  pastDays: {params: {{name: past_days; type: int; min: 0;
+    doc: Days before today to include.}}}
+  pastHours: {params: {{name: past_hours; type: int; min: 1;
+    doc: Hours before now to include.}}}
+  forecastHours: {params: {{name: forecast_hours; type: int; min: 1;
+    doc: Hours from now to include.}}}
+  pastMinutely: {params: {{name: past_minutely_15; type: int; min: 1;
+    doc: \15-minute steps before now to include.}}}
+  forecastMinutely: {params: {{name: forecast_minutely_15; type: int; min: 1;
+    doc: \15-minute steps from now to include.}}}
+
+  startDate: {params: {{name: start_date; type: date;
+    doc: First day of the interval, yyyy-mm-dd.}}}
+  endDate: {params: {{name: end_date; type: date; doc: Last day of the interval, yyyy-mm-dd.}}}
+  startDateRequired: {params: {{name: start_date; type: date; required: 1;
+    doc: First day of the interval, yyyy-mm-dd.}}}
+  endDateRequired: {params: {{name: end_date; type: date; required: 1;
+    doc: Last day of the interval, yyyy-mm-dd.}}}
+  startHour: {params: {{name: start_hour; type: datetime;
+    doc: First hour of the interval, yyyy-mm-ddThh\:mm.}}}
+  endHour: {params: {{name: end_hour; type: datetime;
+    doc: Last hour of the interval, yyyy-mm-ddThh\:mm.}}}
+  startMinutely: {params: {{name: start_minutely_15; type: datetime;
+    doc: First 15-minute step, yyyy-mm-ddThh\:mm.}}}
+  endMinutely: {params: {{name: end_minutely_15; type: datetime;
+    doc: Last 15-minute step, yyyy-mm-ddThh\:mm.}}}
+
+  models: {params: {{name: models; type: csv;
+    doc: Model names, comma separated\; auto combines the best ones.}}}
+  modelsRequired: {params: {{name: models; type: csv; required: 1;
+    doc: Model names, comma separated.}}}
+  cell: {params: {{name: cell_selection; type: enum; values: {land; sea; nearest};
+    doc: Which grid cell to prefer.}}}
+  temporalResolution: {params: {{name: temporal_resolution; type: text;
+    doc: native, hourly, or a minute interval such as minutely_15.}}}
+  ensemble: {params: {{name: ensemble; type: bool;
+    doc: Return every forecast ensemble member.}}}
+  domains: {params: {{name: domains; type: enum; values: {auto; cams_europe; cams_global};
+    doc: Air quality domain.}}}
+  run: {params: {{name: run; type: datetime; doc: Model run to read, yyyy-mm-ddThh\:mm.}}}
+  runRequired: {params: {{name: run; type: datetime; required: 1;
+    doc: Model run to read, yyyy-mm-ddThh\:mm.}}}
+
+  format: {params: {{name: format; type: enum; values: {json; csv; xlsx};
+    doc: Reply format.}}}
+  geocodingFormat: {params: {{name: format; type: enum; values: {json; protobuf};
+    doc: Reply format.}}}
+  apikey: {params: {{name: apikey; type: text;
+    doc: Commercial API key\; also read from OPEN_METEO_API_KEY.}}}
+
+  placeName: {params: {{name: name; type: text; required: 1;
+    doc: Place name or postal code, optionally with a country after a comma.}}}
+  count: {params: {{name: count; type: int; min: 1; max: 100;
+    doc: Number of results, 1 to 100.}}}
+  language: {params: {{name: language; type: text;
+    doc: Language for the results, e.g. en, de, fr.}}}
+  countryCode: {params: {{name: countryCode; type: text;
+    doc: ISO 3166-1 alpha-2 country code to filter by.}}}
+  locationId: {params: {{name: id; type: int; required: 1;
+    doc: Location id from a geocoding result.}}}
+
+  // ── The compositions the endpoints are written from ──────────────────────────────────────
+  // A group may name another, and the name is what the loop of the map this file replaced
+  // wrote: window is the forecast's bound and the others in one list.
+  location: {params: {@latitude; @longitude}}
+  variables: {params: {@hourly; @daily; @current; @minutely}}
+  units: {params: {@temperatureUnit; @windSpeedUnit; @precipitationUnit}}
+  time: {params: {@timeformat; @timezone}}
+  window: {params: {@pastDays; @forecastDays(16); @pastHours; @forecastHours;
+    @pastMinutely; @forecastMinutely}}
+  dates: {params: {@startDate; @endDate; @startHour; @endHour; @startMinutely; @endMinutely}}
+  modelSurface: {params: {@location; @elevation; @variables; @units; @time; @window; @dates;
+    @output}}
+  output: {params: {@format; @apikey}}
+
+  // ── Reply shapes ─────────────────────────────────────────────────────────────────────────
+  // The documented variables of the forecast family; anything else the table carries is read too,
+  // named from the variable itself.
+  hourSeries: {series: {path: $.hourly; kind: hour; variables: {temperature_2m;
+    relative_humidity_2m; precipitation; wind_speed_10m; weather_code}}}
+  daySeries: {series: {path: $.daily; kind: day; variables: {temperature_2m_max; sunrise}}}
+  currentSeries: {series: {path: $.current; kind: instant}}
+  minutelySeries: {series: {path: $.minutely_15; kind: minutely}}
+  weekSeries: {series: {path: $.weekly; kind: week}}
+  monthSeries: {series: {path: $.monthly; kind: month}}
+  // A table of variables this document has no documented list for: read every one it carries.
+  anyHour: {series: {path: $.hourly; kind: hour}}
+  anyDay: {series: {path: $.daily; kind: day}}
+  anyCurrent: {series: {path: $.current; kind: instant}}
+
+  // Everything a reading reply shares. `is: 1` is the boolean: a document's bare `true` reads back
+  // as the text "true", while 1 is what true is in MiniScript, so the reply's check is unchanged.
+  weatherReply: {reply: {
+    refuse: {when: error; is: 1; message: reason}
+    require: {latitude; longitude; ?place}
+    subject: {name: reading; from: {?place}}
+    request: {place}
+  }}
+  // The zone the request asked for, and how far it stands from UTC, said once about the place
+  // rather than read by reading: they are what has-time(?place, ?now) reads.
+  zoneOnce: {once: {{has-timezone; ?place; $.timezone};
+    {has-utc-offset; ?place; $.utc_offset_seconds as number}}}
+
+  // A geocoder result is a place: its name is the subject, and the coordinates, country and time
+  // zone are what the result says about it.
+  placeFacts: {facts: {
+    {has-name; ?place; $.name};
+    {has-latitude; ?place; $.latitude as number};
+    {has-longitude; ?place; $.longitude as number};
+    {has-elevation; ?place; $.elevation as number};
+    {has-country-code; ?place; $.country_code};
+    {has-country; ?place; $.country};
+    {has-admin1; ?place; $.admin1};
+    {has-timezone; ?place; $.timezone};
+    {has-population; ?place; $.population as number};
+    {has-feature-code; ?place; $.feature_code}
+  }}
+  // A search is asked with count=1 and read as what comes back, so its first result has to be the
+  // place the session holds: `name` is the place's own word for itself, which for a place asked
+  // about by its city is the city's name, and `country` its country. A session that falls through
+  // from geocode.maps.co gets the same refusal here as there when the geocoder finds another town,
+  // rather than a forecast computed for a namesake.
+  searchReply: {reply: {
+    each: $.results
+    refuse: {when: error; is: 1; message: reason}
+    require: {id; name}
+    subject: {name: place; from: {name}}
+    request: {name}
+    facts: {@placeFacts; {was-answer-to; ?place; ?name}}
+    confirm: {has-name: name; has-city: name; has-country: country}
+  }}
+  lookupReply: {reply: {
+    refuse: {when: error; is: 1; message: reason}
+    require: {id; name}
+    subject: {name: place; from: {name}}
+    request: {id}
+    facts: @placeFacts
+  }}
+  // The elevation endpoint answers with one height per point and nothing else; the point is the
+  // caller's, so it comes from the request.
+  elevationReply: {reply: {
+    each: $.elevation
+    eachMode: array
+    refuse: {when: error; is: 1; message: reason}
+    require: {?place}
+    subject: {name: place; from: {?place}}
+    request: {place}
+    facts: {has-elevation; ?place; $.elevation[i] as number}
+  }}
+
+  // ── The generated blocks ────────────────────────────────────────────────────────────────
+  // forecast_days, bounded by the endpoint's own maximum.
+  forecastDays: {
+    takes: {most}
+    params: {{name: forecast_days; type: int; min: 0; max: <most>;
+      doc: Forecast days, 0 to <most>.}}
+  }
+  // One fact per documented hourly variable, asked for the next day's hours of that variable
+  // alone: every fact a reply adds is printed, so five variables over twenty-four hours would bury
+  // the day's twenty-four readings in a hundred and twenty lines of them. Asked in the place's own
+  // zone - a reading's hour is the hour there, and has-time(?place, ?now) is the clock those hours
+  // are written in - and read back onto the place the question named.
+  hourlyProvides: {
+    takes: {variable; predicate}
+    provides: {
+      {fact: {<predicate>; ?place; ?value}; about: ?place;
+       from: {latitude: has-latitude; longitude: has-longitude};
+       request: {hourly: {<variable>;}; forecast_hours: 24; timezone: auto}}
+    }
+  }
+
+  // A weather reading: a GET that carries the commercial key, and a reply of refuse-what-is-not-a
+  // reading, the coordinates it was asked with, and the place it is read onto.
+  weather: {endpoint: {method: GET; key: apikey; redact: {apikey}}}
+}
+
+endpoints: {
+  forecast: {
+    use: @weather
+    base: https://api.open-meteo.com
+    path: /v1/forecast
+    params: {@location; @elevation; @tilt; @azimuth; @variables; @units; @time; @window; @dates;
+      @models; @cell; @output}
+    provides: {
+      @hourlyProvides(temperature_2m, has-temperature-2m);
+      @hourlyProvides(relative_humidity_2m, has-relative-humidity-2m);
+      @hourlyProvides(precipitation, has-precipitation);
+      @hourlyProvides(wind_speed_10m, has-wind-speed-10m);
+      @hourlyProvides(weather_code, has-weather-code)
+    }
+    reply: {
+      use: @weatherReply
+      series: {@hourSeries; @daySeries; @currentSeries; @minutelySeries}
+      once: @zoneOnce
+    }
+  }
+
+  // The zone facts alone: one request, and no readings the question never asked about, because
+  // this reply is read for what it says once about the place and for nothing else.
+  clock: {
+    use: @weather
+    base: https://api.open-meteo.com
+    path: /v1/forecast
+    params: {@location; @time; @output}
+    provides: {
+      {fact: {has-utc-offset; ?place; ?offset}; about: ?place;
+       from: {latitude: has-latitude; longitude: has-longitude};
+       request: {timezone: auto}}
+    }
+    reply: {
+      use: @weatherReply
+      series: {}
+      once: @zoneOnce
+    }
+  }
+
+  // The seasonal forecast publishes its own weekly table: one row a week, its date the day the week
+  // begins, and a mean over that week rather than a reading of it. Five weeks is the month a weekly
+  // report is made of, so the request asks for thirty days of them.
+  seasonal: {
+    use: @weather
+    base: https://seasonal-api.open-meteo.com
+    path: /v1/seasonal
+    params: {@location; @elevation; @hourly; @daily; @weekly; @monthly; @units; @time;
+      @pastDays; @forecastDays(210); @dates; @models; @cell; @output}
+    provides: {
+      {fact: {has-temperature-2m-mean; ?place; ?value}; about: ?place;
+       from: {latitude: has-latitude; longitude: has-longitude};
+       request: {weekly: {temperature_2m_mean;}; forecast_days: 30}};
+      {fact: {has-precipitation-mean; ?place; ?value}; about: ?place;
+       from: {latitude: has-latitude; longitude: has-longitude};
+       request: {weekly: {precipitation_mean;}; forecast_days: 30}}
+    }
+    reply: {
+      use: @weatherReply
+      series: {@hourSeries; @daySeries; @weekSeries; @monthSeries}
+    }
+  }
+
+  historical: {
+    use: @weather
+    base: https://archive-api.open-meteo.com
+    path: /v1/archive
+    params: {@location; @elevation; @tilt; @azimuth; @startDateRequired; @endDateRequired;
+      @hourly; @daily; @units; @time; @models; @cell; @output}
+    reply: {
+      use: @weatherReply
+      series: {@hourSeries; @daySeries}
+    }
+  }
+
+  historical-forecast: {
+    use: @weather
+    base: https://historical-forecast-api.open-meteo.com
+    path: /v1/forecast
+    params: {@location; @elevation; @startDateRequired; @endDateRequired; @variables; @units;
+      @time; @models; @cell; @output}
+    reply: {
+      use: @weatherReply
+      series: {@hourSeries; @daySeries; @currentSeries; @minutelySeries}
+    }
+  }
+
+  previous-runs: {
+    use: @weather
+    base: https://previous-runs-api.open-meteo.com
+    path: /v1/forecast
+    params: {@location; @elevation; @variables; @units; @time; @pastDays; @forecastDays(16); @run;
+      @dates; @models; @cell; @output}
+    reply: {
+      use: @weatherReply
+      series: {@hourSeries; @daySeries; @currentSeries; @minutelySeries}
+    }
+  }
+
+  single-runs: {
+    use: @weather
+    base: https://single-runs-api.open-meteo.com
+    path: /v1/forecast
+    params: {@location; @elevation; @runRequired; @variables; @units; @time; @models; @cell;
+      @output}
+    reply: {
+      use: @weatherReply
+      series: {@hourSeries; @daySeries; @currentSeries; @minutelySeries}
+    }
+  }
+
+  ensemble: {
+    use: @weather
+    base: https://ensemble-api.open-meteo.com
+    path: /v1/ensemble
+    params: {@location; @elevation; @tilt; @azimuth; @hourly; @daily; @units; @time; @pastDays;
+      @forecastDays(35); @dates; @modelsRequired; @cell; @output}
+    reply: {
+      use: @weatherReply
+      series: {@hourSeries; @daySeries}
+    }
+  }
+
+  climate: {
+    use: @weather
+    base: https://climate-api.open-meteo.com
+    path: /v1/climate
+    params: {@location; @startDateRequired; @endDateRequired; @dailyRequired; @modelsRequired;
+      @units; @cell; @output}
+    reply: {
+      use: @weatherReply
+      series: {@daySeries}
+    }
+  }
+
+  marine: {
+    use: @weather
+    base: https://marine-api.open-meteo.com
+    path: /v1/marine
+    params: {@location; @hourly; @daily; @current; @temperatureUnit; @windSpeedUnit; @lengthUnit;
+      @time; @pastDays; @forecastDays(8); @pastHours; @forecastHours; @dates; @cell; @output}
+    reply: {
+      use: @weatherReply
+      series: {@anyHour; @anyDay; @anyCurrent}
+    }
+  }
+
+  air-quality: {
+    use: @weather
+    base: https://air-quality-api.open-meteo.com
+    path: /v1/air-quality
+    params: {@location; @hourly; @current; @domains; @time; @pastDays; @forecastDays(7);
+      @pastHours; @forecastHours; @dates; @output}
+    reply: {
+      use: @weatherReply
+      series: {@anyHour; @anyCurrent}
+    }
+  }
+
+  flood: {
+    use: @weather
+    base: https://flood-api.open-meteo.com
+    path: /v1/flood
+    params: {@location; @daily; @time; @pastDays; @forecastDays(210); @startDate; @endDate;
+      @ensemble; @cell; @output}
+    reply: {
+      use: @weatherReply
+      series: {@anyDay}
+    }
+  }
+
+  elevation: {
+    use: @weather
+    base: https://api.open-meteo.com
+    path: /v1/elevation
+    params: {@location; @apikey}
+    reply: @elevationReply
+  }
+
+  satellite: {
+    use: @weather
+    base: https://satellite-api.open-meteo.com
+    path: /v1/archive
+    params: {@location; @hourly; @tilt; @azimuth; @models; @temporalResolution; @startDate;
+      @endDate; @timeformat; @timezone; @format; @apikey}
+    reply: {
+      use: @weatherReply
+      series: {@anyHour}
+    }
+  }
+
+  geocoding: {
+    use: @weather
+    base: https://geocoding-api.open-meteo.com
+    path: /v1/search
+    params: {@placeName; @count; @geocodingFormat; @language; @countryCode; @apikey}
+    // A question needing a place's coordinates, asked by the place's own name or city.
+    // geocode.maps.co's search declares the same two facts, so a session has a second map to ask
+    // when the first cannot answer.
+    provides: {
+      {fact: {has-latitude; ?place; ?lat}; about: ?place;
+       from: {name: {has-name; has-city}}; request: {count: 1}};
+      {fact: {has-longitude; ?place; ?lon}; about: ?place;
+       from: {name: {has-name; has-city}}; request: {count: 1}}
+    }
+    reply: @searchReply
+  }
+
+  geocoding-lookup: {
+    use: @weather
+    base: https://geocoding-api.open-meteo.com
+    path: /v1/get
+    params: {@locationId; @geocodingFormat; @language; @apikey}
+    reply: @lookupReply
+  }
+
+  // The eight model endpoints: one host, one path each, and the same surface.
+  dwd: {use: @weather; base: https://api.open-meteo.com; path: /v1/dwd-icon; params: @modelSurface;
+    reply: {use: @weatherReply; series: {@hourSeries; @daySeries; @currentSeries;
+      @minutelySeries}}}
+  gfs: {use: @weather; base: https://api.open-meteo.com; path: /v1/gfs; params: @modelSurface;
+    reply: {use: @weatherReply; series: {@hourSeries; @daySeries; @currentSeries;
+      @minutelySeries}}}
+  meteofrance: {use: @weather; base: https://api.open-meteo.com; path: /v1/meteofrance;
+    params: @modelSurface;
+    reply: {use: @weatherReply; series: {@hourSeries; @daySeries; @currentSeries;
+      @minutelySeries}}}
+  ecmwf: {use: @weather; base: https://api.open-meteo.com; path: /v1/ecmwf; params: @modelSurface;
+    reply: {use: @weatherReply; series: {@hourSeries; @daySeries; @currentSeries;
+      @minutelySeries}}}
+  jma: {use: @weather; base: https://api.open-meteo.com; path: /v1/jma; params: @modelSurface;
+    reply: {use: @weatherReply; series: {@hourSeries; @daySeries; @currentSeries;
+      @minutelySeries}}}
+  gem: {use: @weather; base: https://api.open-meteo.com; path: /v1/gem; params: @modelSurface;
+    reply: {use: @weatherReply; series: {@hourSeries; @daySeries; @currentSeries;
+      @minutelySeries}}}
+  cma: {use: @weather; base: https://api.open-meteo.com; path: /v1/cma; params: @modelSurface;
+    reply: {use: @weatherReply; series: {@hourSeries; @daySeries; @currentSeries;
+      @minutelySeries}}}
+  metno: {use: @weather; base: https://api.open-meteo.com; path: /v1/metno; params: @modelSurface;
+    reply: {use: @weatherReply; series: {@hourSeries; @daySeries; @currentSeries;
+      @minutelySeries}}}
+}

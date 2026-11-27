@@ -1,4 +1,4 @@
-// Cases for src/services/openmeteo_map.ms, Open-Meteo's endpoints as the writer reads them:
+// Cases for Open-Meteo's endpoints as services/openmeteo.grfon declares them and the writer reads them:
 // one canned forecast written as docs/api/open-meteo.md's vocabulary with the hour and the
 // probability on each fact, the other shapes a reply can answer with, and the request half
 // beside the map's own request half.
@@ -7,8 +7,11 @@
 // expected lines are the reference page's vocabulary with the two annotations the map adds -
 // '@' the hour a reading covers, and '~' the service's chance of precipitation.
 
-run = function(declared, openmeteoMap, apiClient, triples, uid, schemaLoader, h)
-	decl = openmeteoMap.build()
+run = function(declared, openmeteo, apiClient, triples, uid, schemaLoader, h)
+	decl = openmeteo
+
+	// The map these cases read; a refused document is failed by name in run.ms and counted here.
+	if not h.documents("openmeteo.ms", [["Open-Meteo", decl]]) then return
 
 	// Three hours, five variables, and the missing temperature at the third.
 	forecast = {

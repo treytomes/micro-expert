@@ -547,7 +547,23 @@ run = function(t, knowledge, h)
 		knowledge.resolvePath(file.name(beside), module + " line 1") == beside)
 	globals["shellArgs"] = savedArgs
 	h.check("and a shellArgs the host provides still resolves an import name",
-		file.exists(knowledge.resolvePath("ipwhois.grfon", "../src/services/ipwhois_map.ms line 9")))
+		file.exists(knowledge.resolvePath("document.ms", "../src/services/loader.ms line 9")))
+
+	// ── A run started from another folder ──────────────────────────────────
+
+	// The entry script's root is the last folder the path rule tries, after the working directory,
+	// so main.ms in /tmp still reads the repository's own data/facts.kb. The entry is made absolute
+	// first, since a relative one is only meaningful from the folder it was typed in.
+	entry = shellArgs[0]
+	if entry.indexOf(":") != 1 and entry[:1] != "/" then entry = file.child(file.curdir, entry)
+	savedDir = file.curdir
+	globals["shellArgs"] = [entry]
+	moved = file.setdir(file.parent(entry))
+	found = knowledge.resolvePath("data/facts.kb")
+	back = file.setdir(savedDir)
+	globals["shellArgs"] = savedArgs
+	h.check("a run started from another folder still finds the repository's data", file.exists(found))
+
 	file.delete(beside)
 
 	// ── One unit per variable ────────────────────────────────────────────────

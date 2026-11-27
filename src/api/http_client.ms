@@ -1,13 +1,13 @@
-// client.ms — what the API maps share: one HTTP request path, one set of parameter checks, and
+// http_client.ms — what the API maps share: one HTTP request path, one set of parameter checks, and
 // the cli library's declarations.
 //
 //   1. Transport        query strings, curl, the HTTP status, JSON
 //   2. Parameters       names, types, ranges, required fields, one validator
 //   3. Arguments        the cli library's declarations, and the split into options and words
 //
-// geocode.maps.co's three endpoints, Open-Meteo's twenty-three and ipwho.is's one are maps in
-// src/services/geocode_map.ms, src/services/openmeteo_map.ms and src/services/ipwhois_map.ms. A map
-// cannot import this file - this interpreter discards the imports of an imported module - so a
+// geocode.maps.co's three endpoints, Open-Meteo's twenty-three and ipwho.is's one are documents in
+// services/geocode.grfon, services/openmeteo.grfon and services/ipwhois.grfon, read by
+// src/services/loader.ms. A map cannot import this file - this interpreter discards the imports of an imported module - so a
 // host imports both and hands the map this module's map, which it calls through: api.validate,
 // api.get. The endpoint tables are still the whole surface of each service; validate passes a
 // name a table does not list through untouched, for the parts the services extend without

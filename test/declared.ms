@@ -1,10 +1,13 @@
-// Cases for src/services/declared.ms, the shared writer, and src/services/ipwhois_map.ms, ipwho.is as
-// the map it reads: the canned Fort Worth reply as the writer reads it.
+// Cases for src/services/declared.ms, the shared writer, and ipwho.is as services/ipwhois.grfon
+// declares it: the canned Fort Worth reply as the writer reads it.
 //
 // No request leaves the program: a client stand-in answers get with the JSON below.
 
-run = function(declared, ipwhoisMap, apiClient, triples, uid, h)
-	decl = ipwhoisMap.build()
+run = function(declared, ipwhois, apiClient, triples, uid, h)
+	decl = ipwhois
+
+	// The map these cases read; a refused document is failed by name in run.ms and counted here.
+	if not h.documents("declared.ms", [["ipwho.is", decl]]) then return
 
 	// One answer, as ipwho.is answers this machine.
 	fortWorth = {

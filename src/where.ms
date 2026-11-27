@@ -1,6 +1,6 @@
 // where.ms — prints where this session is, as `.kb` facts.
 //
-// src/location.ms answers the place through src/services/ipwhois_map.ms and the declared writer; it
+// src/location.ms answers the place through services/ipwhois.grfon and the declared writer; it
 // imports nothing and reads no globals, so the maps it works from are loaded here and passed in.
 // This script sits in src/ so that every import resolves the same way: an import is resolved
 // against the entry script's folder, and triples.ms imports "temporal" itself, so run from
@@ -15,16 +15,31 @@
 // answers with numbers, where the geocoder's reply writes its two as text.
 
 
-import "api/client"
+import "api/http_client"
 import "services/declared"
-import "services/ipwhois_map"
+import "services/document"
+import "services/loader"
+import "knowledge"
 import "triples"
 import "uid"
 import "location"
 
-api = globals["api/client"]
+api = globals["api/http_client"]
 declared = globals["services/declared"]
-decl = globals["services/ipwhois_map"].build()
+loaded = globals["services/loader"].load(globals["services/document"], globals["knowledge"])
+if loaded isa error then
+	print loaded.message
+	exit 1
+end if
+if not loaded.hasIndex("ipwhois.grfon") then
+	print "ipwhois.grfon is not in services/."
+	exit 1
+end if
+decl = loaded["ipwhois.grfon"]
+if decl isa error then
+	print decl.message
+	exit 1
+end if
 triples = globals["triples"]
 uid = globals["uid"]
 location = globals["location"]

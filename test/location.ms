@@ -1,12 +1,15 @@
 // Cases for src/location.ms: the facts a session starts with, read from ipwho.is's map.
 //
 // No request leaves the program: a client stand-in answers get with the canned Fort Worth
-// reply, and src/services/declared.ms reads it through src/services/ipwhois_map.ms. Fort Worth is
+// reply, and src/services/declared.ms reads it through services/ipwhois.grfon. Fort Worth is
 // the answer throughout, because that is what ipwho.is answers this machine with, and its id
 // is the one the facts carry.
 
-run = function(location, uid, triples, apiClient, declared, ipwhoisMap, h)
-	decl = ipwhoisMap.build()
+run = function(location, uid, triples, apiClient, declared, ipwhois, h)
+	decl = ipwhois
+
+	// The map these cases read; a refused document is failed by name in run.ms and counted here.
+	if not h.documents("location.ms", [["ipwho.is", decl]]) then return
 
 	fortWorth = {"success": true, "continent": "North America", "country": "United States",
 		"region": "Texas", "city": "Fort Worth", "latitude": 32.7254134, "longitude": -97.3208492,

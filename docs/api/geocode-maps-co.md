@@ -1,7 +1,7 @@
 # The geocode.maps.co API surface
 
 geocode.maps.co is a small geocoder over OpenStreetMap data: an address in, coordinates and a
-display name out, and the reverse. It has three GET endpoints, and `src/services/geocode_map.ms`
+display name out, and the reverse. It has three GET endpoints, and `services/geocode.grfon`
 holds all three with every parameter each one takes and the facts a result becomes.
 
 This document is the remote surface written out: what a request looks like, what comes back,
@@ -304,7 +304,7 @@ parenthesis, and no `//`. That rules out some of the reply outright:
 
 ### From a reply to a facts file
 
-The map writes triples: `src/services/geocode_map.ms` says one fact per property, subject from
+The map writes triples: `services/geocode.grfon` says one fact per property, subject from
 `osm_type` and `osm_id`, `val` on the two coordinates because the reply writes them as strings,
 and no fact at all for a field that is absent; `src/services/declared.ms` turns those facts into
 `.kb` text. Keeping `was-answer-to` makes a file's join reversible: it says which query produced
@@ -422,7 +422,7 @@ key that was sent and rejected.
 
 ## How the map reads a result
 
-`src/services/geocode_map.ms` declares the three endpoints and one facts list: a result's name,
+`services/geocode.grfon` declares the three endpoints and one facts list: a result's name,
 coordinates and bounding box, its OSM class and type, its address and its extra tags. The subject
 is `osm_type`/`osm_id` joined with `/`, so the same OSM object is the same term whichever endpoint
 sent it; a lookup result that carries a GeoJSON centroid instead of `lat` and `lon` names both

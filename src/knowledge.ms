@@ -743,6 +743,9 @@ dataPath = function(source, relative)
 	folders = [folder]
 	if entry != "" then folders.push(file.parent(file.child(entry, source)))
 	folders.push("")
+	// A run started from another folder still reads the repository's own data: the entry script's
+	// root is tried last, so a path the working directory already answers is answered the same way.
+	if entry != "" then folders.push(file.parent(entry))
 	for base in folders
 		path = relative
 		if base != "" then path = file.child(base, relative)

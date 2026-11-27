@@ -6,10 +6,18 @@
 //
 // No request leaves the program: a client stand-in answers get with the canned Fort Worth reply,
 // the way test/location.ms and test/declared.ms do, and counts what it was asked.
+//
+// The three shipped maps are also read as they stand, at the end, to hold every `provides` entry
+// to its promise: a field the endpoint takes, a fact the reply writes, and no entry answering a
+// fact another of its service already answers.
 
-run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocodeMap, openmeteoMap,
+run = function(providers, declared, apiClient, triples, uid, ipwhois, geocode, openmeteo,
 	sessionModule, rules, engineModule, cliLibrary, optionsModule, knowledge, h)
-	decl = ipwhoisMap.build()
+	decl = ipwhois
+
+	// Every section here asks the registry through one of the three maps.
+	if not h.documents("providers.ms", [["ipwho.is", ipwhois], ["geocode.maps.co", geocode],
+			["open-meteo", openmeteo]]) then return
 
 	// The arguments a run parses, so the session below is built the way a program builds its
 	// own rather than from a hand-made table of values.
@@ -272,7 +280,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	// geocode.maps.co's request fields are the place's own: a search is asked by its name or
 	// city, a reverse by its coordinates, and both replies are read back onto the place the
 	// question named rather than onto the OSM object they identify.
-	geoDecl = geocodeMap.build()
+	geoDecl = geocode
 	named = uid.of("place", ["Fort Worth", "Texas", "United States"])
 	namedLat = triples.SpoTriple.make(named, "has-latitude", 32.7254134)
 	namedLon = triples.SpoTriple.make(named, "has-longitude", -97.3208492)
@@ -488,7 +496,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 	// is asked with the coordinates the session already holds for it. Each of the five
 	// documented hourly variables has a request of its own, for the next day's hours of that
 	// variable: a reply is read as one fact per hour, so a question answers with a day of them.
-	weatherDecl = openmeteoMap.build()
+	weatherDecl = openmeteo
 	weatherReply = {"latitude": 32.7555, "longitude": -97.3308, "timezone": "America/Chicago",
 		"utc_offset_seconds": -21600,
 		"hourly_units": {"time": "iso8601", "temperature_2m": "°C",
@@ -730,7 +738,7 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 		triples.SpoTriple.make("berlin", "has-longitude", 13.404)],
 		"rules": [], "depth": 8, "verbose": 0, "nlp": 0, "style": null, "paths": {},
 		"knowledge": knowledge,
-		"providers": providers.registry(nowhere, declared, uid, [ipwhoisMap.build(), weatherDecl]),
+		"providers": providers.registry(nowhere, declared, uid, [ipwhois, weatherDecl]),
 		"io": {"read": null, "say": function(line)
 			nowhereLines.push(line)
 		end function}}
@@ -1342,4 +1350,117 @@ run = function(providers, declared, apiClient, triples, uid, ipwhoisMap, geocode
 			holds(plain.answers.lines, "  added has-location(session, Fort Worth)"))
 	h.check("and the registry it was not given is not made up for it",
 		plain.session.providers == null)
+
+	// ── The shipped declarations are askable ────────────────────────────────
+
+	// A `provides` entry is a promise that a question can be answered by asking it, and nothing
+	// above would notice a broken one: a request field no parameter carries, a fact the reply
+	// never writes, or a second entry answering what the first already answers and so never
+	// being asked. The maps are read here as the registry reads them, and every entry is held to
+	// the promises its declaration makes.
+
+	paramNames = function(decl, name)
+		"Every parameter the endpoint takes, by name."
+		names = {}
+		for spec in decl.endpoints[name].params
+			names[spec.name] = 1
+		end for
+		return names
+	end function
+
+	// The predicates a declaration's reply can write: the literal ones in its fact lines, and the
+	// has-<field> a series writes for each field it was asked for or documents.
+	writtenPredicates = function(endpoint, spec)
+		found = {}
+		reply = endpoint.reply
+		if reply.hasIndex("facts") then
+			for fact in reply.facts
+				found[fact[0]] = 1
+			end for
+		end if
+		if reply.hasIndex("once") then
+			for fact in reply.once
+				found[fact[0]] = 1
+			end for
+		end if
+		if reply.hasIndex("series") then
+			for table in reply.series
+				fields = []
+				if table.hasIndex("variables") then fields = fields + table.variables
+				// A table is named in the request by its own name - hourly, daily, weekly - and the
+				// variables asked for there are the ones the reply is read for.
+				key = table.path[2:]
+				if spec.hasIndex("request") and spec.request.hasIndex(key) and
+						spec.request[key] isa list then
+					fields = fields + spec.request[key]
+				end if
+				for field in fields
+					found["has-" + field.replace("_", "-")] = 1
+				end for
+			end for
+		end if
+		return found
+	end function
+
+	entries = []
+	for decl in [ipwhois, geocode, openmeteo]
+		for name in decl.endpoints.indexes
+			endpoint = decl.endpoints[name]
+			if not endpoint.hasIndex("provides") then continue
+			specs = endpoint.provides
+			if not (specs isa list) then specs = [specs]
+			for spec in specs
+				entries.push({"service": decl.service, "endpoint": name, "decl": decl,
+					"spec": spec})
+			end for
+		end for
+	end for
+	h.check("the three shipped maps declare fifteen capabilities between them",
+		entries.len == 15)
+
+	// A field the request is filled with has to be a parameter the endpoint takes, or the
+	// declaration asks for a field the request cannot carry.
+	unaskable = []
+	unwritten = []
+	twice = []
+	collisions = []
+	perPredicate = {}
+	perFact = {}
+	for entry in entries
+		spec = entry.spec
+		said = entry.service + "/" + entry.endpoint
+		params = paramNames(entry.decl, entry.endpoint)
+		if spec.hasIndex("from") then
+			for field in spec.from.indexes
+				if not params.hasIndex(field) then unaskable.push(said + " asks by " + field)
+			end for
+		end if
+		if not (spec.fact isa list) or spec.fact.len < 3 then
+			unwritten.push(said + " declares no fact")
+		else
+			written = writtenPredicates(entry.decl.endpoints[entry.endpoint], spec)
+			if not written.hasIndex(spec.fact[0]) then
+				unwritten.push(said + " cannot write " + spec.fact[0])
+			end if
+			// Two entries of one service answering the same fact leave the second unasked, since
+			// the first that fits is the one a question asks - whether they sit on one endpoint or
+			// two. Two services declaring one fact are a second chance rather than a collision, so
+			// the service is part of the key and the endpoint is not.
+			pattern = entry.service + " " + spec.fact.join(" ")
+			if perFact.hasIndex(pattern) then collisions.push(pattern)
+			perFact[pattern] = 1
+			// One endpoint declaring one predicate twice is the same answer twice, whichever fact
+			// shape the two entries name.
+			predicate = said + " " + spec.fact[0]
+			if perPredicate.hasIndex(predicate) then twice.push(predicate)
+			perPredicate[predicate] = 1
+		end if
+	end for
+	h.check("every shipped declaration is asked only by parameters its endpoint takes",
+		unaskable.len == 0)
+	h.check("every shipped declaration's reply can write the fact it declares",
+		unwritten.len == 0)
+	h.check("no shipped declaration collides with another of its service",
+		collisions.len == 0)
+	h.check("no shipped endpoint declares the same predicate twice", twice.len == 0)
 end function

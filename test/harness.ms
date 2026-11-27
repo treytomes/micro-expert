@@ -15,6 +15,10 @@
 // options.filters and options.files narrow what runs, so a runner can ask for part of
 // the suite: a check runs when its name holds any filter given and it sits in any file
 // given. A check that is filtered out is counted as skipped and prints nothing.
+//
+// Two ways round that. require() records a check no filter can take away, for what a run depends on
+// whatever was asked for; documents() is what a case module asks before it touches a map - it reports
+// the missing document, counts the cases it costs as skipped, and says whether the module can go on.
 
 import "json"
 
@@ -48,14 +52,8 @@ record = function(name, status, where)
 	print "##TEST " + json.toJSON(entry, true)
 end function
 
-check = function(name, ok)
-	"Records one expectation, printing it so a failure names itself."
-	// stackTrace[0] is this check, so the case module that called it is one step up.
-	where = caller(stackTrace[1])
-	if not selected(name, where.file) then
-		tally.skipped = tally.skipped + 1
-		return
-	end if
+// What one check does to the totals, whichever way it got here.
+mark = function(name, ok, where)
 	if ok then
 		tally.passed = tally.passed + 1
 		print "PASS  " + name
@@ -65,6 +63,40 @@ check = function(name, ok)
 		print "FAIL  " + name
 		record(name, "fail", where)
 	end if
+end function
+
+check = function(name, ok)
+	"Records one expectation, printing it so a failure names itself."
+	// stackTrace[0] is this check, so the case module that called it is one step up.
+	where = caller(stackTrace[1])
+	if not selected(name, where.file) then
+		tally.skipped = tally.skipped + 1
+		return
+	end if
+	mark(name, ok, where)
+end function
+
+require = function(name, ok, why=null)
+	"One expectation no filter can take away: what every run depends on, whatever was asked for."
+	mark(name, ok, caller(stackTrace[1]))
+	if not ok and why isa error then print "    " + why.message
+end function
+
+documents = function(module, wanted)
+	"Whether every [[name, decl], ...] in `wanted` was read, printing the missing one and counting it."
+	all = true
+	// A run filtered to other files is told nothing - it was not going to run this module - but the
+	// module still stops here, because its cases would read a map that is not there.
+	about = matches(options.files, module)
+	for pair in wanted
+		if pair[1] isa map then continue
+		all = false
+		if about then
+			tally.skipped = tally.skipped + 1
+			print "    " + module + ": skipped - " + pair[0] + " was not read"
+		end if
+	end for
+	return all
 end function
 
 summary = function()

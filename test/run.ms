@@ -58,7 +58,7 @@ env["MS_IMPORT_PATH"] = savedImportPath
 
 // The API layer's client reaches the bundled json and stringUtil libraries, which a src/-only
 // import path hides, so it loads here, with the .env reader beside it.
-import "../src/api/client"
+import "../src/api/http_client"
 // Importing the .env reader puts the repository's .env into env; the suite pins the one setting
 // a declaration reads there, so a check never passes on this machine's file and fails on another's.
 // The geocoder's cases set and clear the variable themselves; every other request sees this value.
@@ -66,11 +66,12 @@ import "../src/dotenv"
 env["GEOCODE_MAPS_API_KEY"] = "test-key"
 import "../src/uid"
 import "../src/location"
-// The declared writer and the ipwho.is map it reads; `declared` below is the case module.
+// The declared writer and the loader that reads the three service documents beside it;
+// `declared` below is the case module.
 import "../src/services/declared"
-import "../src/services/ipwhois_map"
-import "../src/services/geocode_map"
-import "../src/services/openmeteo_map"
+import "../src/services/loader"
+// A declaration as a file: the reader, the writer, groups and arguments.
+import "../src/services/document"
 // The registry the service maps declare their capabilities in.
 import "../src/providers"
 
@@ -87,6 +88,8 @@ import "repl"
 import "schema"
 import "mermaid"
 import "loaders"
+import "serviceLoader"
+import "document"
 import "domain"
 import "options"
 import "arguments"
@@ -153,7 +156,7 @@ domainModule = globals["../src/domain"]
 optionsModule = globals["../src/options"]
 // The API layer's shared client, for the cases about the argument split and the parameter
 // engine. `arguments` and `parameters` are this suite's case modules for it.
-apiClient = globals["../src/api/client"]
+apiClient = globals["../src/api/http_client"]
 argumentCases = globals["arguments"]
 parameterCases = globals["parameters"]
 // src/dotenv.ms puts the .env's settings into env; `dotenv` is this suite's case module.
@@ -166,19 +169,53 @@ uidCases = globals["uid"]
 // module for it, named away from the session module the cases must not be confused with.
 locationModule = globals["../src/location"]
 locationCases = globals["location"]
-// src/services/declared.ms is the shared writer and src/services/ipwhois_map.ms is ipwho.is as the
-// map it reads; `declared` is this suite's case module for both.
+// src/services/declared.ms is the shared writer; `declared` is this suite's case module for it.
 declaredModule = globals["../src/services/declared"]
-declaredMap = globals["../src/services/ipwhois_map"]
 declaredCases = globals["declared"]
-// src/services/geocode_map.ms is geocode.maps.co as the same writer reads it; `geocoder` is this
-// suite's case module for it.
-geocodeMap = globals["../src/services/geocode_map"]
+// `geocoder` and `openmeteo` are this suite's case modules for the two documents the loader reads
+// beside it.
 geocoderCases = globals["geocoder"]
-// src/services/openmeteo_map.ms is Open-Meteo's endpoints as the same writer reads them;
-// `openmeteo` is this suite's case module for it.
-openmeteoMap = globals["../src/services/openmeteo_map"]
 openmeteoCases = globals["openmeteo"]
+// src/services/loader.ms finds every service document in a folder and reads it; `document` below
+// is this suite's case module for the reader it reads them with, and `serviceLoader` its case
+// module for the loader itself.
+loaderModule = globals["../src/services/loader"]
+serviceLoaderCases = globals["serviceLoader"]
+// src/services/document.ms reads and writes a declaration as a file; `document` is this suite's
+// case module for it.
+documentModule = globals["../src/services/document"]
+documentCases = globals["document"]
+// The three shipped services are documents in ./services, so one call reads them all. The loader
+// places that folder through knowledge.resolvePath, the way the domain's data files are placed, and
+// a refused file is an error beside its name rather than a stop - so a document left unreadable
+// fails by name here rather than in a round trip later.
+loaded = loaderModule.load(documentModule, globals["../src/knowledge"])
+harness.require("the loader reads every .grfon in ./services", loaded isa map, loaded)
+if not (loaded isa map) then
+	print "error: could not load the service documents in src/services"
+	exit 1
+end if
+for name in ["ipwhois.grfon", "geocode.grfon", "openmeteo.grfon"]
+	if not loaded.hasIndex(name) then
+		print "error: the loader did not find " + name
+		exit 1
+	end if
+	if loaded[name] isa error then
+		print "error: " + loaded[name].message
+		exit 1
+	end if
+end for
+// Each document declares the service it is meant to, so a file standing beside the wrong name is
+// caught here.
+for pair in [["ipwhois.grfon", "ipwho.is"], ["geocode.grfon", "geocode.maps.co"],
+		["openmeteo.grfon", "open-meteo"]]
+	harness.require(pair[0] + " reads as " + pair[1],
+		loaded[pair[0]] isa map and loaded[pair[0]].service == pair[1], loaded[pair[0]])
+end for
+// Read once here, so the cases below take the map rather than the module.
+ipwhoisDecl = loaded["ipwhois.grfon"]
+geocodeDecl = loaded["geocode.grfon"]
+openmeteoDecl = loaded["openmeteo.grfon"]
 // src/providers.ms is the registry of what those maps say they can answer; `providers` is this
 // suite's case module for it.
 providersModule = globals["../src/providers"]
@@ -218,7 +255,7 @@ if cliLibrary == null or optionsModule == null or optionsModule.hasIndex("declar
 end if
 
 if apiClient == null or apiClient.hasIndex("splitArguments") == 0 then
-	print "error: could not import ../src/api/client"
+	print "error: could not import ../src/api/http_client"
 	exit 1
 end if
 if dotenvModule == null or dotenvModule.hasIndex("load") == 0 then
@@ -237,16 +274,8 @@ if declaredModule == null or declaredModule.hasIndex("read") == 0 then
 	print "error: could not import ../src/services/declared"
 	exit 1
 end if
-if declaredMap == null or declaredMap.hasIndex("build") == 0 then
-	print "error: could not import ../src/services/ipwhois_map"
-	exit 1
-end if
-if geocodeMap == null or geocodeMap.hasIndex("build") == 0 then
-	print "error: could not import ../src/services/geocode_map"
-	exit 1
-end if
-if openmeteoMap == null or openmeteoMap.hasIndex("build") == 0 then
-	print "error: could not import ../src/services/openmeteo_map"
+if loaderModule == null or loaderModule.hasIndex("load") == 0 then
+	print "error: could not import ../src/services/loader"
 	exit 1
 end if
 
@@ -304,18 +333,20 @@ dateCases.run(triples, parser, dates, harness)
 schema.run(triples, parser, schemaLoader, harness)
 mermaidCases.run(triples, mermaidModule, parser, schemaLoader, factsLoader, rulesLoader, harness)
 loaders.run(triples, rulesLoader, factsLoader, schemaLoader, harness)
+serviceLoaderCases.run(loaderModule, documentModule, globals["../src/knowledge"], harness)
 globals["domain"].run(domainModule, harness)
 globals["options"].run(cliLibrary, optionsModule, harness)
 argumentCases.run(cliLibrary, apiClient, harness)
 parameterCases.run(apiClient, harness)
 dotenvCases.run(dotenvModule, harness)
 uidCases.run(uidModule, triples, harness)
-locationCases.run(locationModule, uidModule, triples, apiClient, declaredModule, declaredMap, harness)
-declaredCases.run(declaredModule, declaredMap, apiClient, triples, uidModule, harness)
-geocoderCases.run(declaredModule, geocodeMap, apiClient, triples, uidModule, schemaLoader, harness)
-openmeteoCases.run(declaredModule, openmeteoMap, apiClient, triples, uidModule, schemaLoader, harness)
-providersCases.run(providersModule, declaredModule, apiClient, triples, uidModule, declaredMap,
-	geocodeMap, openmeteoMap, sessionModule, rules, engineModule, cliLibrary, optionsModule, parser,
+locationCases.run(locationModule, uidModule, triples, apiClient, declaredModule, ipwhoisDecl, harness)
+declaredCases.run(declaredModule, ipwhoisDecl, apiClient, triples, uidModule, harness)
+documentCases.run(documentModule, geocodeDecl, openmeteoDecl, ipwhoisDecl, harness)
+geocoderCases.run(declaredModule, geocodeDecl, apiClient, triples, uidModule, schemaLoader, harness)
+openmeteoCases.run(declaredModule, openmeteoDecl, apiClient, triples, uidModule, schemaLoader, harness)
+providersCases.run(providersModule, declaredModule, apiClient, triples, uidModule, ipwhoisDecl,
+	geocodeDecl, openmeteoDecl, sessionModule, rules, engineModule, cliLibrary, optionsModule, parser,
 	harness)
 notebookCases.run(notebookModule, engineModule, sessionModule, triples, rules, cliLibrary, optionsModule, harness)
 

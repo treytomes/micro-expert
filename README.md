@@ -603,7 +603,7 @@ there is no checked-in binary to fall back on.
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms
-1360 passed, 0 failed
+1410 passed, 0 failed
 ```
 
 `micro-expert.bat` and `micro-expert.sh` read that variable out of `.env`; a plain shell
@@ -616,15 +616,18 @@ per check to read:
 
 ```
 > "%MINISCRIPT_EXE_PATH%" test\run.ms --json --file session.ms --filter "a rule line parses"
+...
 PASS  a rule line parses
 ##TEST {"name":"a rule line parses","status":"pass","file":"session.ms","line":31}
 
-1 passed, 0 failed, 1359 skipped
-##END {"passed":1,"failed":0,"skipped":1356}
+5 passed, 0 failed, 1405 skipped
+##END {"passed":5,"failed":0,"skipped":1405}
 ```
 
 `--filter` takes a substring of a check's name, `--file` the name of a case module, and
-`--json` the records; a check runs when it matches any of each that are given. The `##END`
+`--json` the records; a check runs when it matches any of each that are given. A run makes the
+four checks no filter can take away first - the folder scan and the three shipped declarations -
+which is why the one check above reports five. The `##END`
 line is the one the exit code cannot give you - see the caveat above - so it is what says
 the suite reached the end. The VS Code extension's Testing panel passes exactly these
 arguments, so its tree and its runs come from the suite rather than from a list kept
@@ -635,13 +638,15 @@ The parser, the logger and the repl library are their own repositories with thei
 by the same interpreter, and this suite imports none of them. It keeps one check about the
 repl library, and that one is about this repository rather than the library: `examples/notes.ms`
 is a whole program written on the library and nothing else, and `test/repl.ms` is what says so.
-The 1360 cover the program itself: display and parsing (71), the knowledge data format (151),
+The 1410 cover the program itself: display and parsing (71), the knowledge data format (154),
 the predicate schema (50), the date and time types (79), the loaders (26), proofs and
-explanations (77), the missing-fact report (34), recursion and cycle handling (13), relations
+explanations (89), the missing-fact report (34), recursion and cycle handling (13), relations
 including the family rules (104), the session at the prompt (247), the notebook's cells (40),
 the notes example on the repl library (1), the command line (8), the domain (10), the Mermaid
-diagram (49), the id generator (21), the location module (15), the declared writer (29), the provider registry (132), the geocode mapping (58), the Open-Meteo mapping (42), and the API
-layer's argument split, parameter engine and .env reader (77).
+diagram (49), the id generator (21), the location module (16), the declared writer (29), the
+provider registry (148), the geocode mapping (58), the Open-Meteo mapping (44), the provider
+document reader (32), the service loader (6), the folder scan and the three shipped
+declarations (4), and the API layer's argument split, parameter engine and .env reader (77).
 
 ## Repository layout
 
@@ -663,12 +668,15 @@ src/mermaid.ms       the facts as a Mermaid flowchart
 data/facts.kb        the 54 facts, as text
 data/rules.kb        the sixteen rules, as text
 data/schema.kb       the field types, as text
+services/ipwhois.grfon     ipwho.is, as a declaration
+services/geocode.grfon     geocode.maps.co, as a declaration
+services/openmeteo.grfon   Open-Meteo, as a declaration
 examples/notes.ms    a whole host for the repl library that is not a knowledge base
 examples/explore.msnb  a MiniScript notebook that loads the family knowledge base
 src/cli/             submodule: micro-cli, the argument parser
 src/logging/         submodule: micro-logging, the logger
 src/repl/            submodule: micro-repl, the loop and its commands
-test/                the 1160 checks and their runner
+test/                the 1410 checks and their runner
 docs/articles/       the long-form write-up
 docs/kb-grammar.md   the .kb grammar, its constraints and its schema
 docs/constraints.md  the seven built-in constraints, one by one

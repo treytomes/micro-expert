@@ -20,15 +20,16 @@ import "session"
 import "rule"
 import "engine"
 import "options"
-// The API layer, the declared writer and the three service maps are here for the provider
-// registry: src/providers.ms reads what each map's endpoints declare they can answer, so a
+// The API layer, the declared writer and the service loader are here for the provider registry:
+// src/providers.ms reads what each service document's endpoints declare they can answer, so a
 // question needing a fact one of them supplies asks that service rather than the reader.
-import "api/client"
+import "api/http_client"
 import "services/declared"
-import "services/ipwhois_map"
-import "services/geocode_map"
-import "services/openmeteo_map"
+// The reader a service document is read with, and the loader that finds the documents.
+import "services/document"
+import "services/loader"
 import "uid"
+import "knowledge"
 import "providers"
 
 // src/cli and src/logging are submodules, so their modules live at <folder>/<file>:
@@ -156,7 +157,7 @@ if engineSession isa error then
 end if
 
 // ── The services a question may ask ──────────────────────────────────────────
-// The maps in src/services/ declare three services, and an endpoint says in its own "provides"
+// The maps in services/ declare three services, and an endpoint says in its own "provides"
 // block which fact it can answer: ipwho.is's lookup answers has-location(session, ?place), so
 // the prompt's has-location(session, ?p) asks the service when it needs to and the domain's is-a
 // rule types the place it names; geocode.maps.co answers a place's coordinates by its name and
@@ -166,9 +167,23 @@ end if
 // --offline is the one option that decides this: with it, no registry is built and no question
 // can reach the network, so a run answers from its files and the prompt.
 if not engineSession.offline then
-	engineSession.providers = providers.registry(globals["api/client"], globals["services/declared"],
-		globals["uid"], [globals["services/ipwhois_map"].build(),
-			globals["services/geocode_map"].build(), globals["services/openmeteo_map"].build()])
+	// Every service is a document in ./services, and the loader finds them all: a
+	// refused file costs that one service, not the run.
+	loaded = globals["services/loader"].load(globals["services/document"], globals["knowledge"])
+	maps = []
+	if loaded isa error then
+		log.warning "no services are on: {why}", {"why": loaded.message}
+	else
+		for kv in loaded
+			if kv.value isa error then
+				log.warning kv.key + " is off: {why}", {"why": kv.value.message}
+			else
+				maps.push kv.value
+			end if
+		end for
+	end if
+	engineSession.providers = providers.registry(globals["api/http_client"],
+		globals["services/declared"], globals["uid"], maps)
 end if
 
 // 'known', not 'fact': a top-level loop variable is a global here, so naming it
