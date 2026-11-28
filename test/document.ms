@@ -238,4 +238,13 @@ run = function(document, geocode, openmeteo, ipwhois, h)
 		"params": [{"name": "q", "doc": "@home; 50% // note: a:b leading space"}]}}}
 	h.check("text() keeps a value that only escaping can carry",
 		document.read(document.text(awkward)) == awkward)
+
+	// ── The editor's fixture is still a declaration ─────────────────────────
+	// vscode-miniscript/e2e/fixtures/sample.grfon is the document the editor smoke test opens, so
+	// it has to stay one the reader accepts: a fixture that only looked like a document would let
+	// the grammar's sample drift from the format while both suites stayed green.
+	refusal = reason(document,
+		file.loadRaw("vscode-miniscript/e2e/fixtures/sample.grfon").utf8)
+	if refusal != "" then print "    the editor fixture was refused: " + refusal
+	h.check("the editor's GRFON fixture resolves as a declaration", refusal == "")
 end function
